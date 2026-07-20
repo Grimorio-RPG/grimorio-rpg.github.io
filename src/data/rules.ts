@@ -107,6 +107,24 @@ export const ALINHAMENTOS = [
 // Compra de pontos / arranjo padrão
 export const ARRANJO_PADRAO = [15, 14, 13, 12, 10, 8]
 
+// Condições (2024) com explicações curtas para iniciantes.
+export const CONDICOES: { nome: string; desc: string }[] = [
+  { nome: 'Agarrado', desc: 'Seu deslocamento é 0. Não pode se beneficiar de bônus ao deslocamento.' },
+  { nome: 'Amedrontado', desc: 'Desvantagem em testes e ataques enquanto vê a fonte do medo. Não pode se aproximar dela.' },
+  { nome: 'Atordoado', desc: 'Incapacitado, não se move e fala com dificuldade. Ataques contra você têm vantagem.' },
+  { nome: 'Caído', desc: 'Só pode engatinhar. Desvantagem em ataques. Ataques corpo a corpo contra você têm vantagem; à distância, desvantagem.' },
+  { nome: 'Cego', desc: 'Não enxerga e falha em testes que dependem de visão. Seus ataques têm desvantagem; contra você, vantagem.' },
+  { nome: 'Enfeitiçado', desc: 'Não pode atacar quem o enfeitiçou. Essa criatura tem vantagem em interações sociais com você.' },
+  { nome: 'Envenenado', desc: 'Desvantagem em ataques e testes de atributo.' },
+  { nome: 'Impedido', desc: 'Deslocamento 0. Desvantagem em ataques e em salvaguardas de Destreza. Ataques contra você têm vantagem.' },
+  { nome: 'Incapacitado', desc: 'Não pode realizar ações, ações bônus nem reações.' },
+  { nome: 'Inconsciente', desc: 'Incapacitado, caído e sem consciência. Ataques corpo a corpo contra você são acertos críticos.' },
+  { nome: 'Invisível', desc: 'Impossível de ver sem ajuda especial. Seus ataques têm vantagem; contra você, desvantagem.' },
+  { nome: 'Paralisado', desc: 'Incapacitado, não se move nem fala. Falha em salvaguardas de FOR e DES. Ataques de perto são críticos.' },
+  { nome: 'Petrificado', desc: 'Transformado em pedra. Incapacitado, resistente a dano, imune a veneno e doenças.' },
+  { nome: 'Surdo', desc: 'Não ouve e falha em testes que dependem de audição.' },
+]
+
 // Perícias concedidas por cada classe (quantidade a escolher + opções).
 // Usado pelo assistente de criação para guiar a escolha.
 const TODAS_PERICIAS = SKILLS.map((s) => s.key)

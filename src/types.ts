@@ -46,6 +46,34 @@ export interface SpellRef {
   preparada: boolean
 }
 
+/** Espaços de magia de um nível (1 a 9). */
+export interface SpellSlot {
+  total: number
+  usados: number
+}
+
+export interface InventoryItem {
+  id: string
+  nome: string
+  qtd: number
+  peso: number // por unidade, em kg (0 = ignorar)
+  notas: string
+}
+
+/** Moedas: cobre, prata, electro, ouro, platina. */
+export interface Moedas {
+  pc: number
+  pp: number
+  pe: number
+  po: number
+  pl: number
+}
+
+export interface TestesMorte {
+  sucessos: number // 0-3
+  falhas: number // 0-3
+}
+
 export interface Character {
   id: string
   updatedAt: number
@@ -82,6 +110,16 @@ export interface Character {
   // Magias
   atributoConjuracao: AbilityKey | null
   magias: SpellRef[]
+  espacosMagia: SpellSlot[] // 9 posições: índice 0 = nível 1, ... índice 8 = nível 9
+
+  // Estado / condições
+  testesMorte: TestesMorte
+  exaustao: number // 0-6 (regra 2024)
+  condicoes: string[] // nomes das condições ativas
+
+  // Inventário
+  moedas: Moedas
+  inventario: InventoryItem[]
 
   // Recursos & Diversos
   inspiracaoHeroica: boolean

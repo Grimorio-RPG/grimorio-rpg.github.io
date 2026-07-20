@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import type { AbilityKey, Attack, Character, SkillKey, SpellRef } from '../types'
+import type { AbilityKey, Attack, Character, InventoryItem, SkillKey, SpellRef } from '../types'
 import {
   ABILITIES,
   ALINHAMENTOS,
   ANTECEDENTES,
   CLASSES,
+  CONDICOES,
   ESPECIES,
   SKILLS,
 } from '../data/rules'
@@ -88,15 +89,19 @@ export default function CharacterSheet() {
         </div>
       </div>
 
+      <ConditionsSection char={char} update={update} />
+
       <AttacksSection char={char} update={update} />
       <SpellsSection char={char} update={update} info={info} />
+
+      <InventorySection char={char} update={update} />
 
       <div className="grid gap-6 md:grid-cols-2">
         <SectionCard title="Características & Traços" hint="Habilidades da sua classe, espécie e antecedente. Ex: Fúria, Visão no Escuro, Segunda História.">
           <TextArea value={char.caracteristicas} onChange={(v) => update({ caracteristicas: v })} rows={6} placeholder="Liste aqui os traços que seu personagem ganhou…" />
         </SectionCard>
-        <SectionCard title="Equipamento & Itens">
-          <TextArea value={char.equipamento} onChange={(v) => update({ equipamento: v })} rows={6} placeholder="Armas, armaduras, poções, moedas…" />
+        <SectionCard title="Anotações de equipamento">
+          <TextArea value={char.equipamento} onChange={(v) => update({ equipamento: v })} rows={6} placeholder="Armadura equipada, sintonização, observações…" />
         </SectionCard>
         <SectionCard title="Idiomas & Proficiências">
           <Field label="Idiomas">
@@ -353,7 +358,74 @@ function CombatSection({ char, update }: { char: Character; update: (p: Partial<
           <b className="text-parchment-50">{passivePerception(char)}</b>
         </span>
       </div>
+
+      {/* Testes de morte, exaustão e descanso */}
+      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <div className="rounded-xl border border-white/10 bg-ink-900/40 p-3">
+          <div className="mb-2 flex items-center gap-1 panel-title">
+            Testes de morte
+            <InfoDot>Quando você cai a 0 PV, role um d20 no seu turno: 10+ é sucesso, menos é falha. 3 sucessos = estável; 3 falhas = morte.</InfoDot>
+          </div>
+          <div className="space-y-1.5">
+            <Pips label="Sucessos" cor="bg-emerald-500" total={3} valor={char.testesMorte.sucessos} onChange={(v) => update({ testesMorte: { ...char.testesMorte, sucessos: v } })} />
+            <Pips label="Falhas" cor="bg-dragon-500" total={3} valor={char.testesMorte.falhas} onChange={(v) => update({ testesMorte: { ...char.testesMorte, falhas: v } })} />
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-white/10 bg-ink-900/40 p-3">
+          <div className="mb-2 flex items-center gap-1 panel-title">
+            Exaustão
+            <InfoDot>Regra 2024: cada nível dá −2 cumulativo em testes de d20 e −1,5 m de deslocamento. Nível 6 = morte. Um descanso longo remove 1 nível.</InfoDot>
+          </div>
+          <div className="flex items-center justify-center gap-3">
+            <button className="btn-ghost px-2 py-1 text-xs" disabled={char.exaustao <= 0} onClick={() => update({ exaustao: Math.max(0, char.exaustao - 1) })}>−</button>
+            <span className="font-display text-2xl text-parchment-50">{char.exaustao}</span>
+            <button className="btn-ghost px-2 py-1 text-xs" disabled={char.exaustao >= 6} onClick={() => update({ exaustao: Math.min(6, char.exaustao + 1) })}>+</button>
+          </div>
+        </div>
+
+        <div className="flex flex-col justify-center gap-2 rounded-xl border border-white/10 bg-ink-900/40 p-3">
+          <button
+            className="btn-primary text-sm"
+            onClick={() => {
+              if (!confirm('Descanso longo: restaura PV ao máximo, zera espaços de magia e testes de morte, remove PV temporário e reduz 1 nível de exaustão. Continuar?')) return
+              update({
+                pvAtual: char.pvMax,
+                pvTemporario: 0,
+                testesMorte: { sucessos: 0, falhas: 0 },
+                exaustao: Math.max(0, char.exaustao - 1),
+                espacosMagia: char.espacosMagia.map((s) => ({ ...s, usados: 0 })),
+              })
+            }}
+          >
+            🌙 Descanso longo
+          </button>
+          <p className="text-center text-[11px] leading-snug text-parchment-200/50">Restaura tudo para um novo dia de aventura.</p>
+        </div>
+      </div>
     </SectionCard>
+  )
+}
+
+/** Fileira de marcadores clicáveis (para testes de morte). */
+function Pips({ label, cor, total, valor, onChange }: { label: string; cor: string; total: number; valor: number; onChange: (v: number) => void }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="w-16 text-xs text-parchment-200/70">{label}</span>
+      <div className="flex gap-1.5">
+        {Array.from({ length: total }, (_, i) => {
+          const cheio = i < valor
+          return (
+            <button
+              key={i}
+              aria-label={`${label} ${i + 1}`}
+              onClick={() => onChange(cheio && i + 1 === valor ? i : i + 1)}
+              className={`h-4 w-4 rounded-full border transition ${cheio ? `${cor} border-transparent` : 'border-white/30'}`}
+            />
+          )
+        })}
+      </div>
+    </div>
   )
 }
 
@@ -539,6 +611,8 @@ function SpellsSection({
         </p>
       )}
 
+      <SpellSlots char={char} update={update} />
+
       {/* Busca / adicionar */}
       <div className="relative mb-4">
         <input
@@ -602,6 +676,177 @@ function SpellsSection({
               </ul>
             </div>
           ))}
+        </div>
+      )}
+    </SectionCard>
+  )
+}
+
+// ---------------------------------------------------------------------------
+function SpellSlots({ char, update }: { char: Character; update: (p: Partial<Character>) => void }) {
+  function setSlot(nivel: number, patch: Partial<{ total: number; usados: number }>) {
+    const espacos = char.espacosMagia.map((s, i) => (i === nivel - 1 ? { ...s, ...patch } : s))
+    update({ espacosMagia: espacos })
+  }
+  const algum = char.espacosMagia.some((s) => s.total > 0)
+  return (
+    <div className="mb-4 rounded-lg border border-white/10 bg-ink-900/40 p-3">
+      <div className="mb-2 flex items-center gap-1 panel-title">
+        Espaços de magia
+        <InfoDot>Recursos que você gasta para conjurar magias de 1º nível ou mais. Defina o total de cada nível e clique nos marcadores conforme usa. O descanso longo recarrega tudo.</InfoDot>
+      </div>
+      {!algum && <p className="mb-2 text-xs text-parchment-200/50">Defina o total de espaços por nível (deixe 0 nos que você não tem).</p>}
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+        {char.espacosMagia.map((slot, i) => {
+          const nivel = i + 1
+          return (
+            <div key={nivel} className="flex items-center gap-2 rounded-md bg-white/5 px-2 py-1.5">
+              <span className="w-14 shrink-0 text-xs text-parchment-200/70">Nível {nivel}</span>
+              <input
+                type="number"
+                min={0}
+                max={9}
+                value={slot.total}
+                onChange={(e) => {
+                  const total = Math.max(0, parseInt(e.target.value, 10) || 0)
+                  setSlot(nivel, { total, usados: Math.min(slot.usados, total) })
+                }}
+                title="Total"
+                className="w-12 shrink-0 rounded border border-white/10 bg-ink-800 px-1 py-0.5 text-center text-xs outline-none focus:border-arcane-400"
+              />
+              <div className="flex flex-wrap gap-1">
+                {Array.from({ length: slot.total }, (_, j) => {
+                  const usado = j < slot.usados
+                  return (
+                    <button
+                      key={j}
+                      aria-label={`Espaço ${j + 1} nível ${nivel}`}
+                      title={usado ? 'Gasto' : 'Disponível'}
+                      onClick={() => setSlot(nivel, { usados: usado && j + 1 === slot.usados ? j : j + 1 })}
+                      className={`h-3.5 w-3.5 rounded-sm border transition ${usado ? 'border-transparent bg-arcane-500' : 'border-white/30'}`}
+                    />
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+function ConditionsSection({ char, update }: { char: Character; update: (p: Partial<Character>) => void }) {
+  function toggle(nome: string) {
+    const tem = char.condicoes.includes(nome)
+    update({ condicoes: tem ? char.condicoes.filter((c) => c !== nome) : [...char.condicoes, nome] })
+  }
+  return (
+    <SectionCard title="Condições" hint="Estados que afetam o personagem em jogo. Clique para ativar; passe o mouse para ver o efeito.">
+      <div className="flex flex-wrap gap-2">
+        {CONDICOES.map((c) => {
+          const ativa = char.condicoes.includes(c.nome)
+          return (
+            <button
+              key={c.nome}
+              onClick={() => toggle(c.nome)}
+              title={c.desc}
+              className={`rounded-full border px-3 py-1 text-sm transition ${
+                ativa ? 'border-dragon-400 bg-dragon-500/20 text-parchment-50' : 'border-white/10 text-parchment-200/70 hover:bg-white/5'
+              }`}
+            >
+              {ativa ? '● ' : ''}{c.nome}
+            </button>
+          )
+        })}
+      </div>
+      {char.condicoes.length > 0 && (
+        <ul className="mt-4 space-y-1.5 border-t border-white/10 pt-3 text-sm">
+          {CONDICOES.filter((c) => char.condicoes.includes(c.nome)).map((c) => (
+            <li key={c.nome} className="leading-relaxed">
+              <b className="text-dragon-400">{c.nome}.</b>{' '}
+              <span className="text-parchment-200/80">{c.desc}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </SectionCard>
+  )
+}
+
+// ---------------------------------------------------------------------------
+const MOEDAS: { key: keyof Character['moedas']; nome: string; cor: string }[] = [
+  { key: 'pc', nome: 'PC', cor: 'text-amber-700' },
+  { key: 'pp', nome: 'PP', cor: 'text-slate-300' },
+  { key: 'pe', nome: 'PE', cor: 'text-cyan-300' },
+  { key: 'po', nome: 'PO', cor: 'text-amber-400' },
+  { key: 'pl', nome: 'PL', cor: 'text-sky-200' },
+]
+
+function InventorySection({ char, update }: { char: Character; update: (p: Partial<Character>) => void }) {
+  function addItem() {
+    const novo: InventoryItem = { id: uid(), nome: '', qtd: 1, peso: 0, notas: '' }
+    update({ inventario: [...char.inventario, novo] })
+  }
+  function patch(id: string, p: Partial<InventoryItem>) {
+    update({ inventario: char.inventario.map((it) => (it.id === id ? { ...it, ...p } : it)) })
+  }
+  function remove(id: string) {
+    update({ inventario: char.inventario.filter((it) => it.id !== id) })
+  }
+  const pesoTotal = char.inventario.reduce((acc, it) => acc + (it.peso || 0) * (it.qtd || 0), 0)
+
+  return (
+    <SectionCard
+      title="Inventário & Moedas"
+      hint="Itens que você carrega e seu dinheiro. PC=cobre, PP=prata, PE=electro, PO=ouro, PL=platina."
+      action={<button className="btn-ghost" onClick={addItem}>+ Item</button>}
+    >
+      {/* Moedas */}
+      <div className="mb-4 flex flex-wrap gap-2">
+        {MOEDAS.map((m) => (
+          <label key={m.key} className="flex items-center gap-2 rounded-lg border border-white/10 bg-ink-900/40 px-3 py-2">
+            <span className={`font-display text-sm font-bold ${m.cor}`}>{m.nome}</span>
+            <input
+              type="number"
+              min={0}
+              value={char.moedas[m.key]}
+              onChange={(e) => update({ moedas: { ...char.moedas, [m.key]: Math.max(0, parseInt(e.target.value, 10) || 0) } })}
+              className="w-16 rounded border border-white/10 bg-ink-800 px-1 py-1 text-center text-sm outline-none focus:border-arcane-400"
+            />
+          </label>
+        ))}
+      </div>
+
+      {/* Itens */}
+      {char.inventario.length === 0 ? (
+        <p className="py-2 text-center text-sm text-parchment-200/50">Nenhum item. Clique em “+ Item” para adicionar.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left panel-title">
+                <th className="pb-2 pr-3 font-semibold">Item</th>
+                <th className="pb-2 pr-3 font-semibold">Qtd</th>
+                <th className="pb-2 pr-3 font-semibold">Peso (kg)</th>
+                <th className="pb-2 pr-3 font-semibold">Notas</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {char.inventario.map((it) => (
+                <tr key={it.id}>
+                  <td className="py-1 pr-2"><input className="stat-input" value={it.nome} placeholder="Poção de cura" onChange={(e) => patch(it.id, { nome: e.target.value })} /></td>
+                  <td className="py-1 pr-2"><input type="number" min={0} className="stat-input w-16 text-center" value={it.qtd} onChange={(e) => patch(it.id, { qtd: Math.max(0, parseInt(e.target.value, 10) || 0) })} /></td>
+                  <td className="py-1 pr-2"><input type="number" min={0} step={0.1} className="stat-input w-20 text-center" value={it.peso} onChange={(e) => patch(it.id, { peso: Math.max(0, parseFloat(e.target.value) || 0) })} /></td>
+                  <td className="py-1 pr-2"><input className="stat-input" value={it.notas} placeholder="Sintonização, efeito…" onChange={(e) => patch(it.id, { notas: e.target.value })} /></td>
+                  <td className="py-1"><button onClick={() => remove(it.id)} className="px-2 text-parchment-200/40 hover:text-dragon-400" aria-label="Remover">✕</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {pesoTotal > 0 && <p className="mt-2 text-right text-xs text-parchment-200/50">Peso total: <b className="text-parchment-100">{pesoTotal.toFixed(1)} kg</b></p>}
         </div>
       )}
     </SectionCard>
