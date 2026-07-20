@@ -207,6 +207,35 @@ export interface Battle {
   combatentes: Combatant[]
 }
 
+// ---------------------------------------------------------------------------
+// Mapa / Mesa Virtual (VTT)
+// ---------------------------------------------------------------------------
+
+export interface Token {
+  id: string
+  nome: string
+  imagemUrl: string // imagem vista pelo DM
+  imagemJogadorUrl: string // imagem vista pelos jogadores (fallback: imagemUrl)
+  origem: 'aliado' | 'inimigo' | 'objeto'
+  x: number // posição no mapa, fração 0..1
+  y: number // posição no mapa, fração 0..1
+  tamanho: number // em quadrados da grade (1 = médio)
+  cor: string // cor do anel do token
+  oculto: boolean // escondido dos jogadores
+  conhecimento: KnowledgeLevel // p/ inimigos: herda do bestiário
+}
+
+export interface MapScene {
+  updatedAt: number
+  nome: string
+  mapaUrl: string // data URL da imagem do mapa
+  celPx: number // tamanho do quadrado da grade, em px de tela
+  mostrarGrade: boolean
+  offsetX: number // deslocamento da grade em px
+  offsetY: number
+  tokens: Token[]
+}
+
 export interface Monster {
   id: string
   updatedAt: number
