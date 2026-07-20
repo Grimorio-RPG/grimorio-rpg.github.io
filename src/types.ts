@@ -120,3 +120,32 @@ export interface Campaign {
   npcs: Npc[]
   sessoes: SessionEntry[]
 }
+
+// ---------------------------------------------------------------------------
+// Bestiário
+// ---------------------------------------------------------------------------
+
+export interface MonsterAction {
+  id: string
+  nome: string
+  descricao: string // ex: "Cimitarra. +4 para acertar, 1d6+2 de dano cortante."
+}
+
+export interface Monster {
+  id: string
+  updatedAt: number
+  nome: string
+  imagemUrl: string // URL ou data URL de uma foto
+  tipo: string // ex: "Humanoide (goblinoide)"
+  tamanho: string // Miúdo, Pequeno, Médio, Grande, Enorme, Colossal
+  nd: string // Nível de Desafio, ex: "1/4"
+  ca: number
+  pvMax: number
+  pvAtual: number
+  deslocamento: string // ex: "9 m, voo 18 m"
+  atributos: Abilities
+  tracos: string // habilidades passivas (texto livre)
+  acoes: MonsterAction[]
+  taticas: string // notas do DM (como usar em combate)
+  revelado: boolean // se o grupo já viu (uso futuro na visão dos jogadores)
+}
