@@ -36,8 +36,11 @@ export default function CharactersPage() {
       />
 
       <div className="mb-6 flex flex-wrap gap-3">
-        <button className="btn-primary" onClick={criar}>
-          + Nova ficha
+        <button className="btn-primary" onClick={() => navigate('/fichas/novo')}>
+          ✨ Criar com assistente
+        </button>
+        <button className="btn-ghost" onClick={criar}>
+          + Ficha em branco
         </button>
         <button className="btn-ghost" onClick={() => fileRef.current?.click()}>
           ⬆ Importar ficha
@@ -56,7 +59,7 @@ export default function CharactersPage() {
       </div>
 
       {characters.length === 0 ? (
-        <EmptyState onCreate={criar} />
+        <EmptyState onCreate={() => navigate('/fichas/novo')} />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {characters.map((c) => (

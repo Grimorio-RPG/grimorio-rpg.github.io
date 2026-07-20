@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import Layout from './components/Layout'
 import CharactersPage from './pages/CharactersPage'
+import CharacterWizard from './pages/CharacterWizard'
 import CharacterSheet from './pages/CharacterSheet'
 import SpellsPage from './pages/SpellsPage'
 import BestiaryPage from './pages/BestiaryPage'
@@ -13,6 +14,7 @@ export default function App() {
       <Route path="/" element={<Layout />}>
         <Route index element={<Navigate to="/fichas" replace />} />
         <Route path="fichas" element={<CharactersPage />} />
+        <Route path="fichas/novo" element={<CharacterWizard />} />
         <Route path="fichas/:id" element={<CharacterSheet />} />
         <Route path="feiticos" element={<SpellsPage />} />
         <Route path="bestiario" element={<BestiaryPage />} />

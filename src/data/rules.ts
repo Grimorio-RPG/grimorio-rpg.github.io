@@ -106,3 +106,23 @@ export const ALINHAMENTOS = [
 
 // Compra de pontos / arranjo padrão
 export const ARRANJO_PADRAO = [15, 14, 13, 12, 10, 8]
+
+// Perícias concedidas por cada classe (quantidade a escolher + opções).
+// Usado pelo assistente de criação para guiar a escolha.
+const TODAS_PERICIAS = SKILLS.map((s) => s.key)
+
+export const PERICIAS_POR_CLASSE: Record<string, { quantidade: number; opcoes: SkillKey[] }> = {
+  'Bárbaro': { quantidade: 2, opcoes: ['lidarComAnimais', 'atletismo', 'intimidacao', 'natureza', 'percepcao', 'sobrevivencia'] },
+  'Bardo': { quantidade: 3, opcoes: TODAS_PERICIAS },
+  'Bruxo': { quantidade: 2, opcoes: ['arcanismo', 'blefar', 'historia', 'intimidacao', 'investigacao', 'natureza', 'religiao'] },
+  'Clérigo': { quantidade: 2, opcoes: ['historia', 'intuicao', 'medicina', 'persuasao', 'religiao'] },
+  'Druida': { quantidade: 2, opcoes: ['arcanismo', 'lidarComAnimais', 'intuicao', 'medicina', 'natureza', 'percepcao', 'religiao', 'sobrevivencia'] },
+  'Feiticeiro': { quantidade: 2, opcoes: ['arcanismo', 'blefar', 'intuicao', 'intimidacao', 'persuasao', 'religiao'] },
+  'Guerreiro': { quantidade: 2, opcoes: ['acrobacia', 'lidarComAnimais', 'atletismo', 'historia', 'intuicao', 'intimidacao', 'percepcao', 'sobrevivencia'] },
+  'Ladino': { quantidade: 4, opcoes: ['acrobacia', 'atletismo', 'blefar', 'intuicao', 'intimidacao', 'investigacao', 'percepcao', 'atuacao', 'persuasao', 'prestidigitacao', 'furtividade'] },
+  'Mago': { quantidade: 2, opcoes: ['arcanismo', 'historia', 'intuicao', 'investigacao', 'medicina', 'natureza', 'religiao'] },
+  'Monge': { quantidade: 2, opcoes: ['acrobacia', 'atletismo', 'historia', 'intuicao', 'religiao', 'furtividade'] },
+  'Paladino': { quantidade: 2, opcoes: ['atletismo', 'intuicao', 'intimidacao', 'medicina', 'persuasao', 'religiao'] },
+  'Patrulheiro': { quantidade: 3, opcoes: ['lidarComAnimais', 'atletismo', 'intuicao', 'investigacao', 'natureza', 'percepcao', 'furtividade', 'sobrevivencia'] },
+  'Sacerdote': { quantidade: 2, opcoes: ['historia', 'intuicao', 'medicina', 'persuasao', 'religiao'] },
+}
