@@ -3,9 +3,11 @@
 // nomes previsíveis — lemos esses campos e montamos um Character.
 
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs'
-// O worker é embutido como texto e servido via Blob URL — assim a importação
-// funciona sem arquivos externos (inclusive na versão single-file do app).
-import pdfWorkerSrc from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?raw'
+// Importa o código do worker como módulo e o registra em globalThis para que o
+// pdf.js rode no MAIN THREAD (sem Web Worker, sem Blob, sem arquivo externo).
+// Isso é essencial para funcionar sob CSPs restritivas (ex: a versão single-file
+// hospedada), que bloqueiam workers criados via blob:.
+import * as pdfjsWorker from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs'
 import type { AbilityKey, Attack, Character, InventoryItem, SkillKey, SpellRef } from '../types'
 import { novaFicha, uid } from './character'
 import { abilityMod } from './calc'
@@ -13,8 +15,9 @@ import { abilityMod } from './calc'
 let workerIniciado = false
 function garantirWorker() {
   if (workerIniciado) return
-  const blob = new Blob([pdfWorkerSrc], { type: 'application/javascript' })
-  pdfjsLib.GlobalWorkerOptions.workerSrc = URL.createObjectURL(blob)
+  // Ao expor o WorkerMessageHandler aqui, o pdf.js usa o "fake worker" no
+  // main thread em vez de tentar criar um Web Worker.
+  ;(globalThis as unknown as { pdfjsWorker?: unknown }).pdfjsWorker = pdfjsWorker
   workerIniciado = true
 }
 
