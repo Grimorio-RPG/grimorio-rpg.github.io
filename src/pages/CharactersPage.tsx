@@ -1,8 +1,9 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useCharacters } from '../hooks/useCharacters'
 import { novaFicha } from '../lib/character'
 import { parseImportedCharacter } from '../lib/storage'
+import { importarFichaDdb, type ImportResumo } from '../lib/ddbImport'
 import { abilityMod, armorClass, fmtMod } from '../lib/calc'
 import type { Character } from '../types'
 
@@ -10,6 +11,22 @@ export default function CharactersPage() {
   const { characters, save, remove, refresh } = useCharacters()
   const navigate = useNavigate()
   const fileRef = useRef<HTMLInputElement>(null)
+  const pdfRef = useRef<HTMLInputElement>(null)
+  const [importandoPdf, setImportandoPdf] = useState(false)
+  const [preview, setPreview] = useState<{ char: Character; resumo: ImportResumo } | null>(null)
+
+  async function importarPdf(file: File) {
+    setImportandoPdf(true)
+    try {
+      const r = await importarFichaDdb(file)
+      setPreview(r)
+    } catch (e) {
+      console.error(e)
+      alert('Não consegui ler este PDF. Ele precisa ser a ficha exportada pelo D&D Beyond (menu do personagem → Export → PDF).')
+    } finally {
+      setImportandoPdf(false)
+    }
+  }
 
   function criar() {
     const ficha = novaFicha()
@@ -42,8 +59,11 @@ export default function CharactersPage() {
         <button className="btn-ghost" onClick={criar}>
           + Ficha em branco
         </button>
+        <button className="btn-ghost" onClick={() => pdfRef.current?.click()} disabled={importandoPdf}>
+          {importandoPdf ? '⏳ Lendo PDF…' : '🐉 Importar do D&D Beyond (PDF)'}
+        </button>
         <button className="btn-ghost" onClick={() => fileRef.current?.click()}>
-          ⬆ Importar ficha
+          ⬆ Importar ficha (.json)
         </button>
         <input
           ref={fileRef}
@@ -56,7 +76,31 @@ export default function CharactersPage() {
             e.target.value = ''
           }}
         />
+        <input
+          ref={pdfRef}
+          type="file"
+          accept="application/pdf,.pdf"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0]
+            if (f) importarPdf(f)
+            e.target.value = ''
+          }}
+        />
       </div>
+
+      {preview && (
+        <ImportPreview
+          resumo={preview.resumo}
+          onCancel={() => setPreview(null)}
+          onConfirm={() => {
+            save(preview.char)
+            const id = preview.char.id
+            setPreview(null)
+            navigate(`/fichas/${id}`)
+          }}
+        />
+      )}
 
       {characters.length === 0 ? (
         <EmptyState onCreate={() => navigate('/fichas/novo')} />
@@ -137,6 +181,47 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
       <button className="btn-primary" onClick={onCreate}>
         + Criar meu primeiro personagem
       </button>
+    </div>
+  )
+}
+
+function ImportPreview({
+  resumo,
+  onCancel,
+  onConfirm,
+}: {
+  resumo: ImportResumo
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  const linhas: [string, string][] = [
+    ['Nome', resumo.nome],
+    ['Classe', resumo.origem || `${resumo.classe} ${resumo.nivel}`],
+    ['Espécie', resumo.especie || '—'],
+    ['Antecedente', resumo.antecedente || '—'],
+    ['Perícias proficientes', String(resumo.pericias)],
+    ['Ataques', String(resumo.ataques)],
+    ['Magias', String(resumo.magias)],
+    ['Itens no inventário', String(resumo.itens)],
+  ]
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 backdrop-blur-sm" onClick={onCancel}>
+      <div className="card my-8 w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+        <h2 className="text-xl text-parchment-50">🐉 Ficha lida do D&D Beyond</h2>
+        <p className="mt-1 text-sm text-parchment-200/60">Confira o que encontrei antes de criar a ficha. Você poderá ajustar tudo depois.</p>
+        <dl className="mt-4 divide-y divide-white/5">
+          {linhas.map(([k, v]) => (
+            <div key={k} className="flex justify-between gap-4 py-1.5 text-sm">
+              <dt className="text-parchment-200/60">{k}</dt>
+              <dd className="text-right font-medium text-parchment-50">{v}</dd>
+            </div>
+          ))}
+        </dl>
+        <div className="mt-6 flex justify-end gap-2">
+          <button className="btn-ghost" onClick={onCancel}>Cancelar</button>
+          <button className="btn-primary" onClick={onConfirm}>✓ Criar ficha</button>
+        </div>
+      </div>
     </div>
   )
 }
