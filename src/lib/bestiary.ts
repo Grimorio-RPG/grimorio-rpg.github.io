@@ -1,8 +1,25 @@
-import type { Abilities, Monster } from '../types'
+import type { Abilities, KnowledgeLevel, Monster } from '../types'
 import { uid } from './character'
 
 const KEY = 'grimorio55e.bestiary.v1'
 const SEED_FLAG = 'grimorio55e.bestiary.seeded.v1'
+
+export const NIVEIS_CONHECIMENTO: {
+  valor: KnowledgeLevel
+  label: string
+  curto: string
+  icone: string
+  desc: string
+}[] = [
+  { valor: 'desconhecido', label: 'Desconhecido', curto: 'Oculto', icone: '🙈', desc: 'Os jogadores não veem esta criatura.' },
+  { valor: 'encontrado', label: 'Encontrado', curto: 'Encontrado', icone: '👁', desc: 'Veem a foto, o nome, o tamanho e o tipo.' },
+  { valor: 'parcial', label: 'Estudado (parcial)', curto: 'Parcial', icone: '📖', desc: 'Veem também ND, CA, PV, deslocamento e atributos.' },
+  { valor: 'completo', label: 'Estudado (completo)', curto: 'Completo', icone: '✅', desc: 'Veem a ficha inteira (traços e ações). Táticas do DM continuam privadas.' },
+]
+
+export function nivelInfo(v: KnowledgeLevel) {
+  return NIVEIS_CONHECIMENTO.find((n) => n.valor === v) ?? NIVEIS_CONHECIMENTO[0]
+}
 
 export const TAMANHOS = ['Miúdo', 'Pequeno', 'Médio', 'Grande', 'Enorme', 'Colossal']
 export const TIPOS = [
@@ -22,6 +39,7 @@ export function novoMonstro(): Monster {
     updatedAt: Date.now(),
     nome: '',
     imagemUrl: '',
+    imagemJogadorUrl: '',
     tipo: '',
     tamanho: 'Médio',
     nd: '1',
@@ -33,12 +51,25 @@ export function novoMonstro(): Monster {
     tracos: '',
     acoes: [],
     taticas: '',
-    revelado: false,
+    conhecimento: 'desconhecido',
   }
 }
 
+/** Completa campos ausentes e migra dados antigos (ex: revelado -> conhecimento). */
+function normalizeMonster(raw: Partial<Monster> & { revelado?: boolean }): Monster {
+  const conhecimento: KnowledgeLevel =
+    raw.conhecimento ?? (raw.revelado ? 'completo' : 'desconhecido')
+  return { ...novoMonstro(), ...raw, id: raw.id ?? uid(), conhecimento }
+}
+
 function seed(): Monster[] {
-  const base = () => ({ id: uid(), updatedAt: Date.now(), imagemUrl: '', revelado: false })
+  const base = () => ({
+    id: uid(),
+    updatedAt: Date.now(),
+    imagemUrl: '',
+    imagemJogadorUrl: '',
+    conhecimento: 'desconhecido' as KnowledgeLevel,
+  })
   return [
     {
       ...base(),
@@ -101,7 +132,7 @@ export function loadBestiary(): Monster[] {
     const raw = localStorage.getItem(KEY)
     if (raw) {
       const parsed = JSON.parse(raw)
-      if (Array.isArray(parsed)) return parsed
+      if (Array.isArray(parsed)) return parsed.map(normalizeMonster)
     }
     // primeira visita: semeia exemplos editáveis
     if (!localStorage.getItem(SEED_FLAG)) {

@@ -1,11 +1,13 @@
 import { useMemo, useRef, useState } from 'react'
-import type { Monster, MonsterAction } from '../types'
+import type { KnowledgeLevel, Monster, MonsterAction } from '../types'
 import { useBestiary } from '../hooks/useBestiary'
 import {
   NDS,
+  NIVEIS_CONHECIMENTO,
   TAMANHOS,
   TIPOS,
   imageToDataUrl,
+  nivelInfo,
   novoMonstro,
 } from '../lib/bestiary'
 import { uid } from '../lib/character'
@@ -19,8 +21,11 @@ import {
   TextField,
 } from '../components/ui'
 
+type Modo = 'dm' | 'jogadores'
+
 export default function BestiaryPage() {
   const { monstros, salvar, remover } = useBestiary()
+  const [modo, setModo] = useState<Modo>('dm')
   const [busca, setBusca] = useState('')
   const [editando, setEditando] = useState<Monster | null>(null)
 
@@ -32,58 +37,63 @@ export default function BestiaryPage() {
     return [...arr].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
   }, [monstros, busca])
 
-  function criar() {
-    setEditando(novoMonstro())
-  }
+  const conhecidos = useMemo(
+    () => filtrados.filter((m) => m.conhecimento !== 'desconhecido'),
+    [filtrados],
+  )
 
   return (
     <div>
-      <header className="mb-6 flex items-center gap-3">
-        <span className="text-3xl">🐲</span>
-        <div>
-          <h1 className="text-3xl text-parchment-50">Bestiário</h1>
-          <p className="mt-1 max-w-2xl text-sm text-parchment-200/60">
-            Cadastre inimigos com foto e estatísticas. Use o rastreador de PV
-            durante o combate para controlar a vida de cada criatura.
-          </p>
+      <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <span className="text-3xl">🐲</span>
+          <div>
+            <h1 className="text-3xl text-parchment-50">Bestiário</h1>
+            <p className="mt-1 max-w-xl text-sm text-parchment-200/60">
+              Cadastre inimigos com foto e estatísticas. Controle o que o grupo
+              já descobriu sobre cada criatura.
+            </p>
+          </div>
         </div>
+        <ModoToggle modo={modo} setModo={setModo} />
       </header>
 
-      <div className="mb-6 flex flex-wrap gap-3">
-        <button className="btn-primary" onClick={criar}>＋ Novo monstro</button>
-        <input
-          className="stat-input max-w-xs"
-          value={busca}
-          placeholder="Buscar por nome ou tipo…"
-          onChange={(e) => setBusca(e.target.value)}
-        />
-      </div>
-
-      {filtrados.length === 0 ? (
-        <div className="card p-10 text-center">
-          <div className="text-4xl">🐉</div>
-          <h3 className="mt-3 text-xl text-parchment-50">
-            {busca ? 'Nenhum monstro encontrado' : 'Bestiário vazio'}
-          </h3>
-          <p className="mx-auto mt-1 max-w-sm text-sm text-parchment-200/60">
-            {busca ? 'Tente outra busca.' : 'Crie sua primeira criatura para começar a preencher a mesa de perigos.'}
-          </p>
-        </div>
-      ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filtrados.map((m) => (
-            <MonsterCard
-              key={m.id}
-              m={m}
-              onEdit={() => setEditando(m)}
-              onDelete={() => {
-                if (confirm(`Remover "${m.nome || 'monstro'}" do bestiário?`)) remover(m.id)
-              }}
-              onHp={(pvAtual) => salvar({ ...m, pvAtual })}
-              onReveal={() => salvar({ ...m, revelado: !m.revelado })}
+      {modo === 'dm' ? (
+        <>
+          <div className="mb-6 flex flex-wrap gap-3">
+            <button className="btn-primary" onClick={() => setEditando(novoMonstro())}>＋ Novo monstro</button>
+            <input
+              className="stat-input max-w-xs"
+              value={busca}
+              placeholder="Buscar por nome ou tipo…"
+              onChange={(e) => setBusca(e.target.value)}
             />
-          ))}
-        </div>
+          </div>
+
+          {filtrados.length === 0 ? (
+            <VazioCard
+              titulo={busca ? 'Nenhum monstro encontrado' : 'Bestiário vazio'}
+              texto={busca ? 'Tente outra busca.' : 'Crie sua primeira criatura para começar a preencher a mesa de perigos.'}
+            />
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {filtrados.map((m) => (
+                <DmMonsterCard
+                  key={m.id}
+                  m={m}
+                  onEdit={() => setEditando(m)}
+                  onDelete={() => {
+                    if (confirm(`Remover "${m.nome || 'monstro'}" do bestiário?`)) remover(m.id)
+                  }}
+                  onHp={(pvAtual) => salvar({ ...m, pvAtual })}
+                  onNivel={(conhecimento) => salvar({ ...m, conhecimento })}
+                />
+              ))}
+            </div>
+          )}
+        </>
+      ) : (
+        <PlayerView monstros={conhecidos} busca={busca} setBusca={setBusca} />
       )}
 
       {editando && (
@@ -101,22 +111,44 @@ export default function BestiaryPage() {
 }
 
 // ---------------------------------------------------------------------------
-function MonsterCard({
+function ModoToggle({ modo, setModo }: { modo: Modo; setModo: (m: Modo) => void }) {
+  return (
+    <div className="inline-flex rounded-lg border border-white/10 bg-ink-900/50 p-1 text-sm">
+      {([['dm', '🎲 Visão do DM'], ['jogadores', '👥 Visão dos Jogadores']] as const).map(([v, label]) => (
+        <button
+          key={v}
+          onClick={() => setModo(v)}
+          className={`rounded-md px-3 py-1.5 font-semibold transition ${
+            modo === v ? 'bg-dragon-500 text-parchment-50' : 'text-parchment-200/70 hover:text-parchment-50'
+          }`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Card do DM
+// ---------------------------------------------------------------------------
+function DmMonsterCard({
   m,
   onEdit,
   onDelete,
   onHp,
-  onReveal,
+  onNivel,
 }: {
   m: Monster
   onEdit: () => void
   onDelete: () => void
   onHp: (pv: number) => void
-  onReveal: () => void
+  onNivel: (n: KnowledgeLevel) => void
 }) {
   const pct = m.pvMax > 0 ? Math.max(0, Math.min(100, (m.pvAtual / m.pvMax) * 100)) : 0
   const cor = pct > 50 ? 'bg-emerald-500' : pct > 25 ? 'bg-amber-500' : 'bg-dragon-500'
   const ajusta = (d: number) => onHp(Math.max(0, Math.min(m.pvMax, m.pvAtual + d)))
+  const nivel = nivelInfo(m.conhecimento)
 
   return (
     <div className="card group relative overflow-hidden">
@@ -132,15 +164,6 @@ function MonsterCard({
             <p className="text-xs text-parchment-100/80">{[m.tamanho, m.tipo].filter(Boolean).join(' · ')}</p>
           </div>
         </div>
-        <button
-          onClick={onReveal}
-          title={m.revelado ? 'Revelado ao grupo' : 'Oculto do grupo'}
-          className={`absolute right-2 top-2 rounded-full px-2 py-0.5 text-xs backdrop-blur ${
-            m.revelado ? 'bg-arcane-500/70 text-parchment-50' : 'bg-black/40 text-parchment-100/70'
-          }`}
-        >
-          {m.revelado ? '👁 revelado' : '🙈 oculto'}
-        </button>
       </div>
 
       <div className="p-4">
@@ -149,6 +172,23 @@ function MonsterCard({
           <span className="chip">CA {m.ca}</span>
           <span className="chip">Desl. {m.deslocamento}</span>
         </div>
+
+        {/* Nível de conhecimento do grupo */}
+        <label className="mb-3 block">
+          <span className="mb-1 flex items-center gap-1 panel-title">Conhecimento do grupo</span>
+          <div className="flex items-center gap-2">
+            <span className="text-base" title={nivel.label}>{nivel.icone}</span>
+            <select
+              value={m.conhecimento}
+              onChange={(e) => onNivel(e.target.value as KnowledgeLevel)}
+              className="stat-input flex-1 appearance-none py-1.5 text-sm"
+            >
+              {NIVEIS_CONHECIMENTO.map((n) => (
+                <option key={n.valor} value={n.valor}>{n.label}</option>
+              ))}
+            </select>
+          </div>
+        </label>
 
         {/* Rastreador de PV */}
         <div className="rounded-lg border border-white/10 bg-ink-900/40 p-2.5">
@@ -192,6 +232,126 @@ function MonsterCard({
 }
 
 // ---------------------------------------------------------------------------
+// Visão dos Jogadores
+// ---------------------------------------------------------------------------
+function PlayerView({
+  monstros,
+  busca,
+  setBusca,
+}: {
+  monstros: Monster[]
+  busca: string
+  setBusca: (v: string) => void
+}) {
+  return (
+    <>
+      <div className="mb-4 rounded-lg border border-arcane-400/30 bg-arcane-500/10 p-3 text-sm text-parchment-100">
+        👥 Esta é a tela que você mostra aos jogadores. Aparecem só as criaturas que
+        o grupo já <b>encontrou</b> ou <b>estudou</b> — no nível de detalhe que você liberou.
+      </div>
+      <div className="mb-6">
+        <input
+          className="stat-input max-w-xs"
+          value={busca}
+          placeholder="Buscar…"
+          onChange={(e) => setBusca(e.target.value)}
+        />
+      </div>
+      {monstros.length === 0 ? (
+        <VazioCard
+          titulo="Nada revelado ainda"
+          texto="Na Visão do DM, marque as criaturas como Encontrado ou Estudado para que apareçam aqui."
+        />
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {monstros.map((m) => (
+            <PlayerMonsterCard key={m.id} m={m} />
+          ))}
+        </div>
+      )}
+    </>
+  )
+}
+
+function PlayerMonsterCard({ m }: { m: Monster }) {
+  const nivel = nivelInfo(m.conhecimento)
+  const img = m.imagemJogadorUrl || m.imagemUrl
+  const mostraStats = m.conhecimento === 'parcial' || m.conhecimento === 'completo'
+  const mostraFicha = m.conhecimento === 'completo'
+
+  return (
+    <div className="card overflow-hidden">
+      <div className="relative h-40 w-full overflow-hidden bg-ink-900/60">
+        {img ? (
+          <img src={img} alt={m.nome} className="h-full w-full object-cover" />
+        ) : (
+          <div className="grid h-full w-full place-items-center text-5xl opacity-40">🐾</div>
+        )}
+        <span className="absolute right-2 top-2 rounded-full bg-black/50 px-2 py-0.5 text-xs text-parchment-100 backdrop-blur">
+          {nivel.icone} {nivel.curto}
+        </span>
+        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-ink-900 to-transparent p-3">
+          <p className="font-display text-lg leading-tight text-parchment-50 drop-shadow">{m.nome || '???'}</p>
+          <p className="text-xs text-parchment-100/80">{[m.tamanho, m.tipo].filter(Boolean).join(' · ')}</p>
+        </div>
+      </div>
+
+      <div className="p-4 text-sm">
+        {!mostraStats ? (
+          <p className="text-parchment-200/60">
+            O grupo viu esta criatura, mas ainda não a estudou. Investigue-a para
+            revelar suas estatísticas.
+          </p>
+        ) : (
+          <>
+            <div className="mb-3 flex flex-wrap gap-2 text-xs">
+              <span className="chip">ND {m.nd}</span>
+              <span className="chip">CA {m.ca}</span>
+              <span className="chip">PV {m.pvMax}</span>
+              <span className="chip">Desl. {m.deslocamento}</span>
+            </div>
+            <div className="grid grid-cols-6 gap-1.5">
+              {ABILITIES.map((a) => (
+                <div key={a.key} className="rounded-lg border border-white/10 bg-ink-900/40 py-1 text-center">
+                  <div className="panel-title text-[10px]">{a.abrev}</div>
+                  <div className="font-display text-sm text-parchment-50">{fmtMod(abilityMod(m.atributos[a.key]))}</div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
+        {mostraFicha && (m.tracos || m.acoes.length > 0) && (
+          <div className="mt-3 space-y-3 border-t border-white/10 pt-3">
+            {m.tracos && (
+              <div>
+                <h4 className="mb-1 panel-title">Traços</h4>
+                <p className="whitespace-pre-wrap leading-relaxed text-parchment-100">{m.tracos}</p>
+              </div>
+            )}
+            {m.acoes.length > 0 && (
+              <div>
+                <h4 className="mb-1 panel-title">Ações</h4>
+                <ul className="space-y-1">
+                  {m.acoes.map((a) => (
+                    <li key={a.id}>
+                      <span className="font-medium text-parchment-50">{a.nome || '—'}.</span>{' '}
+                      <span className="text-parchment-200/80">{a.descricao}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Editor
+// ---------------------------------------------------------------------------
 function MonsterEditor({
   inicial,
   onClose,
@@ -202,23 +362,9 @@ function MonsterEditor({
   onSave: (m: Monster) => void
 }) {
   const [m, setM] = useState<Monster>(inicial)
-  const fileRef = useRef<HTMLInputElement>(null)
-  const [carregandoImg, setCarregandoImg] = useState(false)
 
   function set(patch: Partial<Monster>) {
     setM((prev) => ({ ...prev, ...patch }))
-  }
-
-  async function onFile(file: File) {
-    setCarregandoImg(true)
-    try {
-      const dataUrl = await imageToDataUrl(file)
-      set({ imagemUrl: dataUrl })
-    } catch {
-      alert('Não consegui processar essa imagem.')
-    } finally {
-      setCarregandoImg(false)
-    }
   }
 
   function addAcao() {
@@ -240,40 +386,21 @@ function MonsterEditor({
           <button className="btn-ghost" onClick={onClose}>Cancelar</button>
         </div>
 
-        <div className="grid gap-5 md:grid-cols-[180px_1fr]">
-          {/* Imagem */}
-          <div>
-            <div className="aspect-square w-full overflow-hidden rounded-xl border border-white/10 bg-ink-900/60">
-              {m.imagemUrl ? (
-                <img src={m.imagemUrl} alt="" className="h-full w-full object-cover" />
-              ) : (
-                <div className="grid h-full w-full place-items-center text-5xl opacity-30">🐾</div>
-              )}
-            </div>
-            <div className="mt-2 flex gap-2">
-              <button className="btn-ghost flex-1 py-1.5 text-xs" onClick={() => fileRef.current?.click()} disabled={carregandoImg}>
-                {carregandoImg ? 'Processando…' : '📷 Enviar foto'}
-              </button>
-              {m.imagemUrl && (
-                <button className="btn-ghost px-2 py-1.5 text-xs" onClick={() => set({ imagemUrl: '' })}>✕</button>
-              )}
-            </div>
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0]
-                if (f) onFile(f)
-                e.target.value = ''
-              }}
+        <div className="grid gap-5 md:grid-cols-[1fr_1fr]">
+          {/* Imagens */}
+          <div className="grid grid-cols-2 gap-3">
+            <ImageSlot
+              titulo="Foto do DM"
+              hint="Sua referência completa."
+              url={m.imagemUrl}
+              onChange={(url) => set({ imagemUrl: url })}
             />
-            <div className="mt-2">
-              <Field label="ou cole uma URL">
-                <TextField value={m.imagemUrl.startsWith('data:') ? '' : m.imagemUrl} onChange={(v) => set({ imagemUrl: v })} placeholder="https://…" />
-              </Field>
-            </div>
+            <ImageSlot
+              titulo="Foto dos jogadores"
+              hint="O que o grupo vê ao encontrar. Vazio = usa a foto do DM."
+              url={m.imagemJogadorUrl}
+              onChange={(url) => set({ imagemJogadorUrl: url })}
+            />
           </div>
 
           {/* Campos principais */}
@@ -289,24 +416,36 @@ function MonsterEditor({
                 <SelectField value={TIPOS.find((t) => m.tipo.startsWith(t)) ?? ''} onChange={(v) => set({ tipo: v })} options={TIPOS.map((t) => ({ value: t, label: t }))} />
               </Field>
             </div>
-            <div className="grid grid-cols-4 gap-3">
-              <Field label="ND" hint="Nível de Desafio: o quão perigoso é o monstro.">
-                <SelectField value={m.nd} onChange={(v) => set({ nd: v })} options={NDS.map((n) => ({ value: n, label: n }))} />
-              </Field>
-              <Field label="CA">
-                <NumberField value={m.ca} onChange={(v) => set({ ca: v })} />
-              </Field>
-              <Field label="PV Máx.">
-                <NumberField value={m.pvMax} onChange={(v) => set({ pvMax: v, pvAtual: Math.min(m.pvAtual, v) })} />
-              </Field>
-              <Field label="PV Atual">
-                <NumberField value={m.pvAtual} onChange={(v) => set({ pvAtual: v })} />
-              </Field>
-            </div>
-            <Field label="Deslocamento">
-              <TextField value={m.deslocamento} onChange={(v) => set({ deslocamento: v })} placeholder="9 m, voo 18 m" />
+            <Field label="Conhecimento do grupo" hint="Define o que os jogadores veem na Visão dos Jogadores.">
+              <SelectField
+                value={m.conhecimento}
+                onChange={(v) => set({ conhecimento: v as KnowledgeLevel })}
+                options={NIVEIS_CONHECIMENTO.map((n) => ({ value: n.valor, label: `${n.icone} ${n.label}` }))}
+                placeholder=""
+              />
             </Field>
           </div>
+        </div>
+
+        {/* Estatísticas de combate */}
+        <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Field label="ND" hint="Nível de Desafio: o quão perigoso é o monstro.">
+            <SelectField value={m.nd} onChange={(v) => set({ nd: v })} options={NDS.map((n) => ({ value: n, label: n }))} placeholder="" />
+          </Field>
+          <Field label="CA">
+            <NumberField value={m.ca} onChange={(v) => set({ ca: v })} />
+          </Field>
+          <Field label="PV Máx.">
+            <NumberField value={m.pvMax} onChange={(v) => set({ pvMax: v, pvAtual: Math.min(m.pvAtual, v) })} />
+          </Field>
+          <Field label="PV Atual">
+            <NumberField value={m.pvAtual} onChange={(v) => set({ pvAtual: v })} />
+          </Field>
+        </div>
+        <div className="mt-3">
+          <Field label="Deslocamento">
+            <TextField value={m.deslocamento} onChange={(v) => set({ deslocamento: v })} placeholder="9 m, voo 18 m" />
+          </Field>
         </div>
 
         {/* Atributos */}
@@ -361,7 +500,7 @@ function MonsterEditor({
 
         {/* Táticas do DM */}
         <div className="mt-5">
-          <Field label="Táticas do DM (só você vê)" hint="Como jogar essa criatura em combate: prioridades de alvo, quando fugir, combos.">
+          <Field label="Táticas do DM (sempre privadas)" hint="Como jogar essa criatura em combate. Nunca aparece para os jogadores.">
             <TextArea value={m.taticas} onChange={(v) => set({ taticas: v })} rows={2} placeholder="Ex: foca nos conjuradores, usa sopro quando 3+ alvos estão agrupados." />
           </Field>
         </div>
@@ -371,6 +510,81 @@ function MonsterEditor({
           <button className="btn-primary" onClick={() => onSave(m)}>Salvar criatura</button>
         </div>
       </div>
+    </div>
+  )
+}
+
+// Slot reutilizável de imagem (upload com redimensionamento ou URL)
+function ImageSlot({
+  titulo,
+  hint,
+  url,
+  onChange,
+}: {
+  titulo: string
+  hint: string
+  url: string
+  onChange: (url: string) => void
+}) {
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [carregando, setCarregando] = useState(false)
+
+  async function onFile(file: File) {
+    setCarregando(true)
+    try {
+      onChange(await imageToDataUrl(file))
+    } catch {
+      alert('Não consegui processar essa imagem.')
+    } finally {
+      setCarregando(false)
+    }
+  }
+
+  return (
+    <div>
+      <div className="mb-1 flex items-center gap-1 panel-title">{titulo}</div>
+      <div className="aspect-square w-full overflow-hidden rounded-xl border border-white/10 bg-ink-900/60">
+        {url ? (
+          <img src={url} alt="" className="h-full w-full object-cover" />
+        ) : (
+          <div className="grid h-full w-full place-items-center text-4xl opacity-30">🐾</div>
+        )}
+      </div>
+      <div className="mt-2 flex gap-2">
+        <button className="btn-ghost flex-1 py-1.5 text-xs" onClick={() => fileRef.current?.click()} disabled={carregando}>
+          {carregando ? 'Processando…' : '📷 Enviar'}
+        </button>
+        {url && <button className="btn-ghost px-2 py-1.5 text-xs" onClick={() => onChange('')}>✕</button>}
+      </div>
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0]
+          if (f) onFile(f)
+          e.target.value = ''
+        }}
+      />
+      <p className="mt-1 text-[11px] leading-snug text-parchment-200/40">{hint}</p>
+      <input
+        className="stat-input mt-1 py-1 text-xs"
+        value={url.startsWith('data:') ? '' : url}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="ou cole uma URL…"
+      />
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+function VazioCard({ titulo, texto }: { titulo: string; texto: string }) {
+  return (
+    <div className="card p-10 text-center">
+      <div className="text-4xl">🐉</div>
+      <h3 className="mt-3 text-xl text-parchment-50">{titulo}</h3>
+      <p className="mx-auto mt-1 max-w-sm text-sm text-parchment-200/60">{texto}</p>
     </div>
   )
 }

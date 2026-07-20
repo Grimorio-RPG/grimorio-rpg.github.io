@@ -131,11 +131,22 @@ export interface MonsterAction {
   descricao: string // ex: "Cimitarra. +4 para acertar, 1d6+2 de dano cortante."
 }
 
+/**
+ * O quanto o grupo conhece uma criatura — controla o que aparece na
+ * Visão dos Jogadores.
+ * - desconhecido: jogadores não veem a criatura.
+ * - encontrado: veem foto, nome, tamanho e tipo.
+ * - parcial: + ND, CA, PV, deslocamento e atributos.
+ * - completo: a ficha inteira (traços e ações). Táticas do DM continuam privadas.
+ */
+export type KnowledgeLevel = 'desconhecido' | 'encontrado' | 'parcial' | 'completo'
+
 export interface Monster {
   id: string
   updatedAt: number
   nome: string
-  imagemUrl: string // URL ou data URL de uma foto
+  imagemUrl: string // foto de referência do DM (URL ou data URL)
+  imagemJogadorUrl: string // foto que os jogadores veem (fallback: imagemUrl)
   tipo: string // ex: "Humanoide (goblinoide)"
   tamanho: string // Miúdo, Pequeno, Médio, Grande, Enorme, Colossal
   nd: string // Nível de Desafio, ex: "1/4"
@@ -146,6 +157,6 @@ export interface Monster {
   atributos: Abilities
   tracos: string // habilidades passivas (texto livre)
   acoes: MonsterAction[]
-  taticas: string // notas do DM (como usar em combate)
-  revelado: boolean // se o grupo já viu (uso futuro na visão dos jogadores)
+  taticas: string // notas do DM (como usar em combate) — sempre privadas
+  conhecimento: KnowledgeLevel // o que o grupo já sabe sobre a criatura
 }
