@@ -5,6 +5,7 @@ import CharacterWizard from './pages/CharacterWizard'
 import CharacterSheet from './pages/CharacterSheet'
 import SpellsPage from './pages/SpellsPage'
 import BestiaryPage from './pages/BestiaryPage'
+import BattlePage from './pages/BattlePage'
 import MapPage from './pages/MapPage'
 import CampaignPage from './pages/CampaignPage'
 
@@ -18,6 +19,7 @@ export default function App() {
         <Route path="fichas/:id" element={<CharacterSheet />} />
         <Route path="feiticos" element={<SpellsPage />} />
         <Route path="bestiario" element={<BestiaryPage />} />
+        <Route path="batalhas" element={<BattlePage />} />
         <Route path="mapa" element={<MapPage />} />
         <Route path="campanha" element={<CampaignPage />} />
         <Route path="*" element={<Navigate to="/fichas" replace />} />

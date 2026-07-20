@@ -4,6 +4,7 @@ const NAV = [
   { to: '/fichas', label: 'Fichas', icon: '📜', desc: 'Personagens' },
   { to: '/feiticos', label: 'Feitiços', icon: '✨', desc: 'Grimório' },
   { to: '/bestiario', label: 'Bestiário', icon: '🐲', desc: 'Inimigos' },
+  { to: '/batalhas', label: 'Batalhas', icon: '⚔️', desc: 'Combate' },
   { to: '/mapa', label: 'Mapa', icon: '🗺️', desc: 'Mesa virtual' },
   { to: '/campanha', label: 'Campanha', icon: '📖', desc: 'Resumo & DM' },
 ]

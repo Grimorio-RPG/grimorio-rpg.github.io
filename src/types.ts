@@ -141,6 +141,34 @@ export interface MonsterAction {
  */
 export type KnowledgeLevel = 'desconhecido' | 'encontrado' | 'parcial' | 'completo'
 
+// ---------------------------------------------------------------------------
+// Batalhas (rastreador de combate)
+// ---------------------------------------------------------------------------
+
+export interface Combatant {
+  id: string
+  origem: 'inimigo' | 'aliado'
+  refId: string // id do monstro/personagem de origem (agrupa duplicatas)
+  nome: string
+  imagemUrl: string // imagem do DM
+  imagemJogadorUrl: string // imagem que os jogadores veem
+  conhecimento: KnowledgeLevel // p/ inimigos: herdado do bestiário
+  ca: number
+  pvMax: number
+  pvAtual: number
+  iniciativa: number | null
+  iniciativaMod: number // modificador para rolar iniciativa
+}
+
+export interface Battle {
+  updatedAt: number
+  nome: string
+  rodada: number
+  turnoIndex: number // posição do turno atual na ordem de iniciativa
+  emAndamento: boolean
+  combatentes: Combatant[]
+}
+
 export interface Monster {
   id: string
   updatedAt: number
