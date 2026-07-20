@@ -57,9 +57,14 @@ export function spellAttackBonus(char: Character): number | null {
   return proficiencyBonus(char.nivel) + abilityMod(char.atributos[char.atributoConjuracao])
 }
 
+/** Valor passivo de uma perícia: 10 + bônus da perícia. */
+export function passiveSkill(char: Character, key: SkillKey): number {
+  return 10 + skillBonus(char, key)
+}
+
 /** Percepção passiva: 10 + bônus de Percepção. */
 export function passivePerception(char: Character): number {
-  return 10 + skillBonus(char, 'percepcao')
+  return passiveSkill(char, 'percepcao')
 }
 
 /** Retorna a ClassInfo correspondente à classe do personagem (se houver). */

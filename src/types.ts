@@ -91,3 +91,32 @@ export interface Character {
   caracteristicas: string // traços de classe/espécie/antecedente
   anotacoes: string
 }
+
+// ---------------------------------------------------------------------------
+// Campanha / Painel do DM
+// ---------------------------------------------------------------------------
+
+export interface Npc {
+  id: string
+  nome: string
+  papel: string // ex: "Taverneiro", "Vilão", "Aliado"
+  descricao: string
+  notasSecretas: string // visível só para o DM
+}
+
+export interface SessionEntry {
+  id: string
+  data: string // texto livre, ex: "20/07 — Sessão 3"
+  titulo: string
+  resumo: string
+}
+
+export interface Campaign {
+  updatedAt: number
+  nome: string
+  sinopse: string
+  arcoAtual: string
+  party: Character[] // fichas importadas dos jogadores (snapshots)
+  npcs: Npc[]
+  sessoes: SessionEntry[]
+}
