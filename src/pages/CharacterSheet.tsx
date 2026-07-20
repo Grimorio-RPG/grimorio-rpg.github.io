@@ -27,6 +27,7 @@ import {
 import { loadCharacters } from '../lib/storage'
 import { uid } from '../lib/character'
 import { useCharacters } from '../hooks/useCharacters'
+import CharacterSheetView from '../components/CharacterSheetView'
 import {
   Field,
   InfoDot,
@@ -43,6 +44,7 @@ export default function CharacterSheet() {
   const navigate = useNavigate()
   const { save } = useCharacters()
   const [char, setChar] = useState<Character | null>(null)
+  const [editando, setEditando] = useState(false)
 
   useEffect(() => {
     const found = loadCharacters().find((c) => c.id === id)
@@ -74,62 +76,78 @@ export default function CharacterSheet() {
 
   return (
     <div className="space-y-6">
-      <TopBar onBack={() => navigate('/fichas')} onExport={() => exportCharacter(char)} />
+      <TopBar
+        editando={editando}
+        onToggleEdit={() => setEditando((v) => !v)}
+        onBack={() => navigate('/fichas')}
+        onExport={() => exportCharacter(char)}
+      />
 
-      <IdentitySection char={char} update={update} />
+      {!editando ? (
+        <CharacterSheetView char={char} />
+      ) : (
+        <>
+          <IdentitySection char={char} update={update} />
 
-      <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
-        <div className="space-y-6">
-          <AbilitiesSection char={char} update={update} />
-          <SavesSection char={char} update={update} />
-        </div>
-        <div className="space-y-6">
-          <CombatSection char={char} update={update} />
-          <SkillsSection char={char} update={update} />
-        </div>
-      </div>
-
-      <ConditionsSection char={char} update={update} />
-
-      <AttacksSection char={char} update={update} />
-      <SpellsSection char={char} update={update} info={info} />
-
-      <InventorySection char={char} update={update} />
-
-      <div className="grid gap-6 md:grid-cols-2">
-        <SectionCard title="Características & Traços" hint="Habilidades da sua classe, espécie e antecedente. Ex: Fúria, Visão no Escuro, Segunda História.">
-          <TextArea value={char.caracteristicas} onChange={(v) => update({ caracteristicas: v })} rows={6} placeholder="Liste aqui os traços que seu personagem ganhou…" />
-        </SectionCard>
-        <SectionCard title="Anotações de equipamento">
-          <TextArea value={char.equipamento} onChange={(v) => update({ equipamento: v })} rows={6} placeholder="Armadura equipada, sintonização, observações…" />
-        </SectionCard>
-        <SectionCard title="Idiomas & Proficiências">
-          <Field label="Idiomas">
-            <TextField value={char.idiomas} onChange={(v) => update({ idiomas: v })} placeholder="Comum, Élfico…" />
-          </Field>
-          <div className="mt-3">
-            <Field label="Proficiências (armas, armaduras, ferramentas)">
-              <TextArea value={char.proficienciasEquipamentos} onChange={(v) => update({ proficienciasEquipamentos: v })} rows={3} />
-            </Field>
+          <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
+            <div className="space-y-6">
+              <AbilitiesSection char={char} update={update} />
+              <SavesSection char={char} update={update} />
+            </div>
+            <div className="space-y-6">
+              <CombatSection char={char} update={update} />
+              <SkillsSection char={char} update={update} />
+            </div>
           </div>
-        </SectionCard>
-        <SectionCard title="Anotações">
-          <TextArea value={char.anotacoes} onChange={(v) => update({ anotacoes: v })} rows={6} placeholder="História, objetivos, contatos, segredos…" />
-        </SectionCard>
-      </div>
+
+          <ConditionsSection char={char} update={update} />
+
+          <AttacksSection char={char} update={update} />
+          <SpellsSection char={char} update={update} info={info} />
+
+          <InventorySection char={char} update={update} />
+
+          <div className="grid gap-6 md:grid-cols-2">
+            <SectionCard title="Características & Traços" hint="Habilidades da sua classe, espécie e antecedente. Ex: Fúria, Visão no Escuro, Segunda História.">
+              <TextArea value={char.caracteristicas} onChange={(v) => update({ caracteristicas: v })} rows={6} placeholder="Liste aqui os traços que seu personagem ganhou…" />
+            </SectionCard>
+            <SectionCard title="Anotações de equipamento">
+              <TextArea value={char.equipamento} onChange={(v) => update({ equipamento: v })} rows={6} placeholder="Armadura equipada, sintonização, observações…" />
+            </SectionCard>
+            <SectionCard title="Idiomas & Proficiências">
+              <Field label="Idiomas">
+                <TextField value={char.idiomas} onChange={(v) => update({ idiomas: v })} placeholder="Comum, Élfico…" />
+              </Field>
+              <div className="mt-3">
+                <Field label="Proficiências (armas, armaduras, ferramentas)">
+                  <TextArea value={char.proficienciasEquipamentos} onChange={(v) => update({ proficienciasEquipamentos: v })} rows={3} />
+                </Field>
+              </div>
+            </SectionCard>
+            <SectionCard title="Anotações">
+              <TextArea value={char.anotacoes} onChange={(v) => update({ anotacoes: v })} rows={6} placeholder="História, objetivos, contatos, segredos…" />
+            </SectionCard>
+          </div>
+        </>
+      )}
     </div>
   )
 }
 
 // ---------------------------------------------------------------------------
-function TopBar({ onBack, onExport }: { onBack: () => void; onExport: () => void }) {
+function TopBar({ editando, onToggleEdit, onBack, onExport }: { editando: boolean; onToggleEdit: () => void; onBack: () => void; onExport: () => void }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
       <button className="btn-ghost" onClick={onBack}>
         ← Fichas
       </button>
       <div className="flex items-center gap-2">
-        <span className="chip">Salvo automaticamente ✓</span>
+        {editando ? (
+          <button className="btn-primary" onClick={onToggleEdit}>✓ Concluir edição</button>
+        ) : (
+          <button className="btn-primary" onClick={onToggleEdit}>✏️ Editar ficha</button>
+        )}
+        <span className="chip">{editando ? 'Salvo automaticamente ✓' : 'Somente leitura'}</span>
         <button className="btn-ghost" onClick={onExport}>
           ⬇ Exportar / enviar ao DM
         </button>
