@@ -196,6 +196,8 @@ export interface Combatant {
   pvAtual: number
   iniciativa: number | null
   iniciativaMod: number // modificador para rolar iniciativa
+  nomeOculto: boolean // se true, os jogadores veem "???" no lugar do nome (imagem continua)
+  condicoes: string[] // condições ativas neste combate
 }
 
 export interface Battle {

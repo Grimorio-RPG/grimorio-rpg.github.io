@@ -20,29 +20,45 @@
 
 @layer components {
   .card {
-    @apply rounded-xl border border-white/10 bg-ink-800/70 backdrop-blur-sm shadow-lg;
+    @apply rounded-2xl border border-white/10 bg-ink-800/70 backdrop-blur-sm;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 10px 30px -12px rgba(0, 0, 0, 0.6);
   }
   .panel-title {
     @apply text-xs font-semibold uppercase tracking-widest text-parchment-200/70;
   }
   .stat-input {
     @apply w-full rounded-lg border border-white/10 bg-ink-900/60 px-3 py-2 text-parchment-50
-           outline-none transition focus:border-arcane-400 focus:ring-1 focus:ring-arcane-400;
+           outline-none transition focus:border-arcane-400 focus:ring-2 focus:ring-arcane-400/30;
   }
   .btn {
     @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold
-           transition active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none;
+           transition-all active:scale-[0.97] disabled:opacity-40 disabled:pointer-events-none;
   }
   .btn-primary {
-    @apply btn bg-dragon-500 text-parchment-50 hover:bg-dragon-400;
+    @apply btn text-parchment-50;
+    background-image: linear-gradient(180deg, #b23c35, #8f2a24);
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.15) inset, 0 6px 16px -6px rgba(163, 49, 43, 0.7);
+  }
+  .btn-primary:hover {
+    background-image: linear-gradient(180deg, #c8514b, #a3312b);
   }
   .btn-ghost {
-    @apply btn border border-white/10 text-parchment-100 hover:bg-white/5;
+    @apply btn border border-white/10 bg-white/[0.02] text-parchment-100 hover:border-white/20 hover:bg-white/[0.06];
   }
   .chip {
     @apply inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2.5 py-0.5 text-xs;
   }
+  /* barra de vida reutilizável */
+  .hpbar {
+    @apply h-full rounded-full transition-all duration-300;
+  }
 }
+
+@keyframes gv-fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.gv-fade { animation: gv-fade-in 0.25s ease both; }
 
 /* Scrollbar */
 ::-webkit-scrollbar { width: 10px; height: 10px; }

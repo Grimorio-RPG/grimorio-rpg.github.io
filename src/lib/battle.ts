@@ -23,11 +23,23 @@ export function loadBattle(): Battle {
     return {
       ...batalhaVazia(),
       ...data,
-      combatentes: Array.isArray(data.combatentes) ? data.combatentes : [],
+      combatentes: Array.isArray(data.combatentes) ? data.combatentes.map(normalizeCombatant) : [],
     }
   } catch {
     return batalhaVazia()
   }
+}
+
+/** Garante campos novos em combatentes salvos por versões antigas. */
+function normalizeCombatant(c: Partial<Combatant>): Combatant {
+  return {
+    nomeOculto: false,
+    condicoes: [],
+    conhecimento: 'completo',
+    iniciativa: null,
+    iniciativaMod: 0,
+    ...c,
+  } as Combatant
 }
 
 export function saveBattle(b: Battle): Battle {
@@ -52,6 +64,8 @@ export function combatentesDeMonstro(m: Monster, qtd: number): Combatant[] {
     pvAtual: m.pvMax,
     iniciativa: null,
     iniciativaMod: mod,
+    nomeOculto: false,
+    condicoes: [],
   }))
 }
 
@@ -72,6 +86,8 @@ export function combatenteDePersonagem(c: Character): Combatant {
     pvAtual: c.pvAtual,
     iniciativa: null,
     iniciativaMod: mod,
+    nomeOculto: false,
+    condicoes: [],
   }
 }
 
