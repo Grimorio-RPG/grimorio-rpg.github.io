@@ -84,7 +84,7 @@ export default function CharacterSheet() {
       />
 
       {!editando ? (
-        <CharacterSheetView char={char} />
+        <CharacterSheetView char={char} update={update} />
       ) : (
         <>
           <IdentitySection char={char} update={update} />
@@ -401,22 +401,14 @@ function CombatSection({ char, update }: { char: Character; update: (p: Partial<
         </div>
 
         <div className="flex flex-col justify-center gap-2 rounded-xl border border-white/10 bg-ink-900/40 p-3">
-          <button
-            className="btn-primary text-sm"
-            onClick={() => {
-              if (!confirm('Descanso longo: restaura PV ao máximo, zera espaços de magia e testes de morte, remove PV temporário e reduz 1 nível de exaustão. Continuar?')) return
-              update({
-                pvAtual: char.pvMax,
-                pvTemporario: 0,
-                testesMorte: { sucessos: 0, falhas: 0 },
-                exaustao: Math.max(0, char.exaustao - 1),
-                espacosMagia: char.espacosMagia.map((s) => ({ ...s, usados: 0 })),
-              })
-            }}
-          >
-            🌙 Descanso longo
-          </button>
-          <p className="text-center text-[11px] leading-snug text-parchment-200/50">Restaura tudo para um novo dia de aventura.</p>
+          <p className="panel-title">Dados de vida gastos</p>
+          <NumberField
+            value={char.dadosDeVidaUsados ?? 0}
+            onChange={(v) => update({ dadosDeVidaUsados: Math.max(0, Math.min(char.nivel, v)) })}
+          />
+          <p className="text-center text-[11px] leading-snug text-parchment-200/50">
+            Os descansos ficam na visualização da ficha.
+          </p>
         </div>
       </div>
     </SectionCard>

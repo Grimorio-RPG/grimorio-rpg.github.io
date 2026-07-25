@@ -11,6 +11,7 @@ import {
   PERICIAS_POR_CLASSE,
   SKILLS,
 } from '../data/rules'
+import { espacosPorNivel } from '../data/progression'
 import { abilityMod, classInfo, fmtMod } from '../lib/calc'
 import { novaFicha } from '../lib/character'
 import { useCharacters } from '../hooks/useCharacters'
@@ -603,6 +604,7 @@ function montarFicha(s: WizardState, finais: Record<AbilityKey, number>): Charac
     salvaguardasProficientes: info?.salvaguardas ?? [],
     periciasProficientes: s.pericias,
     atributoConjuracao: info?.conjuracao ?? null,
+    espacosMagia: espacosPorNivel(s.classe, 1),
     pvMax: pv,
     pvAtual: pv,
     dadosDeVida: `1d${dado}`,

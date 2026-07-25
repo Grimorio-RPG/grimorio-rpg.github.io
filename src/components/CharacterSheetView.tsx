@@ -4,6 +4,7 @@ import { ABILITIES, CONDICOES, SKILLS } from '../data/rules'
 import { ACOES_GERAIS, ROTULO_TIPO, acoesDaClasse, type AcaoInfo } from '../data/actions'
 import { spellsDaClasse } from '../data/spells'
 import { RollButton, RollTextButton, rolarComModo } from './dice-ui'
+import { LevelUpModal, RestPanel } from './rest-levelup'
 import {
   abilityMod,
   armorClass,
@@ -25,7 +26,14 @@ const MOEDAS: { key: keyof Character['moedas']; nome: string }[] = [
 ]
 
 /** Visualização somente-leitura da ficha completa (modo de consulta). */
-export default function CharacterSheetView({ char }: { char: Character }) {
+export default function CharacterSheetView({
+  char,
+  update,
+}: {
+  char: Character
+  update: (patch: Partial<Character>) => void
+}) {
+  const [subindoNivel, setSubindoNivel] = useState(false)
   const info = classInfo(char.classe)
   const dc = spellSaveDC(char)
   const atk = spellAttackBonus(char)
@@ -42,7 +50,7 @@ export default function CharacterSheetView({ char }: { char: Character }) {
           <div className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-full bg-arcane-600/30 text-3xl ring-2 ring-white/10">
             {char.avatarUrl ? <img src={char.avatarUrl} alt="" className="h-full w-full object-cover" /> : '🧙'}
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <h2 className="font-display text-2xl text-parchment-50">{char.nome || 'Sem nome'}</h2>
             <div className="mt-2 flex flex-wrap gap-1.5 text-xs">
               {char.especie && <span className="chip">{char.especie}</span>}
@@ -53,6 +61,11 @@ export default function CharacterSheetView({ char }: { char: Character }) {
               {char.jogador && <span className="chip">Jogador: {char.jogador}</span>}
             </div>
           </div>
+          {char.nivel < 20 && (
+            <button className="btn-primary shrink-0 px-3 py-1.5 text-xs sm:text-sm" onClick={() => setSubindoNivel(true)}>
+              ⬆ Subir de nível
+            </button>
+          )}
         </div>
       </section>
 
@@ -196,6 +209,9 @@ export default function CharacterSheetView({ char }: { char: Character }) {
         </section>
       )}
 
+      {/* Descanso */}
+      <RestPanel char={char} update={update} />
+
       {/* Cheat sheet de ações */}
       <AcoesCheatSheet char={char} />
 
@@ -277,6 +293,10 @@ export default function CharacterSheetView({ char }: { char: Character }) {
 
       {info && (
         <p className="text-center text-xs text-parchment-200/40">{info.resumo}</p>
+      )}
+
+      {subindoNivel && (
+        <LevelUpModal char={char} update={update} onClose={() => setSubindoNivel(false)} />
       )}
     </div>
   )

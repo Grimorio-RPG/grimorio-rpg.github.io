@@ -29,6 +29,7 @@ export function novaFicha(): Character {
     pvAtual: 8,
     pvTemporario: 0,
     dadosDeVida: '1d8',
+    dadosDeVidaUsados: 0,
     ataques: [],
     atributoConjuracao: null,
     magias: [],

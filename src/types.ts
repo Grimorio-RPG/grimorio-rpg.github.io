@@ -105,6 +105,7 @@ export interface Character {
   pvAtual: number
   pvTemporario: number
   dadosDeVida: string // ex: "3d10"
+  dadosDeVidaUsados: number // quantos já foram gastos em descansos curtos
   ataques: Attack[]
 
   // Magias
