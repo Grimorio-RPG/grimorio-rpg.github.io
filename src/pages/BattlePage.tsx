@@ -13,6 +13,7 @@ import {
 import { loadCharacters } from '../lib/storage'
 import { CONDICOES } from '../data/rules'
 import { PageHeader, ViewToggle } from '../components/layout-ui'
+import { rolarComModo } from '../components/dice-ui'
 
 type Modo = 'dm' | 'jogadores'
 type UpdateFn = (patch: Partial<Battle>) => void
@@ -161,7 +162,11 @@ function CombatantRow({
               onChange={(e) => { const n = parseInt(e.target.value, 10); onPatch({ iniciativa: Number.isNaN(n) ? null : n }) }}
               className="w-11 rounded-md border border-white/10 bg-ink-900/70 px-1 py-1 text-center text-sm outline-none focus:border-arcane-400"
             />
-            <button className="rounded-md border border-white/10 px-1.5 py-1 text-xs hover:bg-white/5" title="Rolar iniciativa" onClick={() => onPatch({ iniciativa: rolarIniciativa(c.iniciativaMod) })}>🎲</button>
+            <button
+              className="rounded-md border border-white/10 px-1.5 py-1 text-xs hover:bg-white/5"
+              title="Rolar iniciativa"
+              onClick={() => onPatch({ iniciativa: rolarComModo(1, 20, c.iniciativaMod, `Iniciativa — ${c.nome}`).total })}
+            >🎲</button>
           </div>
         </div>
 

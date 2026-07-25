@@ -3,6 +3,7 @@ import type { Character } from '../types'
 import { ABILITIES, CONDICOES, SKILLS } from '../data/rules'
 import { ACOES_GERAIS, ROTULO_TIPO, acoesDaClasse, type AcaoInfo } from '../data/actions'
 import { spellsDaClasse } from '../data/spells'
+import { RollButton, RollTextButton, rolarComModo } from './dice-ui'
 import {
   abilityMod,
   armorClass,
@@ -58,7 +59,11 @@ export default function CharacterSheetView({ char }: { char: Character }) {
       {/* Combate — números principais */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <Big label="Classe de Armadura" valor={armorClass(char)} />
-        <Big label="Iniciativa" valor={fmtMod(initiative(char))} />
+        <Big
+          label="Iniciativa"
+          valor={fmtMod(initiative(char))}
+          onRoll={() => rolarComModo(1, 20, initiative(char), 'Iniciativa')}
+        />
         <Big label="Deslocamento" valor={`${char.deslocamento} m`} />
         <Big label="Pontos de Vida" valor={`${char.pvAtual}/${char.pvMax}`} sub={char.pvTemporario > 0 ? `+${char.pvTemporario} temp` : undefined} />
         <Big label="Prof." valor={`+${proficiencyBonus(char.nivel)}`} />
@@ -72,11 +77,16 @@ export default function CharacterSheetView({ char }: { char: Character }) {
             <h3 className="mb-3 panel-title">Atributos</h3>
             <div className="grid grid-cols-3 gap-3 lg:grid-cols-2">
               {ABILITIES.map((a) => (
-                <div key={a.key} className="rounded-xl border border-white/10 bg-ink-900/40 p-3 text-center">
+                <button
+                  key={a.key}
+                  onClick={() => rolarComModo(1, 20, abilityMod(char.atributos[a.key]), `Teste de ${a.nome}`)}
+                  title={`Rolar teste de ${a.nome}`}
+                  className="rounded-xl border border-white/10 bg-ink-900/40 p-3 text-center transition hover:border-arcane-400/50 hover:bg-arcane-500/10 active:scale-95"
+                >
                   <div className="panel-title">{a.abrev}</div>
                   <div className="font-display text-2xl text-parchment-50">{fmtMod(abilityMod(char.atributos[a.key]))}</div>
                   <div className="text-xs text-parchment-200/50">{char.atributos[a.key]}</div>
-                </div>
+                </button>
               ))}
             </div>
           </section>
@@ -86,7 +96,13 @@ export default function CharacterSheetView({ char }: { char: Character }) {
             <h3 className="mb-3 panel-title">Salvaguardas</h3>
             <ul className="space-y-1.5">
               {ABILITIES.map((a) => (
-                <Linha key={a.key} prof={char.salvaguardasProficientes.includes(a.key)} valor={saveBonus(char, a.key)} nome={a.nome} />
+                <Linha
+                  key={a.key}
+                  prof={char.salvaguardasProficientes.includes(a.key)}
+                  valor={saveBonus(char, a.key)}
+                  nome={a.nome}
+                  onRoll={() => rolarComModo(1, 20, saveBonus(char, a.key), `Salvaguarda de ${a.nome}`)}
+                />
               ))}
             </ul>
           </section>
@@ -102,11 +118,17 @@ export default function CharacterSheetView({ char }: { char: Character }) {
                 const exp = char.periciasExpertise.includes(s.key)
                 const atr = ABILITIES.find((a) => a.key === s.atributo)!
                 return (
-                  <li key={s.key} className="flex items-center gap-2 py-0.5">
-                    <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${exp ? 'bg-arcane-500' : prof ? 'bg-dragon-500' : 'border border-white/25'}`} />
-                    <span className="w-9 font-mono text-sm tabular-nums text-parchment-100">{fmtMod(skillBonus(char, s.key))}</span>
-                    <span className={`text-sm ${prof || exp ? 'text-parchment-50' : 'text-parchment-200/70'}`}>{s.nome}</span>
-                    <span className="ml-auto text-[10px] uppercase text-parchment-200/40">{atr.abrev}</span>
+                  <li key={s.key}>
+                    <RollButton
+                      bonus={skillBonus(char, s.key)}
+                      rotulo={s.nome}
+                      className="flex w-full items-center gap-2 py-0.5 text-left"
+                    >
+                      <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${exp ? 'bg-arcane-500' : prof ? 'bg-dragon-500' : 'border border-white/25'}`} />
+                      <span className="w-9 font-mono text-sm tabular-nums text-parchment-100">{fmtMod(skillBonus(char, s.key))}</span>
+                      <span className={`text-sm ${prof || exp ? 'text-parchment-50' : 'text-parchment-200/70'}`}>{s.nome}</span>
+                      <span className="ml-auto text-[10px] uppercase text-parchment-200/40">{atr.abrev}</span>
+                    </RollButton>
                   </li>
                 )
               })}
@@ -147,14 +169,27 @@ export default function CharacterSheetView({ char }: { char: Character }) {
             <table className="w-full text-sm">
               <thead><tr className="text-left panel-title"><th className="pb-2 pr-3">Nome</th><th className="pb-2 pr-3">Bônus</th><th className="pb-2 pr-3">Dano</th><th className="pb-2">Notas</th></tr></thead>
               <tbody>
-                {char.ataques.map((a) => (
-                  <tr key={a.id} className="border-t border-white/5">
-                    <td className="py-1.5 pr-3 font-medium text-parchment-50">{a.nome || '—'}</td>
-                    <td className="py-1.5 pr-3 tabular-nums text-parchment-100">{a.bonus}</td>
-                    <td className="py-1.5 pr-3 text-parchment-100">{a.dano}</td>
-                    <td className="py-1.5 text-xs text-parchment-200/60">{a.notas}</td>
-                  </tr>
-                ))}
+                {char.ataques.map((a) => {
+                  const bonusNum = parseInt((a.bonus || '').replace(/[^\d+-]/g, ''), 10)
+                  return (
+                    <tr key={a.id} className="border-t border-white/5">
+                      <td className="py-1.5 pr-3 font-medium text-parchment-50">{a.nome || '—'}</td>
+                      <td className="py-1.5 pr-3 tabular-nums text-parchment-100">
+                        {Number.isNaN(bonusNum) ? a.bonus : (
+                          <RollButton bonus={bonusNum} rotulo={`${a.nome || 'Ataque'} (acerto)`} className="font-semibold text-arcane-400">
+                            {a.bonus} 🎲
+                          </RollButton>
+                        )}
+                      </td>
+                      <td className="py-1.5 pr-3 text-parchment-100">
+                        <RollTextButton texto={a.dano} rotulo={`${a.nome || 'Ataque'} (dano)`} className="text-parchment-100">
+                          {a.dano}
+                        </RollTextButton>
+                      </td>
+                      <td className="py-1.5 text-xs text-parchment-200/60">{a.notas}</td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -374,22 +409,60 @@ function FeiticosDaClasse({ classe }: { classe: string }) {
   )
 }
 
-function Big({ label, valor, sub }: { label: string; valor: string | number; sub?: string }) {
-  return (
-    <div className="rounded-xl border border-white/10 bg-ink-800/70 p-3 text-center">
+function Big({
+  label,
+  valor,
+  sub,
+  onRoll,
+}: {
+  label: string
+  valor: string | number
+  sub?: string
+  onRoll?: () => void
+}) {
+  const conteudo = (
+    <>
       <div className="panel-title">{label}</div>
       <div className="font-display text-2xl text-parchment-50">{valor}</div>
       {sub && <div className="text-[10px] text-parchment-200/50">{sub}</div>}
-    </div>
+    </>
   )
+  if (onRoll) {
+    return (
+      <button
+        onClick={onRoll}
+        title={`Rolar ${label}`}
+        className="rounded-xl border border-white/10 bg-ink-800/70 p-3 text-center transition hover:border-arcane-400/50 hover:bg-arcane-500/10 active:scale-95"
+      >
+        {conteudo}
+      </button>
+    )
+  }
+  return <div className="rounded-xl border border-white/10 bg-ink-800/70 p-3 text-center">{conteudo}</div>
 }
 
-function Linha({ prof, valor, nome }: { prof: boolean; valor: number; nome: string }) {
+function Linha({
+  prof,
+  valor,
+  nome,
+  onRoll,
+}: {
+  prof: boolean
+  valor: number
+  nome: string
+  onRoll?: () => void
+}) {
   return (
-    <li className="flex items-center gap-3">
-      <span className={`h-3 w-3 shrink-0 rounded-full ${prof ? 'bg-dragon-500' : 'border border-white/25'}`} />
-      <span className="w-12 font-mono text-sm tabular-nums text-parchment-100">{fmtMod(valor)}</span>
-      <span className={`text-sm ${prof ? 'text-parchment-50' : 'text-parchment-200/70'}`}>{nome}</span>
+    <li>
+      <button
+        onClick={onRoll}
+        title={`Rolar ${nome}`}
+        className="flex w-full items-center gap-3 rounded-md px-1 py-0.5 text-left transition hover:bg-arcane-500/20"
+      >
+        <span className={`h-3 w-3 shrink-0 rounded-full ${prof ? 'bg-dragon-500' : 'border border-white/25'}`} />
+        <span className="w-12 font-mono text-sm tabular-nums text-parchment-100">{fmtMod(valor)}</span>
+        <span className={`text-sm ${prof ? 'text-parchment-50' : 'text-parchment-200/70'}`}>{nome}</span>
+      </button>
     </li>
   )
 }

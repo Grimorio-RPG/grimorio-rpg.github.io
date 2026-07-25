@@ -1,4 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom'
+import { DiceTray } from './dice-ui'
 
 const NAV = [
   { to: '/fichas', label: 'Fichas', icon: '📜', desc: 'Personagens' },
@@ -43,9 +44,10 @@ export default function Layout() {
           </nav>
         </header>
 
-        <main className="mx-auto w-full max-w-6xl flex-1 px-3 py-4 sm:px-4 sm:py-6 md:px-8 md:py-10">
+        <main className="mx-auto w-full max-w-6xl flex-1 px-3 py-4 pb-24 sm:px-4 sm:py-6 sm:pb-28 md:px-8 md:py-10 md:pb-28">
           <Outlet />
         </main>
+        <DiceTray />
       </div>
     </div>
   )
