@@ -14,7 +14,33 @@ export function cenaVazia(): MapScene {
     mostrarGrade: true,
     offsetX: 0,
     offsetY: 0,
+    encaixarGrade: true,
+    zoom: 1,
     tokens: [],
+  }
+}
+
+/**
+ * Ajusta uma posição (fração 0..1) para o centro do quadrado mais próximo.
+ * `larguraPx`/`alturaPx` são as dimensões atuais do tabuleiro na tela.
+ */
+export function encaixar(
+  x: number,
+  y: number,
+  larguraPx: number,
+  alturaPx: number,
+  celPx: number,
+  offsetX: number,
+  offsetY: number,
+): { x: number; y: number } {
+  if (celPx <= 0 || larguraPx <= 0 || alturaPx <= 0) return { x, y }
+  const px = x * larguraPx
+  const py = y * alturaPx
+  const cx = Math.floor((px - offsetX) / celPx) * celPx + offsetX + celPx / 2
+  const cy = Math.floor((py - offsetY) / celPx) * celPx + offsetY + celPx / 2
+  return {
+    x: Math.max(0, Math.min(1, cx / larguraPx)),
+    y: Math.max(0, Math.min(1, cy / alturaPx)),
   }
 }
 

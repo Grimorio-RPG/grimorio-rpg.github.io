@@ -7,11 +7,13 @@ import { useBattle } from '../hooks/useBattle'
 import {
   CORES_TOKEN,
   cenaVazia,
+  encaixar,
   tokenDeMonstro,
   tokenDePersonagem,
   tokenObjeto,
 } from '../lib/mapscene'
 import { imageToDataUrl } from '../lib/bestiary'
+import { EmptyState, PageHeader, ViewToggle } from '../components/layout-ui'
 
 type Modo = 'dm' | 'jogadores'
 type Ferramenta = 'mover' | 'medir'
@@ -28,29 +30,21 @@ export default function MapPage() {
 
   return (
     <div>
-      <header className="mb-5 flex flex-wrap items-start justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <span className="text-3xl">🗺️</span>
-          <div>
-            <h1 className="text-3xl text-parchment-50">Mapa / Mesa Virtual</h1>
-            <p className="mt-1 max-w-xl text-sm text-parchment-200/60">
-              Suba um mapa, posicione tokens do grupo e dos inimigos e mostre a
-              cena aos jogadores.
-            </p>
-          </div>
-        </div>
-        <div className="inline-flex rounded-lg border border-white/10 bg-ink-900/50 p-1 text-sm">
-          {([['dm', '🎲 Visão do DM'], ['jogadores', '👥 Visão dos Jogadores']] as const).map(([v, label]) => (
-            <button
-              key={v}
-              onClick={() => { setModo(v); setSelecionado(null) }}
-              className={`rounded-md px-3 py-1.5 font-semibold transition ${modo === v ? 'bg-dragon-500 text-parchment-50' : 'text-parchment-200/70 hover:text-parchment-50'}`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      </header>
+      <PageHeader
+        icon="🗺️"
+        titulo="Mapa / Mesa Virtual"
+        subtitulo="Suba um mapa, posicione tokens do grupo e dos inimigos e mostre a cena aos jogadores."
+        acoes={
+          <ViewToggle
+            valor={modo}
+            onChange={(v) => { setModo(v); setSelecionado(null) }}
+            opcoes={[
+              { valor: 'dm', label: '🎲 Visão do DM' },
+              { valor: 'jogadores', label: '👥 Visão dos Jogadores' },
+            ]}
+          />
+        }
+      />
 
       {semEspaco && (
         <div className="mb-4 rounded-lg border border-dragon-400/40 bg-dragon-500/15 p-3 text-sm text-parchment-100">
@@ -73,7 +67,7 @@ export default function MapPage() {
           {!visaoJogador && (
             <div className="space-y-4">
               <Ferramentas scene={scene} update={update} ferramenta={ferramenta} setFerramenta={setFerramenta} />
-              {selecionado ? (
+              {selecionado && scene.tokens.some((t) => t.id === selecionado) ? (
                 <TokenControles
                   token={scene.tokens.find((t) => t.id === selecionado)!}
                   update={update}
@@ -83,12 +77,13 @@ export default function MapPage() {
               ) : (
                 <AdicionarTokens scene={scene} update={update} />
               )}
+              <ListaTokens scene={scene} update={update} selecionado={selecionado} onSelecionar={setSelecionado} />
             </div>
           )}
         </div>
       )}
       {visaoJogador && !scene.mapaUrl && (
-        <div className="card p-10 text-center text-sm text-parchment-200/60">O DM ainda não preparou um mapa.</div>
+        <EmptyState icon="🗺️" titulo="Sem mapa" texto="O DM ainda não preparou um mapa para esta cena." />
       )}
     </div>
   )
@@ -168,7 +163,11 @@ function Board({
   }
   function onPointerMove(e: React.PointerEvent) {
     if (arrastando) {
-      const p = fracDoEvento(e)
+      let p = fracDoEvento(e)
+      if (scene.encaixarGrade && ref.current) {
+        const r = ref.current.getBoundingClientRect()
+        p = encaixar(p.x, p.y, r.width, r.height, scene.celPx, scene.offsetX, scene.offsetY)
+      }
       update({ tokens: scene.tokens.map((t) => (t.id === arrastando ? { ...t, x: p.x, y: p.y } : t)) })
     } else if (medindo && medida) {
       const p = fracDoEvento(e)
@@ -195,7 +194,7 @@ function Board({
       <div
         ref={ref}
         className={`relative mx-auto select-none ${ferramenta === 'medir' && !visaoJogador ? 'cursor-crosshair' : ''}`}
-        style={{ width: '100%', touchAction: 'none' }}
+        style={{ width: `${(scene.zoom ?? 1) * 100}%`, touchAction: 'none' }}
         onPointerDown={onPointerDownBoard}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
@@ -329,14 +328,24 @@ function Ferramentas({
         ))}
       </div>
 
-      <label className="mb-3 flex cursor-pointer items-center justify-between text-sm">
+      <label className="mb-2 flex cursor-pointer items-center justify-between text-sm">
         <span className="text-parchment-100">Mostrar grade</span>
         <input type="checkbox" checked={scene.mostrarGrade} onChange={(e) => update({ mostrarGrade: e.target.checked })} className="h-4 w-4 accent-dragon-500" />
+      </label>
+
+      <label className="mb-3 flex cursor-pointer items-center justify-between text-sm">
+        <span className="text-parchment-100" title="Tokens grudam no centro dos quadrados">Encaixar na grade</span>
+        <input type="checkbox" checked={scene.encaixarGrade} onChange={(e) => update({ encaixarGrade: e.target.checked })} className="h-4 w-4 accent-dragon-500" />
       </label>
 
       <label className="block text-sm">
         <span className="mb-1 block text-parchment-200/70">Tamanho do quadrado: {scene.celPx}px</span>
         <input type="range" min={24} max={100} value={scene.celPx} onChange={(e) => update({ celPx: parseInt(e.target.value, 10) })} className="w-full accent-dragon-500" />
+      </label>
+
+      <label className="mt-3 block text-sm">
+        <span className="mb-1 block text-parchment-200/70">Zoom: {Math.round((scene.zoom ?? 1) * 100)}%</span>
+        <input type="range" min={50} max={250} step={10} value={(scene.zoom ?? 1) * 100} onChange={(e) => update({ zoom: parseInt(e.target.value, 10) / 100 })} className="w-full accent-arcane-500" />
       </label>
 
       <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
@@ -422,6 +431,50 @@ function AdicionarTokens({ scene, update }: { scene: MapScene; update: UpdateFn 
       )}
 
       <button className="btn-ghost w-full py-1.5 text-xs" onClick={() => { const n = prompt('Nome do marcador (ex: Porta, Baú, Armadilha):'); if (n) add(tokenObjeto(n, cor())) }}>＋ Marcador / objeto</button>
+    </section>
+  )
+}
+
+// ---------------------------------------------------------------------------
+function ListaTokens({
+  scene,
+  update,
+  selecionado,
+  onSelecionar,
+}: {
+  scene: MapScene
+  update: UpdateFn
+  selecionado: string | null
+  onSelecionar: (id: string) => void
+}) {
+  if (scene.tokens.length === 0) return null
+  const icone = { aliado: '🛡️', inimigo: '🐾', objeto: '📍' } as const
+  return (
+    <section className="card p-4">
+      <h2 className="mb-2 text-sm font-semibold uppercase tracking-widest text-parchment-200/70">
+        Tokens ({scene.tokens.length})
+      </h2>
+      <ul className="max-h-56 space-y-1 overflow-y-auto">
+        {scene.tokens.map((t) => (
+          <li key={t.id}>
+            <div className={`flex items-center gap-2 rounded-lg px-2 py-1 text-sm transition ${selecionado === t.id ? 'bg-white/10' : 'hover:bg-white/5'}`}>
+              <button className="flex min-w-0 flex-1 items-center gap-2 text-left" onClick={() => onSelecionar(t.id)}>
+                <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: t.cor }} />
+                <span className={`truncate ${t.oculto ? 'text-parchment-200/40' : 'text-parchment-100'}`}>
+                  {icone[t.origem]} {t.nome || 'Sem nome'}
+                </span>
+              </button>
+              <button
+                className="shrink-0 text-xs text-parchment-200/40 hover:text-parchment-100"
+                title={t.oculto ? 'Oculto dos jogadores' : 'Visível aos jogadores'}
+                onClick={() => update({ tokens: scene.tokens.map((x) => (x.id === t.id ? { ...x, oculto: !x.oculto } : x)) })}
+              >
+                {t.oculto ? '🙈' : '👁'}
+              </button>
+            </div>
+          </li>
+        ))}
+      </ul>
     </section>
   )
 }

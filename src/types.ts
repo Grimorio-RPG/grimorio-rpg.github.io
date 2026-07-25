@@ -235,6 +235,8 @@ export interface MapScene {
   mostrarGrade: boolean
   offsetX: number // deslocamento da grade em px
   offsetY: number
+  encaixarGrade: boolean // tokens "grudam" no centro dos quadrados
+  zoom: number // escala de exibição do mapa (1 = 100%)
   tokens: Token[]
 }
 

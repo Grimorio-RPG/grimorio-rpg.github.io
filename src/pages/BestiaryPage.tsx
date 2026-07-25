@@ -20,60 +20,89 @@ import {
   TextArea,
   TextField,
 } from '../components/ui'
+import { EmptyState, FilterChip, PageHeader, Toolbar, ViewToggle } from '../components/layout-ui'
 
 type Modo = 'dm' | 'jogadores'
+type FiltroNivel = KnowledgeLevel | 'todos'
 
 export default function BestiaryPage() {
   const { monstros, salvar, remover } = useBestiary()
   const [modo, setModo] = useState<Modo>('dm')
   const [busca, setBusca] = useState('')
+  const [filtro, setFiltro] = useState<FiltroNivel>('todos')
   const [editando, setEditando] = useState<Monster | null>(null)
 
   const filtrados = useMemo(() => {
     const q = busca.trim().toLowerCase()
-    const arr = q
-      ? monstros.filter((m) => `${m.nome} ${m.tipo}`.toLowerCase().includes(q))
-      : monstros
+    const arr = monstros.filter((m) => {
+      if (filtro !== 'todos' && m.conhecimento !== filtro) return false
+      if (!q) return true
+      return `${m.nome} ${m.tipo}`.toLowerCase().includes(q)
+    })
     return [...arr].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
-  }, [monstros, busca])
+  }, [monstros, busca, filtro])
 
   const conhecidos = useMemo(
-    () => filtrados.filter((m) => m.conhecimento !== 'desconhecido'),
-    [filtrados],
+    () => monstros
+      .filter((m) => m.conhecimento !== 'desconhecido')
+      .filter((m) => !busca.trim() || `${m.nome} ${m.tipo}`.toLowerCase().includes(busca.trim().toLowerCase()))
+      .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')),
+    [monstros, busca],
   )
+
+  function duplicar(m: Monster) {
+    salvar({ ...m, id: uid(), nome: `${m.nome} (cópia)`, updatedAt: Date.now() })
+  }
 
   return (
     <div>
-      <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <span className="text-3xl">🐲</span>
-          <div>
-            <h1 className="text-3xl text-parchment-50">Bestiário</h1>
-            <p className="mt-1 max-w-xl text-sm text-parchment-200/60">
-              Cadastre inimigos com foto e estatísticas. Controle o que o grupo
-              já descobriu sobre cada criatura.
-            </p>
-          </div>
-        </div>
-        <ModoToggle modo={modo} setModo={setModo} />
-      </header>
+      <PageHeader
+        icon="🐲"
+        titulo="Bestiário"
+        subtitulo="Cadastre inimigos com foto e estatísticas. Controle o que o grupo já descobriu sobre cada criatura."
+        acoes={
+          <ViewToggle
+            valor={modo}
+            onChange={setModo}
+            opcoes={[
+              { valor: 'dm', label: '🎲 Visão do DM' },
+              { valor: 'jogadores', label: '👥 Visão dos Jogadores' },
+            ]}
+          />
+        }
+      />
 
       {modo === 'dm' ? (
         <>
-          <div className="mb-6 flex flex-wrap gap-3">
+          <Toolbar>
             <button className="btn-primary" onClick={() => setEditando(novoMonstro())}>＋ Novo monstro</button>
             <input
-              className="stat-input max-w-xs"
+              className="stat-input w-full max-w-xs"
               value={busca}
               placeholder="Buscar por nome ou tipo…"
               onChange={(e) => setBusca(e.target.value)}
             />
-          </div>
+            <div className="flex flex-wrap items-center gap-1">
+              <FilterChip ativo={filtro === 'todos'} onClick={() => setFiltro('todos')}>
+                Todas ({monstros.length})
+              </FilterChip>
+              {NIVEIS_CONHECIMENTO.map((n) => {
+                const qtd = monstros.filter((m) => m.conhecimento === n.valor).length
+                return (
+                  <FilterChip key={n.valor} ativo={filtro === n.valor} onClick={() => setFiltro(n.valor)}>
+                    {n.icone} {n.curto} ({qtd})
+                  </FilterChip>
+                )
+              })}
+            </div>
+          </Toolbar>
 
           {filtrados.length === 0 ? (
-            <VazioCard
-              titulo={busca ? 'Nenhum monstro encontrado' : 'Bestiário vazio'}
-              texto={busca ? 'Tente outra busca.' : 'Crie sua primeira criatura para começar a preencher a mesa de perigos.'}
+            <EmptyState
+              icon="🐉"
+              titulo={monstros.length === 0 ? 'Bestiário vazio' : 'Nenhuma criatura encontrada'}
+              texto={monstros.length === 0 ? 'Crie sua primeira criatura para começar a preencher a mesa de perigos.' : 'Ajuste a busca ou os filtros.'}
+              acao={monstros.length === 0 ? <button className="btn-primary" onClick={() => setEditando(novoMonstro())}>＋ Criar criatura</button> : undefined}
             />
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -82,6 +111,7 @@ export default function BestiaryPage() {
                   key={m.id}
                   m={m}
                   onEdit={() => setEditando(m)}
+                  onDuplicate={() => duplicar(m)}
                   onDelete={() => {
                     if (confirm(`Remover "${m.nome || 'monstro'}" do bestiário?`)) remover(m.id)
                   }}
@@ -111,36 +141,19 @@ export default function BestiaryPage() {
 }
 
 // ---------------------------------------------------------------------------
-function ModoToggle({ modo, setModo }: { modo: Modo; setModo: (m: Modo) => void }) {
-  return (
-    <div className="inline-flex rounded-lg border border-white/10 bg-ink-900/50 p-1 text-sm">
-      {([['dm', '🎲 Visão do DM'], ['jogadores', '👥 Visão dos Jogadores']] as const).map(([v, label]) => (
-        <button
-          key={v}
-          onClick={() => setModo(v)}
-          className={`rounded-md px-3 py-1.5 font-semibold transition ${
-            modo === v ? 'bg-dragon-500 text-parchment-50' : 'text-parchment-200/70 hover:text-parchment-50'
-          }`}
-        >
-          {label}
-        </button>
-      ))}
-    </div>
-  )
-}
-
-// ---------------------------------------------------------------------------
 // Card do DM
 // ---------------------------------------------------------------------------
 function DmMonsterCard({
   m,
   onEdit,
+  onDuplicate,
   onDelete,
   onHp,
   onNivel,
 }: {
   m: Monster
   onEdit: () => void
+  onDuplicate: () => void
   onDelete: () => void
   onHp: (pv: number) => void
   onNivel: (n: KnowledgeLevel) => void
@@ -149,16 +162,20 @@ function DmMonsterCard({
   const cor = pct > 50 ? 'bg-emerald-500' : pct > 25 ? 'bg-amber-500' : 'bg-dragon-500'
   const ajusta = (d: number) => onHp(Math.max(0, Math.min(m.pvMax, m.pvAtual + d)))
   const nivel = nivelInfo(m.conhecimento)
+  const ferido = m.pvAtual < m.pvMax
 
   return (
-    <div className="card group relative overflow-hidden">
+    <div className="card gv-fade group relative overflow-hidden transition hover:ring-1 hover:ring-dragon-500/40">
       <div className="relative h-36 w-full overflow-hidden bg-ink-900/60">
         {m.imagemUrl ? (
-          <img src={m.imagemUrl} alt={m.nome} className="h-full w-full object-cover" />
+          <img src={m.imagemUrl} alt={m.nome} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
         ) : (
           <div className="grid h-full w-full place-items-center text-5xl opacity-40">🐾</div>
         )}
-        <div className="absolute inset-x-0 bottom-0 flex items-end justify-between bg-gradient-to-t from-ink-900 to-transparent p-3">
+        <span className="absolute left-2 top-2 rounded-full bg-black/50 px-2 py-0.5 text-[11px] text-parchment-100 backdrop-blur" title={nivel.label}>
+          {nivel.icone} {nivel.curto}
+        </span>
+        <div className="absolute inset-x-0 bottom-0 flex items-end justify-between bg-gradient-to-t from-ink-900 via-ink-900/70 to-transparent p-3">
           <div>
             <p className="font-display text-lg leading-tight text-parchment-50 drop-shadow">{m.nome || 'Sem nome'}</p>
             <p className="text-xs text-parchment-100/80">{[m.tamanho, m.tipo].filter(Boolean).join(' · ')}</p>
@@ -194,10 +211,17 @@ function DmMonsterCard({
         <div className="rounded-lg border border-white/10 bg-ink-900/40 p-2.5">
           <div className="mb-1.5 flex items-center justify-between text-xs">
             <span className="panel-title">Pontos de Vida</span>
-            <span className="tabular-nums text-parchment-100">{m.pvAtual} / {m.pvMax}</span>
+            <span className="flex items-center gap-2">
+              {ferido && (
+                <button className="text-[10px] text-arcane-400 hover:underline" onClick={() => onHp(m.pvMax)} title="Restaurar vida cheia">
+                  restaurar
+                </button>
+              )}
+              <span className="tabular-nums text-parchment-100">{m.pvAtual} / {m.pvMax}</span>
+            </span>
           </div>
           <div className="mb-2 h-2 overflow-hidden rounded-full bg-black/40">
-            <div className={`h-full rounded-full transition-all ${cor}`} style={{ width: `${pct}%` }} />
+            <div className={`hpbar ${cor}`} style={{ width: `${pct}%` }} />
           </div>
           <div className="flex items-center gap-1">
             <button className="btn-ghost flex-1 px-1 py-1 text-xs" onClick={() => ajusta(-5)}>−5</button>
@@ -218,6 +242,7 @@ function DmMonsterCard({
 
         <div className="mt-3 flex gap-2">
           <button className="btn-ghost flex-1 py-1.5 text-xs" onClick={onEdit}>Editar / ver ficha</button>
+          <button className="btn-ghost px-2 py-1.5 text-xs text-parchment-200/50 hover:text-parchment-50" onClick={onDuplicate} title="Duplicar criatura" aria-label="Duplicar">⧉</button>
           <button
             className="btn-ghost px-2 py-1.5 text-xs text-parchment-200/50 hover:text-dragon-400"
             onClick={onDelete}
@@ -258,7 +283,8 @@ function PlayerView({
         />
       </div>
       {monstros.length === 0 ? (
-        <VazioCard
+        <EmptyState
+          icon="🔍"
           titulo="Nada revelado ainda"
           texto="Na Visão do DM, marque as criaturas como Encontrado ou Estudado para que apareçam aqui."
         />
@@ -578,13 +604,3 @@ function ImageSlot({
   )
 }
 
-// ---------------------------------------------------------------------------
-function VazioCard({ titulo, texto }: { titulo: string; texto: string }) {
-  return (
-    <div className="card p-10 text-center">
-      <div className="text-4xl">🐉</div>
-      <h3 className="mt-3 text-xl text-parchment-50">{titulo}</h3>
-      <p className="mx-auto mt-1 max-w-sm text-sm text-parchment-200/60">{texto}</p>
-    </div>
-  )
-}
