@@ -1,10 +1,11 @@
 import type { ModoRolagem, RollResult } from './dice'
+import { CHAVES, readRaw, writeJson } from './store'
 
 // Histórico de rolagens compartilhado entre todas as telas.
 // Store minimalista com pub/sub, para o painel de dados e os botões espalhados
 // pelo app ficarem sempre em sincronia.
 
-const KEY = 'grimorio55e.rolls.v1'
+const KEY = CHAVES.rolagens
 const LIMITE = 40
 
 let cache: RollResult[] | null = null
@@ -13,7 +14,7 @@ const listeners = new Set<() => void>()
 function ler(): RollResult[] {
   if (cache) return cache
   try {
-    const raw = localStorage.getItem(KEY)
+    const raw = readRaw(KEY)
     const parsed = raw ? JSON.parse(raw) : []
     cache = Array.isArray(parsed) ? parsed : []
   } catch {
@@ -25,7 +26,7 @@ function ler(): RollResult[] {
 function escrever(lista: RollResult[]) {
   cache = lista
   try {
-    localStorage.setItem(KEY, JSON.stringify(lista))
+    writeJson(KEY, lista)
   } catch {
     // histórico é descartável — se não couber, seguimos só em memória
   }

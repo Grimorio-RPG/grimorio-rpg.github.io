@@ -1,11 +1,12 @@
 import type { Character } from '../types'
 import { normalizeCharacter } from './character'
+import { CHAVES, readRaw, writeJson } from './store'
 
-const KEY = 'grimorio55e.characters.v1'
+const KEY = CHAVES.personagens
 
 export function loadCharacters(): Character[] {
   try {
-    const raw = localStorage.getItem(KEY)
+    const raw = readRaw(KEY)
     if (!raw) return []
     const parsed = JSON.parse(raw)
     if (!Array.isArray(parsed)) return []
@@ -16,7 +17,7 @@ export function loadCharacters(): Character[] {
 }
 
 export function saveCharacters(chars: Character[]): void {
-  localStorage.setItem(KEY, JSON.stringify(chars))
+  writeJson(KEY, chars)
 }
 
 export function upsertCharacter(char: Character): Character[] {

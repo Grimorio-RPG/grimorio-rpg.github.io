@@ -1,7 +1,8 @@
 import type { Campaign, Npc, SessionEntry } from '../types'
 import { normalizeCharacter, uid } from './character'
+import { CHAVES, readRaw, writeJson } from './store'
 
-const KEY = 'grimorio55e.campaign.v1'
+const KEY = CHAVES.campanha
 
 export function campanhaVazia(): Campaign {
   return {
@@ -17,7 +18,7 @@ export function campanhaVazia(): Campaign {
 
 export function loadCampaign(): Campaign {
   try {
-    const raw = localStorage.getItem(KEY)
+    const raw = readRaw(KEY)
     if (!raw) return campanhaVazia()
     const data = JSON.parse(raw)
     return {
@@ -34,7 +35,7 @@ export function loadCampaign(): Campaign {
 
 export function saveCampaign(c: Campaign): Campaign {
   const updated = { ...c, updatedAt: Date.now() }
-  localStorage.setItem(KEY, JSON.stringify(updated))
+  writeJson(KEY, updated)
   return updated
 }
 

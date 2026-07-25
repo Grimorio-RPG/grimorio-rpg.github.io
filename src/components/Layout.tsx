@@ -8,6 +8,7 @@ const NAV = [
   { to: '/batalhas', label: 'Batalhas', icon: '⚔️', desc: 'Combate' },
   { to: '/mapa', label: 'Mapa', icon: '🗺️', desc: 'Mesa virtual' },
   { to: '/campanha', label: 'Campanha', icon: '📖', desc: 'Resumo & DM' },
+  { to: '/dados', label: 'Dados', icon: '💾', desc: 'Backup' },
 ]
 
 export default function Layout() {
@@ -22,10 +23,11 @@ export default function Layout() {
           ))}
         </nav>
         <div className="mt-auto rounded-lg border border-white/10 bg-white/5 p-3 text-xs text-parchment-200/70">
-          <p className="font-semibold text-parchment-100">Dados salvos neste navegador</p>
+          <p className="font-semibold text-parchment-100">Dados salvos neste dispositivo</p>
           <p className="mt-1 leading-relaxed">
-            Suas fichas ficam só neste dispositivo. Use <b>Exportar</b> para
-            enviar ao seu DM ou fazer backup.
+            Nada é enviado para servidores. Faça um <b>backup</b> na aba{' '}
+            <NavLink to="/dados" className="text-arcane-400 hover:underline">Dados</NavLink>{' '}
+            ao fim de cada sessão.
           </p>
         </div>
       </aside>

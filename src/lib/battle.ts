@@ -1,8 +1,9 @@
 import type { Battle, Combatant, Character, Monster } from '../types'
 import { abilityMod } from './calc'
 import { uid } from './character'
+import { CHAVES, readRaw, writeJson } from './store'
 
-const KEY = 'grimorio55e.battle.v1'
+const KEY = CHAVES.batalha
 
 export function batalhaVazia(): Battle {
   return {
@@ -17,7 +18,7 @@ export function batalhaVazia(): Battle {
 
 export function loadBattle(): Battle {
   try {
-    const raw = localStorage.getItem(KEY)
+    const raw = readRaw(KEY)
     if (!raw) return batalhaVazia()
     const data = JSON.parse(raw)
     return {
@@ -44,7 +45,7 @@ function normalizeCombatant(c: Partial<Combatant>): Combatant {
 
 export function saveBattle(b: Battle): Battle {
   const updated = { ...b, updatedAt: Date.now() }
-  localStorage.setItem(KEY, JSON.stringify(updated))
+  writeJson(KEY, updated)
   return updated
 }
 

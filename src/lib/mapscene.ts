@@ -1,7 +1,8 @@
 import type { Character, MapScene, Monster, Token } from '../types'
 import { uid } from './character'
+import { CHAVES, readRaw, writeJson } from './store'
 
-const KEY = 'grimorio55e.mapscene.v1'
+const KEY = CHAVES.mapa
 
 export const CORES_TOKEN = ['#a3312b', '#6a5aa8', '#2f8f5b', '#c99a2e', '#2e7fc9', '#b14a8f', '#5a5a5a']
 
@@ -46,7 +47,7 @@ export function encaixar(
 
 export function loadScene(): MapScene {
   try {
-    const raw = localStorage.getItem(KEY)
+    const raw = readRaw(KEY)
     if (!raw) return cenaVazia()
     const data = JSON.parse(raw)
     return { ...cenaVazia(), ...data, tokens: Array.isArray(data.tokens) ? data.tokens : [] }
@@ -55,15 +56,10 @@ export function loadScene(): MapScene {
   }
 }
 
-/** Salva a cena. Mapas grandes podem estourar o localStorage — devolve false nesse caso. */
+/** Salva a cena. Devolve ok=false se o dado não couber no armazenamento. */
 export function saveScene(c: MapScene): { ok: boolean; scene: MapScene } {
   const updated = { ...c, updatedAt: Date.now() }
-  try {
-    localStorage.setItem(KEY, JSON.stringify(updated))
-    return { ok: true, scene: updated }
-  } catch {
-    return { ok: false, scene: updated }
-  }
+  return { ok: writeJson(KEY, updated), scene: updated }
 }
 
 let contador = 0

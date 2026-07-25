@@ -8,6 +8,7 @@ import BestiaryPage from './pages/BestiaryPage'
 import BattlePage from './pages/BattlePage'
 import MapPage from './pages/MapPage'
 import CampaignPage from './pages/CampaignPage'
+import DataPage from './pages/DataPage'
 
 export default function App() {
   return (
@@ -22,6 +23,7 @@ export default function App() {
         <Route path="batalhas" element={<BattlePage />} />
         <Route path="mapa" element={<MapPage />} />
         <Route path="campanha" element={<CampaignPage />} />
+        <Route path="dados" element={<DataPage />} />
         <Route path="*" element={<Navigate to="/fichas" replace />} />
       </Route>
     </Routes>

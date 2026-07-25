@@ -1,8 +1,9 @@
 import type { Abilities, KnowledgeLevel, Monster } from '../types'
 import { uid } from './character'
+import { CHAVES, readRaw, writeJson, writeRaw } from './store'
 
-const KEY = 'grimorio55e.bestiary.v1'
-const SEED_FLAG = 'grimorio55e.bestiary.seeded.v1'
+const KEY = CHAVES.bestiario
+const SEED_FLAG = CHAVES.bestiarioSeed
 
 export const NIVEIS_CONHECIMENTO: {
   valor: KnowledgeLevel
@@ -129,16 +130,16 @@ function seed(): Monster[] {
 
 export function loadBestiary(): Monster[] {
   try {
-    const raw = localStorage.getItem(KEY)
+    const raw = readRaw(KEY)
     if (raw) {
       const parsed = JSON.parse(raw)
       if (Array.isArray(parsed)) return parsed.map(normalizeMonster)
     }
     // primeira visita: semeia exemplos editáveis
-    if (!localStorage.getItem(SEED_FLAG)) {
+    if (!readRaw(SEED_FLAG)) {
       const seeded = seed()
-      localStorage.setItem(KEY, JSON.stringify(seeded))
-      localStorage.setItem(SEED_FLAG, '1')
+      writeJson(KEY, seeded)
+      writeRaw(SEED_FLAG, '1')
       return seeded
     }
     return []
@@ -148,7 +149,7 @@ export function loadBestiary(): Monster[] {
 }
 
 export function saveBestiary(list: Monster[]): void {
-  localStorage.setItem(KEY, JSON.stringify(list))
+  writeJson(KEY, list)
 }
 
 /**
