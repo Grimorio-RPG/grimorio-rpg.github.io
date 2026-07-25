@@ -582,10 +582,16 @@ function SpellsSection({
     const q = busca.trim().toLowerCase()
     if (!q) return []
     const jaTem = new Set(char.magias.map((m) => m.nome.toLowerCase()))
-    return SPELLS.filter(
-      (s) => s.nome.toLowerCase().includes(q) && !jaTem.has(s.nome.toLowerCase()),
-    ).slice(0, 6)
-  }, [busca, char.magias])
+    return SPELLS
+      .filter((s) => s.nome.toLowerCase().includes(q) && !jaTem.has(s.nome.toLowerCase()))
+      // magias da própria classe aparecem primeiro
+      .sort((a, b) => {
+        const aTem = a.classes.includes(char.classe) ? 0 : 1
+        const bTem = b.classes.includes(char.classe) ? 0 : 1
+        return aTem - bTem || a.nivel - b.nivel
+      })
+      .slice(0, 8)
+  }, [busca, char.magias, char.classe])
 
   function addMagia(nome: string, nivel: number) {
     if (!nome.trim()) return
@@ -650,7 +656,12 @@ function SpellsSection({
                   className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-white/5"
                   onClick={() => addMagia(s.nome, s.nivel)}
                 >
-                  <span className="text-parchment-100">{s.nome}</span>
+                  <span className="flex items-center gap-2 text-parchment-100">
+                    {s.nome}
+                    {s.classes.includes(char.classe) && (
+                      <span className="rounded-full bg-arcane-500/25 px-1.5 py-0.5 text-[10px] text-arcane-400">{char.classe}</span>
+                    )}
+                  </span>
                   <span className="text-xs text-parchment-200/50">{s.nivel === 0 ? 'Truque' : `Nível ${s.nivel}`}</span>
                 </button>
               </li>

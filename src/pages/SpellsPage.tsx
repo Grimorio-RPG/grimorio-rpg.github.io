@@ -1,15 +1,18 @@
 import { useMemo, useState } from 'react'
-import { SPELLS, type Spell } from '../data/spells'
+import { CLASSES_CONJURADORAS, SPELLS, type Spell } from '../data/spells'
+import { EmptyState, FilterChip, PageHeader, Toolbar } from '../components/layout-ui'
 
 export default function SpellsPage() {
   const [busca, setBusca] = useState('')
   const [nivel, setNivel] = useState<number | 'todos'>('todos')
+  const [classe, setClasse] = useState<string>('todas')
   const [aberta, setAberta] = useState<string | null>(null)
 
   const filtradas = useMemo(() => {
     const q = busca.trim().toLowerCase()
     return SPELLS.filter((s) => {
       if (nivel !== 'todos' && s.nivel !== nivel) return false
+      if (classe !== 'todas' && !s.classes.includes(classe)) return false
       if (!q) return true
       return (
         s.nome.toLowerCase().includes(q) ||
@@ -17,36 +20,49 @@ export default function SpellsPage() {
         s.emMiudos.toLowerCase().includes(q)
       )
     }).sort((a, b) => a.nivel - b.nivel || a.nome.localeCompare(b.nome, 'pt-BR'))
-  }, [busca, nivel])
+  }, [busca, nivel, classe])
 
   const niveis = [...new Set(SPELLS.map((s) => s.nivel))].sort((a, b) => a - b)
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-3xl text-parchment-50">Feitiços</h1>
-        <p className="mt-1 max-w-2xl text-sm text-parchment-200/60">
-          Explicações diretas de cada magia — o que ela faz na prática, sem jargão.
-          Catálogo inicial curado; vamos expandir com o tempo.
-        </p>
-      </div>
+      <PageHeader
+        icon="✨"
+        titulo="Feitiços"
+        subtitulo="Explicações diretas de cada magia — o que ela faz na prática, sem jargão. Filtre pela sua classe para ver só o que você pode conjurar."
+      />
 
-      <div className="mb-5 flex flex-wrap gap-3">
+      <Toolbar>
         <input
-          className="stat-input max-w-xs"
+          className="stat-input w-full max-w-xs"
           value={busca}
           placeholder="Buscar por nome, escola ou efeito…"
           onChange={(e) => setBusca(e.target.value)}
         />
+        <select
+          className="stat-input w-auto"
+          value={classe}
+          onChange={(e) => setClasse(e.target.value)}
+          title="Filtrar por classe"
+        >
+          <option value="todas">Todas as classes</option>
+          {CLASSES_CONJURADORAS.map((c) => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
         <div className="flex flex-wrap items-center gap-1">
-          <FiltroNivel ativo={nivel === 'todos'} onClick={() => setNivel('todos')}>Todos</FiltroNivel>
+          <FilterChip ativo={nivel === 'todos'} onClick={() => setNivel('todos')}>Todos</FilterChip>
           {niveis.map((n) => (
-            <FiltroNivel key={n} ativo={nivel === n} onClick={() => setNivel(n)}>
+            <FilterChip key={n} ativo={nivel === n} onClick={() => setNivel(n)}>
               {n === 0 ? 'Truques' : `Nv ${n}`}
-            </FiltroNivel>
+            </FilterChip>
           ))}
         </div>
-      </div>
+      </Toolbar>
+
+      <p className="mb-3 text-xs text-parchment-200/50">
+        {filtradas.length} feitiço(s){classe !== 'todas' ? ` de ${classe}` : ''}
+      </p>
 
       <div className="grid gap-3 md:grid-cols-2">
         {filtradas.map((s) => (
@@ -54,22 +70,9 @@ export default function SpellsPage() {
         ))}
       </div>
       {filtradas.length === 0 && (
-        <p className="py-10 text-center text-sm text-parchment-200/50">Nenhum feitiço encontrado.</p>
+        <EmptyState icon="🔍" titulo="Nenhum feitiço encontrado" texto="Ajuste a busca, a classe ou o nível." />
       )}
     </div>
-  )
-}
-
-function FiltroNivel({ ativo, onClick, children }: { ativo: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
-        ativo ? 'bg-arcane-500 text-parchment-50' : 'border border-white/10 text-parchment-200/70 hover:bg-white/5'
-      }`}
-    >
-      {children}
-    </button>
   )
 }
 

@@ -1,5 +1,8 @@
+import { useMemo, useState } from 'react'
 import type { Character } from '../types'
 import { ABILITIES, CONDICOES, SKILLS } from '../data/rules'
+import { ACOES_GERAIS, ROTULO_TIPO, acoesDaClasse, type AcaoInfo } from '../data/actions'
+import { spellsDaClasse } from '../data/spells'
 import {
   abilityMod,
   armorClass,
@@ -158,6 +161,9 @@ export default function CharacterSheetView({ char }: { char: Character }) {
         </section>
       )}
 
+      {/* Cheat sheet de ações */}
+      <AcoesCheatSheet char={char} />
+
       {/* Magias */}
       {(char.magias.length > 0 || espacos.length > 0 || char.atributoConjuracao) && (
         <section className="card p-5">
@@ -193,6 +199,10 @@ export default function CharacterSheetView({ char }: { char: Character }) {
           ))}
         </section>
       )}
+
+      {/* Feitiços disponíveis para a classe */}
+      <FeiticosDaClasse classe={char.classe} />
+
 
       {/* Textos e inventário */}
       <div className="grid gap-6 md:grid-cols-2">
@@ -234,6 +244,133 @@ export default function CharacterSheetView({ char }: { char: Character }) {
         <p className="text-center text-xs text-parchment-200/40">{info.resumo}</p>
       )}
     </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Cheat sheet de ações: gerais + da classe do personagem
+// ---------------------------------------------------------------------------
+function AcoesCheatSheet({ char }: { char: Character }) {
+  const [aba, setAba] = useState<'classe' | 'gerais'>(char.classe ? 'classe' : 'gerais')
+  const daClasse = useMemo(() => acoesDaClasse(char.classe), [char.classe])
+  const doNivel = daClasse.filter((a) => (a.nivel ?? 1) <= char.nivel)
+  const futuras = daClasse.filter((a) => (a.nivel ?? 1) > char.nivel)
+
+  return (
+    <section className="card p-5">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <h3 className="panel-title">O que posso fazer no meu turno?</h3>
+        <div className="inline-flex rounded-lg border border-white/10 bg-ink-900/60 p-1 text-xs">
+          {daClasse.length > 0 && (
+            <button
+              onClick={() => setAba('classe')}
+              className={`rounded-md px-2.5 py-1 font-semibold transition ${aba === 'classe' ? 'bg-dragon-500 text-parchment-50' : 'text-parchment-200/70 hover:text-parchment-50'}`}
+            >
+              {char.classe}
+            </button>
+          )}
+          <button
+            onClick={() => setAba('gerais')}
+            className={`rounded-md px-2.5 py-1 font-semibold transition ${aba === 'gerais' ? 'bg-dragon-500 text-parchment-50' : 'text-parchment-200/70 hover:text-parchment-50'}`}
+          >
+            Ações gerais
+          </button>
+        </div>
+      </div>
+
+      {aba === 'gerais' ? (
+        <ListaAcoes acoes={ACOES_GERAIS} />
+      ) : daClasse.length === 0 ? (
+        <p className="text-sm text-parchment-200/50">Escolha uma classe na ficha para ver as ações específicas dela.</p>
+      ) : (
+        <>
+          <ListaAcoes acoes={doNivel} />
+          {futuras.length > 0 && (
+            <details className="mt-3 border-t border-white/5 pt-3">
+              <summary className="cursor-pointer text-xs text-parchment-200/50 hover:text-parchment-100">
+                Ainda por destravar ({futuras.length})
+              </summary>
+              <div className="mt-2 opacity-60">
+                <ListaAcoes acoes={futuras} mostrarNivel />
+              </div>
+            </details>
+          )}
+        </>
+      )}
+    </section>
+  )
+}
+
+function ListaAcoes({ acoes, mostrarNivel = false }: { acoes: AcaoInfo[]; mostrarNivel?: boolean }) {
+  if (acoes.length === 0) return <p className="text-sm text-parchment-200/50">Nada por aqui ainda.</p>
+  return (
+    <ul className="grid gap-2 sm:grid-cols-2">
+      {acoes.map((a) => {
+        const t = ROTULO_TIPO[a.tipo]
+        return (
+          <li key={a.nome} className="rounded-lg border border-white/10 bg-ink-900/40 p-2.5">
+            <div className="flex items-center gap-2">
+              <span className="font-medium text-parchment-50">{a.nome}</span>
+              <span className={`rounded-full bg-white/5 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${t.cor}`}>
+                {t.curto}
+              </span>
+              {mostrarNivel && a.nivel && (
+                <span className="ml-auto text-[10px] text-parchment-200/40">nível {a.nivel}</span>
+              )}
+            </div>
+            <p className="mt-1 text-xs leading-relaxed text-parchment-200/70">{a.resumo}</p>
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Feitiços que a classe do personagem pode conjurar
+// ---------------------------------------------------------------------------
+function FeiticosDaClasse({ classe }: { classe: string }) {
+  const [aberto, setAberto] = useState(false)
+  const lista = useMemo(() => spellsDaClasse(classe), [classe])
+  if (lista.length === 0) return null
+
+  const porNivel = [...new Set(lista.map((s) => s.nivel))].sort((a, b) => a - b)
+
+  return (
+    <section className="card p-5">
+      <button className="flex w-full items-center justify-between gap-3 text-left" onClick={() => setAberto((v) => !v)}>
+        <div>
+          <h3 className="panel-title">Feitiços de {classe}</h3>
+          <p className="mt-0.5 text-xs text-parchment-200/50">
+            {lista.length} feitiços do catálogo disponíveis para a sua classe
+          </p>
+        </div>
+        <span className="text-parchment-200/40">{aberto ? '▲' : '▼'}</span>
+      </button>
+
+      {aberto && (
+        <div className="mt-4 space-y-3">
+          {porNivel.map((nivel) => (
+            <div key={nivel}>
+              <h4 className="mb-1 panel-title">{nivel === 0 ? 'Truques' : `Nível ${nivel}`}</h4>
+              <ul className="space-y-1">
+                {lista.filter((s) => s.nivel === nivel).map((s) => (
+                  <li key={s.id} className="text-sm">
+                    <span className="font-medium text-parchment-50">{s.nome}</span>
+                    {s.concentracao && <span className="ml-1 text-[10px] text-arcane-400" title="Concentração">C</span>}
+                    {s.ritual && <span className="ml-1 text-[10px] text-emerald-400" title="Ritual">R</span>}
+                    <span className="text-parchment-200/60"> — {s.emMiudos}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+          <p className="border-t border-white/5 pt-2 text-xs text-parchment-200/40">
+            Veja a aba Feitiços para os detalhes completos (alcance, duração, componentes).
+          </p>
+        </div>
+      )}
+    </section>
   )
 }
 
