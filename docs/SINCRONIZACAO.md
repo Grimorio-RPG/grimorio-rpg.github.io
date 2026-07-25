@@ -1,122 +1,124 @@
-# Sincronização em tempo real — arquitetura
+# Sincronização em tempo real
 
-Este documento descreve o plano para transformar o Grimório 5.5e (hoje 100%
-local, no navegador) em um app **multi-dispositivo em tempo real**: o DM e cada
-jogador acessam a mesma mesa, cada um no seu aparelho, e as mudanças aparecem
-para todos na hora.
+Como o Grimório sai de "cada navegador é uma ilha" para **todo mundo na mesma
+mesa, cada um no seu aparelho**.
 
-## Visão geral
-
-O app continua sendo um **site estático (React)** — não há servidor próprio para
-manter. Ele conversa **diretamente** com um backend gerenciado (BaaS) que provê
-banco de dados, autenticação e realtime.
+O app continua sendo um **site estático**: não há servidor próprio para manter.
+Ele conversa direto com o **Supabase** (Postgres + Auth + Realtime).
 
 ```
-  Celular do Jogador A ─┐
-  Celular do Jogador B ─┼──HTTPS/WebSocket──►  Backend gerenciado (nuvem)
-  Notebook do DM      ─┘                        - Banco de dados (Postgres)
-                                                 - Autenticação
-                                                 - Realtime (WebSocket)
-                                                 - Regras de acesso (RLS)
+ Celular do Jogador A ─┐
+ Celular do Jogador B ─┼── HTTPS + WebSocket ──►  Supabase
+ Notebook do DM       ─┘                          • Postgres + RLS
+                                                  • Auth
+                                                  • Realtime
 ```
 
-## Recomendação de plataforma: Supabase
+## Estado atual
 
-**Supabase** (Postgres gerenciado + Auth + Realtime + Storage) é a melhor opção
-para este caso:
+| Etapa | Situação |
+|---|---|
+| 1. Esquema do banco e políticas de acesso | ✅ pronto (`supabase/schema.sql`) |
+| 2. Detecção de ambiente + cliente sob demanda | ✅ pronto (`src/lib/sync/`) |
+| 3. Login e perfil | ⬜ falta o projeto Supabase |
+| 4. Mesa: criar, convidar, entrar | ⬜ |
+| 5. Realtime por aba (começando por Batalhas) | ⬜ |
+| 6. Projeção pública automática | ⬜ |
 
-- **Realtime nativo:** o banco emite as mudanças por WebSocket; o cliente se
-  inscreve e recebe atualizações instantâneas. Ideal para "todos veem juntos".
-- **Postgres + RLS:** regras de segurança no servidor (Row Level Security)
-  garantem que jogadores só leiam o que podem — inclusive impedindo, de verdade,
-  que vejam os PV exatos ou fichas ocultas de inimigos.
-- **App continua client-only:** sem servidor Node para manter/deploy.
-- **Chave pública segura:** a `anon key` vai no cliente sem risco, pois quem
-  protege os dados são as políticas RLS.
-- **Plano gratuito** cobre grupos pessoais com folga.
+**O modo local nunca deixa de existir.** Sem as variáveis de ambiente o app roda
+exatamente como hoje: IndexedDB, offline, sem conta.
 
-Alternativas: Firebase/Firestore (parecido, do Google) ou um servidor Node
-próprio (mais controle, porém precisa hospedar e manter). Supabase é o melhor
-custo-benefício aqui.
+---
 
-## Onde fica hospedado
+## O que você precisa fazer (≈ 5 minutos)
 
-- **Backend (dados/auth/realtime):** Supabase Cloud (nuvem gerenciada). Você
-  cria um projeto gratuito; nada roda na sua máquina.
-- **Frontend (o app React):** site estático, publicável de graça em
-  Vercel, Netlify, Cloudflare Pages ou GitHub Pages. Cada jogador só abre a URL.
+1. **Criar o projeto**
+   Em [supabase.com](https://supabase.com) → *New project*. Escolha a região
+   mais próxima (South America, se houver). Guarde a senha do banco.
 
-## Como os dados são salvos
+2. **Rodar o esquema**
+   No painel → **SQL Editor** → *New query* → cole todo o conteúdo de
+   [`supabase/schema.sql`](../supabase/schema.sql) → **Run**.
+   Pode rodar de novo quantas vezes quiser: é idempotente.
 
-Reaproveitamos os tipos que já existem (`Character`, `Campaign`, `Monster`,
-`Battle`) guardando-os em colunas `jsonb`, com algumas colunas relacionais para
-filtro e segurança. Esboço do schema:
+3. **Pegar as chaves**
+   **Project Settings → API**:
+   - *Project URL* → `VITE_SUPABASE_URL`
+   - *Project API keys → `anon` `public`* → `VITE_SUPABASE_ANON_KEY`
 
-| Tabela          | Campos principais                                              | Quem escreve |
-|-----------------|---------------------------------------------------------------|--------------|
-| `profiles`      | `user_id`, `nome`                                             | o próprio    |
-| `mesas`         | `id`, `dm_id`, `nome`, `codigo_convite`                       | DM           |
-| `mesa_membros`  | `mesa_id`, `user_id`, `papel` ('dm'/'jogador')               | DM / entrar  |
-| `personagens`   | `id`, `mesa_id`, `dono_id`, `dados jsonb`, `updated_at`       | dono da ficha|
-| `bestiario`     | `id`, `mesa_id`, `dados jsonb`                                | DM           |
-| `campanha`      | `mesa_id`, `dados jsonb`                                      | DM           |
-| `batalha`       | `mesa_id`, `dados jsonb`                                      | DM           |
+   ⚠️ Use a chave **anon**, nunca a `service_role`. A anon é pública por
+   natureza (vai no código do site); quem protege os dados é o RLS.
 
-- **Última escrita vence** (last-write-wins) por entidade, usando `updated_at`.
-  Conflitos são raros: o DM é dono de quase todo o estado compartilhado, e cada
-  jogador é dono só da própria ficha.
-- **Cache offline:** o `localStorage` atual vira cache; o app funciona offline e
-  sincroniza ao reconectar.
+4. **Configurar o app**
+   ```bash
+   cp .env.example .env
+   # preencha as duas variáveis
+   npm run dev
+   ```
+   Na aba **Dados**, o selo deve mudar de *📴 modo local* para *☁️ nuvem configurada*.
 
-## Contas e como a mesa é compartilhada
+5. **Me avisar** — com o projeto no ar eu implemento login, mesas e realtime.
 
-1. O **DM cria uma Mesa** e recebe um **código/link de convite**.
-2. Cada **jogador entra** com o código e vira membro da mesa.
-3. Papéis definem permissões (DM x jogador).
+> Não precisa me passar as chaves: elas ficam no seu `.env` (que está no
+> `.gitignore`). Só me diga que está configurado. Se quiser que eu valide de
+> ponta a ponta aqui, aí sim precisaria da URL e da chave anon — são públicas,
+> mas a escolha é sua.
 
-### Segurança (RLS) — o ponto-chave
+---
 
-As políticas no servidor garantem:
+## Modelo de dados
 
-- Um membro só lê dados **da sua mesa**.
-- Só o **DM** escreve bestiário, batalha e campanha.
-- Cada jogador escreve **apenas a própria ficha**.
-- **Visão dos Jogadores de verdade:** para inimigos ocultos/parciais, o servidor
-  só entrega aos jogadores a projeção permitida (nome/stats redigidos conforme o
-  nível de conhecimento). Hoje isso é filtrado no cliente (o DM controla, mas os
-  dados trafegam); com backend passa a ser garantido no servidor. Implementação:
-  uma *view* Postgres ou uma *Edge Function* que devolve a batalha/bestiário já
-  redigidos para quem é jogador.
+| Tabela | O que guarda | Quem escreve |
+|---|---|---|
+| `profiles` | nome de exibição | o próprio |
+| `mesas` | mesa + código de convite | DM |
+| `mesa_membros` | quem participa e em que papel | DM / quem entra |
+| `personagens` | fichas (`jsonb`) | **o dono da ficha** |
+| `mesa_estado` | campanha, bestiário, batalha e mapa (`jsonb`) | DM |
+| `rolagens` | histórico compartilhado de dados | cada um as suas |
 
-## Modo local (sem conta) continua existindo
+`mesa_estado` é uma tabela **chave-valor** — exatamente o formato que o app já
+usa localmente (`src/lib/store.ts`). Isso faz a camada de nuvem ficar quase
+simétrica à local: onde hoje se lê a chave `bestiario` do IndexedDB, amanhã se
+lê a linha `(mesa_id, 'bestiario')` do Postgres.
 
-Quem só quer usar sozinho continua no modo local (como hoje), sem login. O login
-é necessário só para o jogo compartilhado. Uma camada de acesso a dados
-(`DataStore`) abstrai "local" x "nuvem", então a maior parte da UI não muda.
+## O ponto central: segredos que não saem do banco
 
-## Migração dos dados atuais
+Hoje a "Visão dos Jogadores" filtra **no navegador**. Os dados do DM chegam ao
+aparelho do jogador; o app só não os desenha. Quem abrir as ferramentas de
+desenvolvedor vê tudo.
 
-As fichas já podem ser exportadas/importadas em `.json`. Ao entrar numa mesa, dá
-para **subir a ficha local para a nuvem** com um clique, reaproveitando esse
-mecanismo.
+Com o backend isso muda de natureza. A convenção é simples:
 
-## O que eu preciso de você para colocar no ar
+- `bestiario`, `batalha`, `campanha`, `mapa` → **privadas do DM**
+- `bestiario_pub`, `batalha_pub`, `campanha_pub`, `mapa_pub` → **projeção pública**
 
-1. Criar um projeto **gratuito** no Supabase (leva ~2 min).
-2. Me passar a **Project URL** e a **anon public key** (podem ir num `.env` — a
-   anon key é pública por design e protegida por RLS).
+Quando o DM salva, o app grava as duas versões: a completa e a já censurada
+(sem táticas, sem segredos, sem criaturas desconhecidas). A política de RLS
+garante o resto:
 
-Com isso eu: aplico o schema + políticas RLS, ligo o cliente Supabase atrás de
-uma flag de ambiente (o app segue funcionando local se as chaves não existirem),
-e implemento login, criação/entrada de mesa e as assinaturas realtime por aba.
+```sql
+create policy "le estado permitido" on public.mesa_estado
+  for select to authenticated using (
+    public.eh_dm(mesa_id)
+    or (public.eh_membro(mesa_id) and chave like '%\_pub')
+  );
+```
 
-## Passo a passo de implementação (proposto)
+Um jogador **não consegue baixar** as linhas privadas — o banco recusa. O
+sistema de conhecimento progressivo deixa de ser cosmético e passa a valer de
+verdade.
 
-1. Camada `DataStore` (abstrai local x nuvem) — refatoração segura, sem mudar UX.
-2. Cliente Supabase + config por ambiente (inerte sem chaves).
-3. Schema + RLS no Supabase.
-4. Login + perfil.
-5. Mesa: criar, convidar, entrar.
-6. Realtime por aba (fichas, campanha, bestiário, batalha).
-7. Projeção segura da Visão dos Jogadores (view/Edge Function).
-8. Deploy do frontend + guia para o grupo.
+## Conflitos
+
+Última escrita vence, por entidade. Na prática quase não há conflito: o DM é
+dono de quase todo o estado compartilhado, e cada jogador é dono só da própria
+ficha.
+
+## Custo
+
+Um grupo de 5–6 pessoas cabe com folga no **plano gratuito** do Supabase.
+O front-end é estático e hospeda de graça (Cloudflare Pages, Vercel, Netlify).
+
+⚠️ No plano gratuito o projeto **hiberna** após alguns dias sem uso — a primeira
+requisição depois disso demora alguns segundos.

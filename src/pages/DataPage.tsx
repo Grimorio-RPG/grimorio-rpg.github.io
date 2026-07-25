@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { apagarTudo, baixarBackup, lerBackup, restaurarBackup, type Backup, type ResumoBackup } from '../lib/backup'
 import { usoDeArmazenamento } from '../lib/store'
+import { nuvemConfigurada } from '../lib/sync/config'
 import { PageHeader } from '../components/layout-ui'
 
 export default function DataPage() {
@@ -88,6 +89,43 @@ export default function DataPage() {
             Os dados agora ficam no banco do navegador (IndexedDB), com espaço bem maior
             que o limite antigo de ~5 MB — mapas e fotos de criaturas caem sem aperto.
           </p>
+        </section>
+
+        {/* Sincronização */}
+        <section className="card p-5 md:col-span-2">
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <h2 className="text-lg text-parchment-100">Sincronização entre dispositivos</h2>
+            <span className={`chip ${nuvemConfigurada ? 'border-emerald-400/50 text-emerald-400' : ''}`}>
+              {nuvemConfigurada ? '☁️ nuvem configurada' : '📴 modo local'}
+            </span>
+          </div>
+
+          {nuvemConfigurada ? (
+            <p className="text-sm text-parchment-200/70">
+              Este app está ligado a um projeto na nuvem. Em breve você poderá criar
+              uma mesa, convidar os jogadores e jogar com todo mundo no próprio celular.
+            </p>
+          ) : (
+            <>
+              <p className="text-sm text-parchment-200/70">
+                Hoje seus dados ficam <b>só neste dispositivo</b> — o que é ótimo para
+                usar sozinho e funciona offline. Para o grupo inteiro acompanhar ao
+                vivo (cada um no seu celular), é preciso ligar o app a um projeto
+                gratuito do Supabase.
+              </p>
+              <ol className="mt-3 space-y-1.5 text-sm text-parchment-200/80">
+                <li>1. Crie um projeto gratuito em <span className="text-arcane-400">supabase.com</span>.</li>
+                <li>2. No SQL Editor, cole e execute o arquivo <code className="rounded bg-white/10 px-1">supabase/schema.sql</code> do projeto.</li>
+                <li>3. Copie a <b>Project URL</b> e a chave <b>anon public</b> (Project Settings → API).</li>
+                <li>4. Crie um arquivo <code className="rounded bg-white/10 px-1">.env</code> na raiz, no formato de <code className="rounded bg-white/10 px-1">.env.example</code>.</li>
+                <li>5. Rode <code className="rounded bg-white/10 px-1">npm run dev</code> de novo.</li>
+              </ol>
+              <p className="mt-3 text-xs text-parchment-200/50">
+                O modo local continua funcionando mesmo depois disso — a conta só é
+                necessária para jogar em grupo.
+              </p>
+            </>
+          )}
         </section>
 
         {/* Zona de risco */}
