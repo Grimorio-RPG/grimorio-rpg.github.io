@@ -31,19 +31,19 @@ export default function Layout() {
 
       {/* Conteúdo */}
       <div className="flex min-w-0 flex-1 flex-col">
-        {/* Topbar (mobile) */}
-        <header className="sticky top-0 z-30 border-b border-white/10 bg-ink-900/80 backdrop-blur md:hidden">
-          <div className="flex items-center justify-between px-4 py-3">
+        {/* Topbar (mobile / tablet retrato) */}
+        <header className="sticky top-0 z-30 border-b border-white/10 bg-ink-900/90 backdrop-blur md:hidden">
+          <div className="flex items-center justify-between px-3 py-2">
             <Brand small />
           </div>
-          <nav className="flex gap-1 overflow-x-auto px-2 pb-2">
+          <nav className="flex gap-1 overflow-x-auto px-2 pb-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {NAV.map((item) => (
               <NavItem key={item.to} {...item} compact />
             ))}
           </nav>
         </header>
 
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 md:px-8 md:py-10">
+        <main className="mx-auto w-full max-w-6xl flex-1 px-3 py-4 sm:px-4 sm:py-6 md:px-8 md:py-10">
           <Outlet />
         </main>
       </div>
@@ -84,14 +84,14 @@ function NavItem({
       className={({ isActive }) =>
         [
           'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition',
-          compact ? 'shrink-0 flex-col gap-0.5 px-3 py-1.5 text-xs' : '',
+          compact ? 'shrink-0 flex-col gap-0 px-2.5 py-1 text-[11px]' : '',
           isActive
             ? 'bg-dragon-500/20 text-parchment-50 ring-1 ring-dragon-500/40'
             : 'text-parchment-200/80 hover:bg-white/5 hover:text-parchment-50',
         ].join(' ')
       }
     >
-      <span className="text-base">{icon}</span>
+      <span className={compact ? 'text-sm' : 'text-base'}>{icon}</span>
       <span className="flex flex-col leading-tight">
         <span className="font-semibold">{label}</span>
         {desc && !compact && <span className="text-[11px] text-parchment-200/50">{desc}</span>}

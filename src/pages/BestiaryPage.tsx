@@ -65,8 +65,8 @@ export default function BestiaryPage() {
             valor={modo}
             onChange={setModo}
             opcoes={[
-              { valor: 'dm', label: '🎲 Visão do DM' },
-              { valor: 'jogadores', label: '👥 Visão dos Jogadores' },
+              { valor: 'dm', label: '🎲 Visão do DM', labelCurto: '🎲 DM' },
+              { valor: 'jogadores', label: '👥 Visão dos Jogadores', labelCurto: '👥 Jogadores' },
             ]}
           />
         }

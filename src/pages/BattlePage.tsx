@@ -12,6 +12,7 @@ import {
 } from '../lib/battle'
 import { loadCharacters } from '../lib/storage'
 import { CONDICOES } from '../data/rules'
+import { PageHeader, ViewToggle } from '../components/layout-ui'
 
 type Modo = 'dm' | 'jogadores'
 type UpdateFn = (patch: Partial<Battle>) => void
@@ -25,38 +26,25 @@ export default function BattlePage() {
 
   return (
     <div>
-      <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <span className="text-3xl">⚔️</span>
-          <div>
-            <h1 className="text-3xl text-parchment-50">Batalhas</h1>
-            <p className="mt-1 max-w-xl text-sm text-parchment-200/60">
-              Monte o encontro, controle iniciativa e vida. Os jogadores veem quem enfrentam.
-            </p>
-          </div>
-        </div>
-        <ViewToggle modo={modo} setModo={setModo} />
-      </header>
+      <PageHeader
+        icon="⚔️"
+        titulo="Batalhas"
+        subtitulo="Monte o encontro, controle iniciativa e vida. Os jogadores veem quem enfrentam."
+        acoes={
+          <ViewToggle
+            valor={modo}
+            onChange={setModo}
+            opcoes={[
+              { valor: 'dm', label: '🎲 Visão do DM', labelCurto: '🎲 DM' },
+              { valor: 'jogadores', label: '👥 Visão dos Jogadores', labelCurto: '👥 Jogadores' },
+            ]}
+          />
+        }
+      />
 
       {modo === 'dm'
         ? <DmView battle={battle} update={update} ordenados={ordenados} />
         : <PlayerView battle={battle} ordenados={ordenados} />}
-    </div>
-  )
-}
-
-function ViewToggle({ modo, setModo }: { modo: Modo; setModo: (m: Modo) => void }) {
-  return (
-    <div className="inline-flex rounded-lg border border-white/10 bg-ink-900/50 p-1 text-sm">
-      {([['dm', '🎲 Visão do DM'], ['jogadores', '👥 Visão dos Jogadores']] as const).map(([v, label]) => (
-        <button
-          key={v}
-          onClick={() => setModo(v)}
-          className={`rounded-md px-3 py-1.5 font-semibold transition ${modo === v ? 'bg-dragon-500 text-parchment-50' : 'text-parchment-200/70 hover:text-parchment-50'}`}
-        >
-          {label}
-        </button>
-      ))}
     </div>
   )
 }
@@ -197,20 +185,20 @@ function CombatantRow({
           <p className="text-xs text-parchment-200/50">CA {c.ca} · <span className={st.texto}>{st.label}</span></p>
         </div>
 
-        {/* PV */}
-        <div className="flex items-center gap-1">
-          <button className="btn-ghost px-1.5 py-1 text-xs" onClick={() => ajusta(-5)}>−5</button>
-          <button className="btn-ghost px-1.5 py-1 text-xs" onClick={() => ajusta(-1)}>−1</button>
+        <button onClick={onRemove} className="order-2 shrink-0 px-1 text-parchment-200/40 hover:text-dragon-400 sm:order-none" aria-label="Remover">✕</button>
+
+        {/* PV — ocupa a linha toda no celular */}
+        <div className="order-3 flex w-full items-center justify-center gap-1 sm:order-none sm:w-auto">
+          <button className="btn-ghost px-2 py-1 text-xs" onClick={() => ajusta(-5)}>−5</button>
+          <button className="btn-ghost px-2 py-1 text-xs" onClick={() => ajusta(-1)}>−1</button>
           <div className="w-16 text-center">
             <input type="number" value={c.pvAtual} onChange={(e) => { const n = parseInt(e.target.value, 10); onPatch({ pvAtual: Math.max(0, Math.min(c.pvMax, Number.isNaN(n) ? 0 : n)) }) }} className="w-16 rounded-md border border-white/10 bg-ink-900/70 px-1 py-0.5 text-center text-sm outline-none focus:border-arcane-400" />
             <div className="mt-0.5 h-1.5 overflow-hidden rounded-full bg-black/40"><div className={`hpbar ${st.cor}`} style={{ width: `${st.pct}%` }} /></div>
             <div className="text-[10px] text-parchment-200/40">/ {c.pvMax}</div>
           </div>
-          <button className="btn-ghost px-1.5 py-1 text-xs" onClick={() => ajusta(1)}>+1</button>
-          <button className="btn-ghost px-1.5 py-1 text-xs" onClick={() => ajusta(5)}>+5</button>
+          <button className="btn-ghost px-2 py-1 text-xs" onClick={() => ajusta(1)}>+1</button>
+          <button className="btn-ghost px-2 py-1 text-xs" onClick={() => ajusta(5)}>+5</button>
         </div>
-
-        <button onClick={onRemove} className="shrink-0 px-1 text-parchment-200/40 hover:text-dragon-400" aria-label="Remover">✕</button>
       </div>
 
       <CondicoesEditor condicoes={c.condicoes} onChange={(cond) => onPatch({ condicoes: cond })} />

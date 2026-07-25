@@ -137,19 +137,17 @@ export default function CharacterSheet() {
 // ---------------------------------------------------------------------------
 function TopBar({ editando, onToggleEdit, onBack, onExport }: { editando: boolean; onToggleEdit: () => void; onBack: () => void; onExport: () => void }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      <button className="btn-ghost" onClick={onBack}>
+    <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3">
+      <button className="btn-ghost px-3 py-1.5 text-xs sm:px-4 sm:py-2 sm:text-sm" onClick={onBack}>
         ← Fichas
       </button>
-      <div className="flex items-center gap-2">
-        {editando ? (
-          <button className="btn-primary" onClick={onToggleEdit}>✓ Concluir edição</button>
-        ) : (
-          <button className="btn-primary" onClick={onToggleEdit}>✏️ Editar ficha</button>
-        )}
-        <span className="chip">{editando ? 'Salvo automaticamente ✓' : 'Somente leitura'}</span>
-        <button className="btn-ghost" onClick={onExport}>
-          ⬇ Exportar / enviar ao DM
+      <div className="flex flex-wrap items-center gap-2">
+        <button className="btn-primary px-3 py-1.5 text-xs sm:px-4 sm:py-2 sm:text-sm" onClick={onToggleEdit}>
+          {editando ? '✓ Concluir edição' : '✏️ Editar ficha'}
+        </button>
+        <span className="chip hidden sm:inline-flex">{editando ? 'Salvo automaticamente ✓' : 'Somente leitura'}</span>
+        <button className="btn-ghost px-3 py-1.5 text-xs sm:px-4 sm:py-2 sm:text-sm" onClick={onExport}>
+          ⬇ <span className="sm:hidden">Exportar</span><span className="hidden sm:inline">Exportar / enviar ao DM</span>
         </button>
       </div>
     </div>

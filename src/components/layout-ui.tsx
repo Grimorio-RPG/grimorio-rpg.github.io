@@ -13,14 +13,14 @@ export function PageHeader({
   acoes?: ReactNode
 }) {
   return (
-    <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
-      <div className="flex items-start gap-3">
-        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/5 text-2xl">
+    <header className="mb-4 flex flex-wrap items-start justify-between gap-3 sm:mb-6 sm:gap-4">
+      <div className="flex items-start gap-2.5 sm:gap-3">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/5 text-xl sm:h-11 sm:w-11 sm:text-2xl">
           {icon}
         </span>
         <div>
-          <h1 className="text-2xl text-parchment-50 sm:text-3xl">{titulo}</h1>
-          <p className="mt-1 max-w-xl text-sm text-parchment-200/60">{subtitulo}</p>
+          <h1 className="text-xl leading-tight text-parchment-50 sm:text-3xl">{titulo}</h1>
+          <p className="mt-1 max-w-xl text-xs text-parchment-200/60 sm:text-sm">{subtitulo}</p>
         </div>
       </div>
       {acoes}
@@ -28,7 +28,10 @@ export function PageHeader({
   )
 }
 
-/** Alternância Visão do DM ↔ Visão dos Jogadores, usada em várias abas. */
+/**
+ * Alternância Visão do DM ↔ Visão dos Jogadores, usada em várias abas.
+ * `labelCurto` é exibido em telas pequenas para o controle não quebrar linha.
+ */
 export function ViewToggle<T extends string>({
   valor,
   onChange,
@@ -36,21 +39,28 @@ export function ViewToggle<T extends string>({
 }: {
   valor: T
   onChange: (v: T) => void
-  opcoes: { valor: T; label: string }[]
+  opcoes: { valor: T; label: string; labelCurto?: string }[]
 }) {
   return (
-    <div className="inline-flex rounded-xl border border-white/10 bg-ink-900/60 p-1 text-sm">
+    <div className="inline-flex rounded-xl border border-white/10 bg-ink-900/60 p-1 text-xs sm:text-sm">
       {opcoes.map((o) => (
         <button
           key={o.valor}
           onClick={() => onChange(o.valor)}
-          className={`rounded-lg px-3 py-1.5 font-semibold transition ${
+          className={`whitespace-nowrap rounded-lg px-2.5 py-1.5 font-semibold transition sm:px-3 ${
             valor === o.valor
               ? 'bg-dragon-500 text-parchment-50 shadow'
               : 'text-parchment-200/70 hover:text-parchment-50'
           }`}
         >
-          {o.label}
+          {o.labelCurto ? (
+            <>
+              <span className="sm:hidden">{o.labelCurto}</span>
+              <span className="hidden sm:inline">{o.label}</span>
+            </>
+          ) : (
+            o.label
+          )}
         </button>
       ))}
     </div>

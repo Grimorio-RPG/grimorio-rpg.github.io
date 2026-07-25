@@ -39,8 +39,8 @@ export default function MapPage() {
             valor={modo}
             onChange={(v) => { setModo(v); setSelecionado(null) }}
             opcoes={[
-              { valor: 'dm', label: '🎲 Visão do DM' },
-              { valor: 'jogadores', label: '👥 Visão dos Jogadores' },
+              { valor: 'dm', label: '🎲 Visão do DM', labelCurto: '🎲 DM' },
+              { valor: 'jogadores', label: '👥 Visão dos Jogadores', labelCurto: '👥 Jogadores' },
             ]}
           />
         }
@@ -65,7 +65,7 @@ export default function MapPage() {
             setSelecionado={setSelecionado}
           />
           {!visaoJogador && (
-            <div className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
               <Ferramentas scene={scene} update={update} ferramenta={ferramenta} setFerramenta={setFerramenta} />
               {selecionado && scene.tokens.some((t) => t.id === selecionado) ? (
                 <TokenControles
