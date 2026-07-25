@@ -14,50 +14,76 @@ import {
 import { ABILITIES } from '../data/rules'
 import CharacterReadonly from '../components/CharacterReadonly'
 import { Field, SectionCard, TextArea, TextField } from '../components/ui'
+import { ViewToggle } from '../components/layout-ui'
+import { CodexTab, HandoutsTab, ReputacaoTab } from '../components/codex'
 
-type Aba = 'grupo' | 'tela' | 'historia' | 'sessoes' | 'npcs'
+type Aba = 'grupo' | 'tela' | 'historia' | 'sessoes' | 'npcs' | 'codex' | 'handouts' | 'reputacao'
+type Modo = 'dm' | 'jogadores'
 
-const ABAS: { id: Aba; label: string; icon: string }[] = [
-  { id: 'grupo', label: 'Grupo', icon: '🛡️' },
-  { id: 'tela', label: 'Tela do Mestre', icon: '📊' },
+const ABAS: { id: Aba; label: string; icon: string; soDm?: boolean }[] = [
+  { id: 'grupo', label: 'Grupo', icon: '🛡️', soDm: true },
+  { id: 'tela', label: 'Tela do Mestre', icon: '📊', soDm: true },
   { id: 'historia', label: 'História', icon: '📜' },
   { id: 'sessoes', label: 'Sessões', icon: '📅' },
-  { id: 'npcs', label: 'NPCs', icon: '🎭' },
+  { id: 'npcs', label: 'NPCs', icon: '🎭', soDm: true },
+  { id: 'codex', label: 'Codex', icon: '📖' },
+  { id: 'handouts', label: 'Documentos', icon: '🗞️' },
+  { id: 'reputacao', label: 'Reputação', icon: '⚖️' },
 ]
 
 export default function CampaignPage() {
   const { campaign, update } = useCampaign()
   const [aba, setAba] = useState<Aba>('grupo')
+  const [modo, setModo] = useState<Modo>('dm')
 
   if (!campaign) return null
+  const visaoJogador = modo === 'jogadores'
+  const abas = ABAS.filter((a) => !visaoJogador || !a.soDm)
+  const abaAtual = abas.some((a) => a.id === aba) ? aba : abas[0].id
 
   return (
     <div>
-      <header className="mb-6">
-        <div className="flex items-center gap-3">
+      <header className="mb-6 flex flex-wrap items-start justify-between gap-3">
+        <div className="flex flex-1 items-center gap-3">
           <span className="text-3xl">📖</span>
-          <div className="flex-1">
-            <input
-              className="w-full bg-transparent font-display text-3xl text-parchment-50 outline-none placeholder:text-parchment-200/30"
-              placeholder="Nome da sua campanha…"
-              value={campaign.nome}
-              onChange={(e) => update({ nome: e.target.value })}
-            />
-            <p className="mt-1 text-sm text-parchment-200/60">
-              Painel do DM — importe as fichas dos jogadores e organize sua mesa.
+          <div className="min-w-0 flex-1">
+            {visaoJogador ? (
+              <h1 className="truncate font-display text-2xl text-parchment-50 sm:text-3xl">
+                {campaign.nome || 'A campanha'}
+              </h1>
+            ) : (
+              <input
+                className="w-full bg-transparent font-display text-2xl text-parchment-50 outline-none placeholder:text-parchment-200/30 sm:text-3xl"
+                placeholder="Nome da sua campanha…"
+                value={campaign.nome}
+                onChange={(e) => update({ nome: e.target.value })}
+              />
+            )}
+            <p className="mt-1 text-xs text-parchment-200/60 sm:text-sm">
+              {visaoJogador
+                ? 'O que o grupo sabe sobre a história e o mundo.'
+                : 'Painel do DM — fichas do grupo, mundo e documentos da mesa.'}
             </p>
           </div>
         </div>
+        <ViewToggle
+          valor={modo}
+          onChange={(v) => setModo(v)}
+          opcoes={[
+            { valor: 'dm', label: '🎲 Visão do DM', labelCurto: '🎲 DM' },
+            { valor: 'jogadores', label: '👥 Visão dos Jogadores', labelCurto: '👥 Jogadores' },
+          ]}
+        />
       </header>
 
       {/* Abas */}
       <div className="mb-6 flex flex-wrap gap-1 border-b border-white/10 pb-px">
-        {ABAS.map((a) => (
+        {abas.map((a) => (
           <button
             key={a.id}
             onClick={() => setAba(a.id)}
-            className={`flex items-center gap-2 rounded-t-lg px-4 py-2 text-sm font-semibold transition ${
-              aba === a.id
+            className={`flex items-center gap-2 rounded-t-lg px-3 py-2 text-sm font-semibold transition sm:px-4 ${
+              abaAtual === a.id
                 ? 'bg-white/5 text-parchment-50 ring-1 ring-white/10'
                 : 'text-parchment-200/60 hover:text-parchment-50'
             }`}
@@ -71,11 +97,14 @@ export default function CampaignPage() {
         ))}
       </div>
 
-      {aba === 'grupo' && <GrupoTab campaign={campaign} update={update} />}
-      {aba === 'tela' && <TelaDoMestreTab campaign={campaign} />}
-      {aba === 'historia' && <HistoriaTab campaign={campaign} update={update} />}
-      {aba === 'sessoes' && <SessoesTab campaign={campaign} update={update} />}
-      {aba === 'npcs' && <NpcsTab campaign={campaign} update={update} />}
+      {abaAtual === 'grupo' && <GrupoTab campaign={campaign} update={update} />}
+      {abaAtual === 'tela' && <TelaDoMestreTab campaign={campaign} />}
+      {abaAtual === 'historia' && <HistoriaTab campaign={campaign} update={update} visaoJogador={visaoJogador} />}
+      {abaAtual === 'sessoes' && <SessoesTab campaign={campaign} update={update} visaoJogador={visaoJogador} />}
+      {abaAtual === 'npcs' && <NpcsTab campaign={campaign} update={update} />}
+      {abaAtual === 'codex' && <CodexTab campaign={campaign} update={update} visaoJogador={visaoJogador} />}
+      {abaAtual === 'handouts' && <HandoutsTab campaign={campaign} update={update} visaoJogador={visaoJogador} />}
+      {abaAtual === 'reputacao' && <ReputacaoTab campaign={campaign} update={update} visaoJogador={visaoJogador} />}
     </div>
   )
 }
@@ -280,7 +309,23 @@ function TelaDoMestreTab({ campaign }: { campaign: Campaign }) {
 // ---------------------------------------------------------------------------
 // História
 // ---------------------------------------------------------------------------
-function HistoriaTab({ campaign, update }: { campaign: Campaign; update: UpdateFn }) {
+function HistoriaTab({ campaign, update, visaoJogador }: { campaign: Campaign; update: UpdateFn; visaoJogador: boolean }) {
+  if (visaoJogador) {
+    return (
+      <div className="grid gap-4 md:grid-cols-2">
+        <SectionCard title="Sinopse">
+          <p className="whitespace-pre-wrap text-sm leading-relaxed text-parchment-100">
+            {campaign.sinopse || 'O DM ainda não escreveu a sinopse.'}
+          </p>
+        </SectionCard>
+        <SectionCard title="Arco atual">
+          <p className="whitespace-pre-wrap text-sm leading-relaxed text-parchment-100">
+            {campaign.arcoAtual || 'Nenhum objetivo registrado ainda.'}
+          </p>
+        </SectionCard>
+      </div>
+    )
+  }
   return (
     <div className="grid gap-4 md:grid-cols-2">
       <SectionCard title="Sinopse" hint="A premissa da campanha, visível para todos. Ex: 'O grupo investiga desaparecimentos em Vallaki.'">
@@ -296,7 +341,22 @@ function HistoriaTab({ campaign, update }: { campaign: Campaign; update: UpdateF
 // ---------------------------------------------------------------------------
 // Sessões
 // ---------------------------------------------------------------------------
-function SessoesTab({ campaign, update }: { campaign: Campaign; update: UpdateFn }) {
+function SessoesTab({ campaign, update, visaoJogador }: { campaign: Campaign; update: UpdateFn; visaoJogador: boolean }) {
+  if (visaoJogador) {
+    return campaign.sessoes.length === 0 ? (
+      <VazioAviso texto="Nenhuma sessão registrada ainda." />
+    ) : (
+      <div className="space-y-4">
+        {campaign.sessoes.map((s) => (
+          <div key={s.id} className="card p-5">
+            <p className="panel-title">{s.data || 'Sessão'}</p>
+            <h3 className="font-display text-lg text-parchment-50">{s.titulo || 'Sem título'}</h3>
+            {s.resumo && <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-parchment-100">{s.resumo}</p>}
+          </div>
+        ))}
+      </div>
+    )
+  }
   function add() {
     update({ sessoes: [novaSessao(), ...campaign.sessoes] })
   }

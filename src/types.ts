@@ -153,6 +153,40 @@ export interface SessionEntry {
   resumo: string
 }
 
+/** Categorias de verbete do codex do mundo. */
+export type LoreTipo = 'local' | 'faccao' | 'divindade' | 'evento' | 'item' | 'segredo'
+
+/**
+ * Verbete do codex. Segue o mesmo padrão do bestiário: o DM controla o quanto
+ * o grupo já sabe, e a visão dos jogadores revela só até esse ponto.
+ */
+export interface LoreEntry {
+  id: string
+  tipo: LoreTipo
+  nome: string
+  imagemUrl: string
+  resumo: string // o que o grupo sabe de imediato (nível "ouviu falar")
+  descricao: string // detalhes revelados quando "conhece"
+  segredos: string // sempre privado do DM
+  conhecimento: KnowledgeLevel // desconhecido | encontrado(ouviu falar) | parcial | completo
+  etiquetas: string[]
+}
+
+/** Item entregue aos jogadores: carta, mapa, ilustração. */
+export interface Handout {
+  id: string
+  titulo: string
+  texto: string
+  imagemUrl: string
+  revelado: boolean
+}
+
+/** Reputação do grupo com uma facção (-3 a +3). */
+export interface Reputacao {
+  loreId: string
+  valor: number
+}
+
 export interface Campaign {
   updatedAt: number
   nome: string
@@ -161,6 +195,9 @@ export interface Campaign {
   party: Character[] // fichas importadas dos jogadores (snapshots)
   npcs: Npc[]
   sessoes: SessionEntry[]
+  codex: LoreEntry[]
+  handouts: Handout[]
+  reputacoes: Reputacao[]
 }
 
 // ---------------------------------------------------------------------------
