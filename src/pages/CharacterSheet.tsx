@@ -11,9 +11,13 @@ import {
   SKILLS,
 } from '../data/rules'
 import { SPELLS } from '../data/spells'
+import { ARMADURAS, ARMAS, ESCUDO_CA, ITENS_MAGICOS, acharArma, acharArmadura } from '../data/equipment'
+import { TALENTOS } from '../data/feats'
+import { ataqueDaArma } from '../lib/weapons'
 import {
   abilityMod,
   armorClass,
+  armorClassDetalhe,
   classInfo,
   fmtMod,
   initiative,
@@ -99,6 +103,10 @@ export default function CharacterSheet() {
               <SkillsSection char={char} update={update} />
             </div>
           </div>
+
+          <EquipSection char={char} update={update} />
+
+          <FeatsSection char={char} update={update} />
 
           <ConditionsSection char={char} update={update} />
 
@@ -311,7 +319,7 @@ function CombatSection({ char, update }: { char: Character; update: (p: Partial<
   return (
     <SectionCard title="Combate" hint="Os números que você mais usa numa luta.">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="Classe de Armadura" hint="Quão difícil é te acertar. Sem armadura = 10 + mod DES.">
+        <Stat label="Classe de Armadura" hint="Calculada pela armadura equipada + Destreza + escudo. Você pode digitar um valor para sobrepor.">
           <div className="flex items-center gap-1">
             <NumberField
               value={armorClass(char)}
@@ -517,8 +525,28 @@ function AttacksSection({ char, update }: { char: Character; update: (p: Partial
   return (
     <SectionCard
       title="Ataques & Ações"
-      hint="Suas armas e ações de combate. Bônus é quanto você soma ao d20 para acertar."
-      action={<button className="btn-ghost" onClick={add}>+ Adicionar</button>}
+      hint="Escolha uma arma do catálogo e o bônus e o dano são calculados sozinhos (Força ou Destreza + proficiência)."
+      action={
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            className="stat-input w-auto py-1 text-xs"
+            value=""
+            onChange={(e) => {
+              const arma = acharArma(e.target.value)
+              if (arma) update({ ataques: [...char.ataques, ataqueDaArma(char, arma)] })
+              e.target.value = ''
+            }}
+          >
+            <option value="">＋ Arma do catálogo…</option>
+            {ARMAS.map((a) => (
+              <option key={a.nome} value={a.nome}>
+                {a.nome} ({a.dano} {a.tipoDano})
+              </option>
+            ))}
+          </select>
+          <button className="btn-ghost py-1 text-xs" onClick={add}>+ Em branco</button>
+        </div>
+      }
     >
       {char.ataques.length === 0 ? (
         <p className="py-4 text-center text-sm text-parchment-200/50">
@@ -756,6 +784,110 @@ function SpellSlots({ char, update }: { char: Character; update: (p: Partial<Cha
 }
 
 // ---------------------------------------------------------------------------
+function EquipSection({ char, update }: { char: Character; update: (p: Partial<Character>) => void }) {
+  const armadura = char.armaduraEquipada ? acharArmadura(char.armaduraEquipada) : undefined
+  const usandoManual = char.classeArmaduraManual != null
+  return (
+    <SectionCard
+      title="Armadura & Escudo"
+      hint="Escolha a armadura e o app calcula sua Classe de Armadura sozinho, respeitando o limite de Destreza de cada tipo."
+    >
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="Armadura equipada">
+          <SelectField
+            value={char.armaduraEquipada}
+            onChange={(v) => update({ armaduraEquipada: v, classeArmaduraManual: null })}
+            options={ARMADURAS.map((a) => ({ value: a.nome, label: `${a.nome} (${a.categoria}, CA ${a.ca})` }))}
+            placeholder="Sem armadura"
+          />
+        </Field>
+        <div className="flex flex-col justify-end gap-2">
+          <label className="flex cursor-pointer items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={char.escudoEquipado}
+              onChange={(e) => update({ escudoEquipado: e.target.checked, classeArmaduraManual: null })}
+              className="h-4 w-4 accent-dragon-500"
+            />
+            <span className="text-parchment-100">Usando escudo (+{ESCUDO_CA} de CA)</span>
+          </label>
+          <p className="text-xs text-parchment-200/60">
+            CA atual: <b className="text-parchment-50">{armorClass(char)}</b>{' '}
+            <span className="text-parchment-200/40">— {armorClassDetalhe(char)}</span>
+          </p>
+          {usandoManual && (
+            <button className="text-left text-[11px] text-arcane-400 hover:underline" onClick={() => update({ classeArmaduraManual: null })}>
+              Voltar a calcular automaticamente
+            </button>
+          )}
+        </div>
+      </div>
+      {armadura && (armadura.furtividadeRuim || armadura.forcaMinima) && (
+        <p className="mt-3 text-xs text-amber-400">
+          ⚠ {armadura.furtividadeRuim && 'Desvantagem em testes de Furtividade. '}
+          {armadura.forcaMinima && `Exige Força ${armadura.forcaMinima} (senão seu deslocamento cai 3 m).`}
+        </p>
+      )}
+    </SectionCard>
+  )
+}
+
+// ---------------------------------------------------------------------------
+function FeatsSection({ char, update }: { char: Character; update: (p: Partial<Character>) => void }) {
+  const [aberto, setAberto] = useState(false)
+  const escolhidos = TALENTOS.filter((t) => char.talentos.includes(t.nome))
+  const disponiveis = TALENTOS.filter((t) => !char.talentos.includes(t.nome))
+
+  return (
+    <SectionCard
+      title="Talentos"
+      hint="Nas regras de 2024 você ganha um talento de origem no nível 1 (pelo antecedente) e escolhe outros nos níveis 4, 8, 12, 16 e 19."
+      action={<button className="btn-ghost py-1 text-xs" onClick={() => setAberto((v) => !v)}>{aberto ? 'Fechar' : '+ Adicionar'}</button>}
+    >
+      {escolhidos.length === 0 ? (
+        <p className="text-sm text-parchment-200/50">Nenhum talento ainda.</p>
+      ) : (
+        <ul className="space-y-2">
+          {escolhidos.map((t) => (
+            <li key={t.nome} className="flex items-start gap-2 rounded-lg border border-white/10 bg-ink-900/40 p-2.5">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-parchment-50">
+                  {t.nome} <span className="chip ml-1 text-[10px]">{t.categoria}</span>
+                </p>
+                <p className="mt-0.5 text-xs text-parchment-200/70">{t.resumo}</p>
+              </div>
+              <button
+                className="px-1 text-parchment-200/40 hover:text-dragon-400"
+                onClick={() => update({ talentos: char.talentos.filter((n) => n !== t.nome) })}
+                aria-label="Remover talento"
+              >✕</button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {aberto && (
+        <div className="mt-3 max-h-72 space-y-1.5 overflow-y-auto border-t border-white/10 pt-3">
+          {disponiveis.map((t) => (
+            <button
+              key={t.nome}
+              onClick={() => update({ talentos: [...char.talentos, t.nome] })}
+              className="block w-full rounded-lg border border-white/10 p-2.5 text-left transition hover:border-dragon-400/50 hover:bg-white/5"
+            >
+              <p className="text-sm text-parchment-50">
+                {t.nome} <span className="chip ml-1 text-[10px]">{t.categoria}</span>
+                {t.requisito && <span className="ml-1 text-[10px] text-amber-400">{t.requisito}</span>}
+              </p>
+              <p className="mt-0.5 text-xs text-parchment-200/60">{t.resumo}</p>
+            </button>
+          ))}
+        </div>
+      )}
+    </SectionCard>
+  )
+}
+
+// ---------------------------------------------------------------------------
 function ConditionsSection({ char, update }: { char: Character; update: (p: Partial<Character>) => void }) {
   function toggle(nome: string) {
     const tem = char.condicoes.includes(nome)
@@ -820,7 +952,35 @@ function InventorySection({ char, update }: { char: Character; update: (p: Parti
     <SectionCard
       title="Inventário & Moedas"
       hint="Itens que você carrega e seu dinheiro. PC=cobre, PP=prata, PE=electro, PO=ouro, PL=platina."
-      action={<button className="btn-ghost" onClick={addItem}>+ Item</button>}
+      action={
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            className="stat-input w-auto py-1 text-xs"
+            value=""
+            onChange={(e) => {
+              const it = ITENS_MAGICOS.find((x) => x.nome === e.target.value)
+              if (it) {
+                update({
+                  inventario: [...char.inventario, {
+                    id: uid(),
+                    nome: it.nome,
+                    qtd: 1,
+                    peso: 0,
+                    notas: `${it.raridade}${it.sintonia ? ' · requer sintonia' : ''} — ${it.resumo}`,
+                  }],
+                })
+              }
+              e.target.value = ''
+            }}
+          >
+            <option value="">＋ Item mágico…</option>
+            {ITENS_MAGICOS.map((it) => (
+              <option key={it.nome} value={it.nome}>{it.nome} ({it.raridade})</option>
+            ))}
+          </select>
+          <button className="btn-ghost py-1 text-xs" onClick={addItem}>+ Item</button>
+        </div>
+      }
     >
       {/* Moedas */}
       <div className="mb-4 flex flex-wrap gap-2">

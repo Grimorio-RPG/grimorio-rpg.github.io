@@ -3,6 +3,7 @@ import type { Character } from '../types'
 import { ABILITIES, CONDICOES, SKILLS } from '../data/rules'
 import { ACOES_GERAIS, ROTULO_TIPO, acoesDaClasse, type AcaoInfo } from '../data/actions'
 import { spellsDaClasse } from '../data/spells'
+import { acharTalento } from '../data/feats'
 import { RollButton, RollTextButton, rolarComModo } from './dice-ui'
 import { LevelUpModal, RestPanel } from './rest-levelup'
 import {
@@ -71,7 +72,11 @@ export default function CharacterSheetView({
 
       {/* Combate — números principais */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        <Big label="Classe de Armadura" valor={armorClass(char)} />
+        <Big
+          label="Classe de Armadura"
+          valor={armorClass(char)}
+          sub={[char.armaduraEquipada, char.escudoEquipado ? 'escudo' : ''].filter(Boolean).join(' + ') || undefined}
+        />
         <Big
           label="Iniciativa"
           valor={fmtMod(initiative(char))}
@@ -206,6 +211,24 @@ export default function CharacterSheetView({
               </tbody>
             </table>
           </div>
+        </section>
+      )}
+
+      {/* Talentos */}
+      {char.talentos.length > 0 && (
+        <section className="card p-5">
+          <h3 className="mb-3 panel-title">Talentos</h3>
+          <ul className="grid gap-2 sm:grid-cols-2">
+            {char.talentos.map((nome) => {
+              const t = acharTalento(nome)
+              return (
+                <li key={nome} className="rounded-lg border border-white/10 bg-ink-900/40 p-2.5">
+                  <p className="text-sm font-medium text-parchment-50">{nome}</p>
+                  {t && <p className="mt-0.5 text-xs text-parchment-200/70">{t.resumo}</p>}
+                </li>
+              )
+            })}
+          </ul>
         </section>
       )}
 

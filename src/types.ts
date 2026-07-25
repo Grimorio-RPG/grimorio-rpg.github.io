@@ -98,7 +98,10 @@ export interface Character {
   periciasExpertise: SkillKey[]
 
   // Combate
-  classeArmaduraManual: number | null // se null, calcula 10 + mod des
+  classeArmaduraManual: number | null // se preenchido, sobrepõe o cálculo
+  armaduraEquipada: string // nome da armadura do catálogo ('' = sem armadura)
+  escudoEquipado: boolean
+  talentos: string[] // nomes dos talentos escolhidos
   iniciativaBonus: number
   deslocamento: number
   pvMax: number

@@ -1,5 +1,6 @@
 import type { AbilityKey, Character, SkillKey } from '../types'
 import { CLASSES, SKILLS } from '../data/rules'
+import { ESCUDO_CA, acharArmadura } from '../data/equipment'
 
 /** Modificador de atributo: floor((valor - 10) / 2). */
 export function abilityMod(score: number): number {
@@ -34,10 +35,41 @@ export function skillBonus(char: Character, key: SkillKey): number {
   return base + prof
 }
 
-/** Classe de Armadura efetiva (manual ou 10 + mod DES). */
+/**
+ * Classe de Armadura efetiva. Prioriza o valor manual; senão calcula a partir
+ * da armadura equipada (respeitando o limite de Destreza) e do escudo.
+ */
 export function armorClass(char: Character): number {
   if (char.classeArmaduraManual != null) return char.classeArmaduraManual
-  return 10 + abilityMod(char.atributos.des)
+  const modDes = abilityMod(char.atributos.des)
+  const armadura = char.armaduraEquipada ? acharArmadura(char.armaduraEquipada) : undefined
+  let base: number
+  if (!armadura) {
+    base = 10 + modDes
+  } else {
+    const limite = armadura.maxDes
+    const desAplicado = limite == null ? modDes : Math.min(modDes, limite)
+    base = armadura.ca + desAplicado
+  }
+  return base + (char.escudoEquipado ? ESCUDO_CA : 0)
+}
+
+/** Explica como a CA foi calculada (para mostrar na ficha). */
+export function armorClassDetalhe(char: Character): string {
+  if (char.classeArmaduraManual != null) return 'valor definido manualmente'
+  const modDes = abilityMod(char.atributos.des)
+  const armadura = char.armaduraEquipada ? acharArmadura(char.armaduraEquipada) : undefined
+  const partes: string[] = []
+  if (!armadura) {
+    partes.push(`10 ${fmtMod(modDes)} (DES)`)
+  } else {
+    const limite = armadura.maxDes
+    const desAplicado = limite == null ? modDes : Math.min(modDes, limite)
+    partes.push(`${armadura.ca} (${armadura.nome})`)
+    if (desAplicado !== 0 || limite !== 0) partes.push(`${fmtMod(desAplicado)} (DES${limite != null && modDes > limite ? `, máx ${limite}` : ''})`)
+  }
+  if (char.escudoEquipado) partes.push(`+${ESCUDO_CA} (escudo)`)
+  return partes.join(' ')
 }
 
 /** Bônus de iniciativa: mod DES + bônus manual. */
