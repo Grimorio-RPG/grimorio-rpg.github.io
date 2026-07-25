@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { Character } from '../types'
-import { CLASSES } from '../data/rules'
+import { CLASSES, rotuloClasse } from '../data/rules'
 import { espacosPorNivel, marcosDoNivel, mediaDoDado, temEspacos } from '../data/progression'
 import { abilityMod, classInfo, proficiencyBonus } from '../lib/calc'
 import { rolar } from '../lib/dice'
@@ -166,7 +166,7 @@ export function LevelUpModal({
     <Modal onClose={onClose} titulo={`Subir para o nível ${novoNivel}`} largura="max-w-lg">
       <div className="space-y-4">
         <p className="text-sm text-parchment-200/70">
-          <b className="text-parchment-50">{char.nome || 'Seu personagem'}</b> — {char.classe || 'sem classe'}{' '}
+          <b className="text-parchment-50">{char.nome || 'Seu personagem'}</b> — {char.classe ? rotuloClasse(char.classe) : 'sem classe'}{' '}
           nível {char.nivel} → <b className="text-parchment-50">{novoNivel}</b>
         </p>
 

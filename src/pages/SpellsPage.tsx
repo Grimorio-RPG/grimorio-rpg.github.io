@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { CLASSES_CONJURADORAS, SPELLS, type Spell } from '../data/spells'
+import { rotuloClasse } from '../data/rules'
 import { EmptyState, FilterChip, PageHeader, Toolbar } from '../components/layout-ui'
 
 export default function SpellsPage() {
@@ -47,7 +48,7 @@ export default function SpellsPage() {
         >
           <option value="todas">Todas as classes</option>
           {CLASSES_CONJURADORAS.map((c) => (
-            <option key={c} value={c}>{c}</option>
+            <option key={c} value={c}>{rotuloClasse(c)}</option>
           ))}
         </select>
         <div className="flex flex-wrap items-center gap-1">
@@ -61,7 +62,7 @@ export default function SpellsPage() {
       </Toolbar>
 
       <p className="mb-3 text-xs text-parchment-200/50">
-        {filtradas.length} feitiço(s){classe !== 'todas' ? ` de ${classe}` : ''}
+        {filtradas.length} feitiço(s){classe !== 'todas' ? ` de ${rotuloClasse(classe)}` : ''}
       </p>
 
       <div className="grid gap-3 md:grid-cols-2">

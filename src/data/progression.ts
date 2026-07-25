@@ -61,7 +61,7 @@ const PACTO: [number, number][] = [
   [3, 5], [3, 5], [3, 5], [3, 5], [3, 5], [3, 5], [4, 5], [4, 5], [4, 5], [4, 5],
 ]
 
-const COMPLETOS = ['Bardo', 'Clérigo', 'Druida', 'Feiticeiro', 'Mago', 'Sacerdote']
+const COMPLETOS = ['Bardo', 'Clérigo', 'Druida', 'Feiticeiro', 'Mago']
 const MEIOS = ['Paladino', 'Patrulheiro']
 
 /** Espaços de magia esperados para a classe naquele nível. */

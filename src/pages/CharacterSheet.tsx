@@ -210,7 +210,7 @@ function IdentitySection({ char, update }: { char: Character; update: (p: Partia
                   salvaguardasProficientes: ci?.salvaguardas ?? char.salvaguardasProficientes,
                 })
               }}
-              options={CLASSES.map((c) => ({ value: c.nome, label: c.nome }))}
+              options={CLASSES.map((c) => ({ value: c.nome, label: `${c.nome} (${c.nomeEn})` }))}
             />
           </Field>
           <Field label="Subclasse" hint="Uma especialização dentro da classe, geralmente escolhida no nível 3.">

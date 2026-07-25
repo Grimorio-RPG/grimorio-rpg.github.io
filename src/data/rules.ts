@@ -40,29 +40,36 @@ export const SKILLS: { key: SkillKey; nome: string; atributo: AbilityKey }[] = [
 // Classes (2024) — dado de vida, salvaguardas e atributo de conjuração
 // ---------------------------------------------------------------------------
 export interface ClassInfo {
-  nome: string
+  nome: string // nome em português — é a chave usada internamente
+  nomeEn: string // nome oficial em inglês, exibido entre parênteses
   dadoDeVida: number
   salvaguardas: AbilityKey[]
   conjuracao: AbilityKey | null
+  /** Subclasses já no formato "Português (English)". */
   subclasses: string[]
   resumo: string
 }
 
 export const CLASSES: ClassInfo[] = [
-  { nome: 'Bárbaro', dadoDeVida: 12, salvaguardas: ['for', 'con'], conjuracao: null, subclasses: ['Caminho do Berserker', 'Caminho do Coração Selvagem', 'Caminho do Guardião Ancestral', 'Caminho do Andarilho'], resumo: 'Guerreiro feroz movido pela fúria. Muito resistente e forte no corpo a corpo.' },
-  { nome: 'Bardo', dadoDeVida: 8, salvaguardas: ['des', 'car'], conjuracao: 'car', subclasses: ['Colégio da Dança', 'Colégio do Saber', 'Colégio da Bravura', 'Colégio do Glamour'], resumo: 'Artista mágico versátil, que inspira aliados e domina um pouco de tudo.' },
-  { nome: 'Bruxo', dadoDeVida: 8, salvaguardas: ['sab', 'car'], conjuracao: 'car', subclasses: ['Patrono Arquifada', 'Patrono Corruptor', 'Patrono Celestial', 'Patrono Grande Antigo'], resumo: 'Conjura poder de um patrono sobrenatural. Poucos espaços de magia, mas recarregam rápido.' },
-  { nome: 'Clérigo', dadoDeVida: 8, salvaguardas: ['sab', 'car'], conjuracao: 'sab', subclasses: ['Domínio da Vida', 'Domínio da Luz', 'Domínio da Confiança', 'Domínio da Guerra'], resumo: 'Canaliza poder divino: cura, protege e destrói inimigos em nome de sua divindade.' },
-  { nome: 'Druida', dadoDeVida: 8, salvaguardas: ['int', 'sab'], conjuracao: 'sab', subclasses: ['Círculo da Terra', 'Círculo da Lua', 'Círculo do Mar', 'Círculo das Estrelas'], resumo: 'Guardião da natureza que conjura magias e se transforma em animais.' },
-  { nome: 'Feiticeiro', dadoDeVida: 6, salvaguardas: ['con', 'car'], conjuracao: 'car', subclasses: ['Feitiçaria Aberrante', 'Feitiçaria Clockwork', 'Linhagem Dracônica', 'Alma Selvagem'], resumo: 'Magia inata que corre no sangue. Manipula magias com a Metamagia.' },
-  { nome: 'Guerreiro', dadoDeVida: 10, salvaguardas: ['for', 'con'], conjuracao: null, subclasses: ['Campeão', 'Mestre de Batalha', 'Cavaleiro Élfico', 'Cavaleiro Arcano'], resumo: 'Mestre de armas e armaduras. Muitos ataques e enorme flexibilidade tática.' },
-  { nome: 'Ladino', dadoDeVida: 8, salvaguardas: ['des', 'int'], conjuracao: null, subclasses: ['Ladrão', 'Assassino', 'Trapaceiro Arcano', 'Alma de Aço'], resumo: 'Especialista em furtividade e precisão. O Ataque Furtivo causa dano extra brutal.' },
-  { nome: 'Mago', dadoDeVida: 6, salvaguardas: ['int', 'sab'], conjuracao: 'int', subclasses: ['Abjuração', 'Evocação', 'Ilusão', 'Adivinhação'], resumo: 'Estudioso da magia arcana, com o maior repertório de magias do jogo.' },
-  { nome: 'Monge', dadoDeVida: 8, salvaguardas: ['for', 'des'], conjuracao: null, subclasses: ['Mão Aberta', 'Sombra', 'Elementos', 'Misericórdia'], resumo: 'Artista marcial que canaliza Ki para golpes rápidos e mobilidade sobre-humana.' },
-  { nome: 'Paladino', dadoDeVida: 10, salvaguardas: ['sab', 'car'], conjuracao: 'car', subclasses: ['Juramento da Devoção', 'Juramento dos Anciões', 'Juramento da Vingança', 'Juramento da Glória'], resumo: 'Guerreiro sagrado preso a um juramento. Combina combate, cura e Destruição Divina.' },
-  { nome: 'Patrulheiro', dadoDeVida: 10, salvaguardas: ['for', 'des'], conjuracao: 'sab', subclasses: ['Caçador', 'Andarilho Feérico', 'Mestre das Feras', 'Perseguidor Sombrio'], resumo: 'Caçador da natureza que mistura combate, rastreamento e um pouco de magia.' },
-  { nome: 'Sacerdote', dadoDeVida: 8, salvaguardas: ['sab', 'car'], conjuracao: 'sab', subclasses: [], resumo: 'Variante regional de Clérigo — use Clérigo se estiver em dúvida.' },
+  { nome: 'Bárbaro', nomeEn: 'Barbarian', dadoDeVida: 12, salvaguardas: ['for', 'con'], conjuracao: null, subclasses: ['Caminho do Berserker (Path of the Berserker)', 'Caminho do Coração Selvagem (Path of the Wild Heart)', 'Caminho da Árvore do Mundo (Path of the World Tree)', 'Caminho do Zelote (Path of the Zealot)'], resumo: 'Guerreiro feroz movido pela fúria. Muito resistente e forte no corpo a corpo.' },
+  { nome: 'Bardo', nomeEn: 'Bard', dadoDeVida: 8, salvaguardas: ['des', 'car'], conjuracao: 'car', subclasses: ['Colégio da Dança (College of Dance)', 'Colégio do Glamour (College of Glamour)', 'Colégio do Saber (College of Lore)', 'Colégio da Bravura (College of Valor)'], resumo: 'Artista mágico versátil, que inspira aliados e domina um pouco de tudo.' },
+  { nome: 'Bruxo', nomeEn: 'Warlock', dadoDeVida: 8, salvaguardas: ['sab', 'car'], conjuracao: 'car', subclasses: ['Patrono Arquifada (Archfey Patron)', 'Patrono Celestial (Celestial Patron)', 'Patrono Corruptor (Fiend Patron)', 'Patrono Grande Antigo (Great Old One Patron)'], resumo: 'Conjura poder de um patrono sobrenatural. Poucos espaços de magia, mas recarregam rápido.' },
+  { nome: 'Clérigo', nomeEn: 'Cleric', dadoDeVida: 8, salvaguardas: ['sab', 'car'], conjuracao: 'sab', subclasses: ['Domínio da Vida (Life Domain)', 'Domínio da Luz (Light Domain)', 'Domínio da Trapaça (Trickery Domain)', 'Domínio da Guerra (War Domain)'], resumo: 'Canaliza poder divino: cura, protege e destrói inimigos em nome de sua divindade.' },
+  { nome: 'Druida', nomeEn: 'Druid', dadoDeVida: 8, salvaguardas: ['int', 'sab'], conjuracao: 'sab', subclasses: ['Círculo da Terra (Circle of the Land)', 'Círculo da Lua (Circle of the Moon)', 'Círculo do Mar (Circle of the Sea)', 'Círculo das Estrelas (Circle of the Stars)'], resumo: 'Guardião da natureza que conjura magias e se transforma em animais.' },
+  { nome: 'Feiticeiro', nomeEn: 'Sorcerer', dadoDeVida: 6, salvaguardas: ['con', 'car'], conjuracao: 'car', subclasses: ['Feitiçaria Aberrante (Aberrant Sorcery)', 'Feitiçaria Mecânica (Clockwork Sorcery)', 'Feitiçaria Dracônica (Draconic Sorcery)', 'Feitiçaria Selvagem (Wild Magic Sorcery)'], resumo: 'Magia inata que corre no sangue. Manipula magias com a Metamagia.' },
+  { nome: 'Guerreiro', nomeEn: 'Fighter', dadoDeVida: 10, salvaguardas: ['for', 'con'], conjuracao: null, subclasses: ['Mestre de Batalha (Battle Master)', 'Campeão (Champion)', 'Cavaleiro Arcano (Eldritch Knight)', 'Guerreiro Psiônico (Psi Warrior)'], resumo: 'Mestre de armas e armaduras. Muitos ataques e enorme flexibilidade tática.' },
+  { nome: 'Ladino', nomeEn: 'Rogue', dadoDeVida: 8, salvaguardas: ['des', 'int'], conjuracao: null, subclasses: ['Trapaceiro Arcano (Arcane Trickster)', 'Assassino (Assassin)', 'Lâmina da Alma (Soulknife)', 'Ladrão (Thief)'], resumo: 'Especialista em furtividade e precisão. O Ataque Furtivo causa dano extra brutal.' },
+  { nome: 'Mago', nomeEn: 'Wizard', dadoDeVida: 6, salvaguardas: ['int', 'sab'], conjuracao: 'int', subclasses: ['Abjurador (Abjurer)', 'Adivinho (Diviner)', 'Evocador (Evoker)', 'Ilusionista (Illusionist)'], resumo: 'Estudioso da magia arcana, com o maior repertório de magias do jogo.' },
+  { nome: 'Monge', nomeEn: 'Monk', dadoDeVida: 8, salvaguardas: ['for', 'des'], conjuracao: null, subclasses: ['Guerreiro da Mão Aberta (Warrior of the Open Hand)', 'Guerreiro das Sombras (Warrior of Shadow)', 'Guerreiro dos Elementos (Warrior of the Elements)', 'Guerreiro da Misericórdia (Warrior of Mercy)'], resumo: 'Artista marcial que canaliza Ki para golpes rápidos e mobilidade sobre-humana.' },
+  { nome: 'Paladino', nomeEn: 'Paladin', dadoDeVida: 10, salvaguardas: ['sab', 'car'], conjuracao: 'car', subclasses: ['Juramento da Devoção (Oath of Devotion)', 'Juramento da Glória (Oath of Glory)', 'Juramento dos Anciões (Oath of the Ancients)', 'Juramento da Vingança (Oath of Vengeance)'], resumo: 'Guerreiro sagrado preso a um juramento. Combina combate, cura e Destruição Divina.' },
+  { nome: 'Patrulheiro', nomeEn: 'Ranger', dadoDeVida: 10, salvaguardas: ['for', 'des'], conjuracao: 'sab', subclasses: ['Mestre das Feras (Beast Master)', 'Andarilho Feérico (Fey Wanderer)', 'Perseguidor Sombrio (Gloom Stalker)', 'Caçador (Hunter)'], resumo: 'Caçador da natureza que mistura combate, rastreamento e um pouco de magia.' },
 ]
+
+/** Rótulo de exibição da classe: "Mago (Wizard)". */
+export function rotuloClasse(nome: string): string {
+  const c = CLASSES.find((x) => x.nome === nome)
+  return c ? `${c.nome} (${c.nomeEn})` : nome
+}
 
 // Espécies (2024)
 export const ESPECIES: { nome: string; resumo: string }[] = [
@@ -142,5 +149,4 @@ export const PERICIAS_POR_CLASSE: Record<string, { quantidade: number; opcoes: S
   'Monge': { quantidade: 2, opcoes: ['acrobacia', 'atletismo', 'historia', 'intuicao', 'religiao', 'furtividade'] },
   'Paladino': { quantidade: 2, opcoes: ['atletismo', 'intuicao', 'intimidacao', 'medicina', 'persuasao', 'religiao'] },
   'Patrulheiro': { quantidade: 3, opcoes: ['lidarComAnimais', 'atletismo', 'intuicao', 'investigacao', 'natureza', 'percepcao', 'furtividade', 'sobrevivencia'] },
-  'Sacerdote': { quantidade: 2, opcoes: ['historia', 'intuicao', 'medicina', 'persuasao', 'religiao'] },
 }

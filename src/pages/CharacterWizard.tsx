@@ -216,10 +216,10 @@ function PassoClasse({ s, set }: { s: WizardState; set: (p: Partial<WizardState>
     <div>
       <TituloPasso titulo="Escolha sua classe" hint="O que seu personagem faz de melhor. Define pontos de vida, perícias, salvaguardas e magias." />
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        {CLASSES.filter((c) => c.nome !== 'Sacerdote').map((c) => (
+        {CLASSES.map((c) => (
           <CartaoEscolha
             key={c.nome}
-            nome={c.nome}
+            nome={`${c.nome} (${c.nomeEn})`}
             resumo={c.resumo}
             ativo={s.classe === c.nome}
             badges={[`Dado de vida d${c.dadoDeVida}`, c.conjuracao ? 'Conjura magias' : 'Marcial']}

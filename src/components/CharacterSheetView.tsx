@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { Character } from '../types'
-import { ABILITIES, CONDICOES, SKILLS } from '../data/rules'
+import { ABILITIES, CONDICOES, SKILLS, rotuloClasse } from '../data/rules'
 import { ACOES_GERAIS, ROTULO_TIPO, acoesDaClasse, type AcaoInfo } from '../data/actions'
 import { spellsDaClasse } from '../data/spells'
 import { acharTalento } from '../data/feats'
@@ -55,7 +55,7 @@ export default function CharacterSheetView({
             <h2 className="font-display text-2xl text-parchment-50">{char.nome || 'Sem nome'}</h2>
             <div className="mt-2 flex flex-wrap gap-1.5 text-xs">
               {char.especie && <span className="chip">{char.especie}</span>}
-              {char.classe && <span className="chip">{char.classe}{char.subclasse ? ` · ${char.subclasse}` : ''}</span>}
+              {char.classe && <span className="chip">{rotuloClasse(char.classe)}{char.subclasse ? ` · ${char.subclasse}` : ''}</span>}
               <span className="chip">Nível {char.nivel}</span>
               {char.antecedente && <span className="chip">{char.antecedente}</span>}
               {char.alinhamento && <span className="chip">{char.alinhamento}</span>}
@@ -418,7 +418,7 @@ function FeiticosDaClasse({ classe }: { classe: string }) {
     <section className="card p-5">
       <button className="flex w-full items-center justify-between gap-3 text-left" onClick={() => setAberto((v) => !v)}>
         <div>
-          <h3 className="panel-title">Feitiços de {classe}</h3>
+          <h3 className="panel-title">Feitiços de {rotuloClasse(classe)}</h3>
           <p className="mt-0.5 text-xs text-parchment-200/50">
             {lista.length} feitiços do catálogo disponíveis para a sua classe
           </p>
