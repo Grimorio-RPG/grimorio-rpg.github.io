@@ -58,7 +58,7 @@ export default function Layout() {
 function Brand({ small = false }: { small?: boolean }) {
   return (
     <div className="flex items-center gap-2.5">
-      <img src="/dragon.svg" alt="" className={small ? 'h-8 w-8' : 'h-10 w-10'} />
+      <img src={`${import.meta.env.BASE_URL}dragon.svg`} alt="" className={small ? 'h-8 w-8' : 'h-10 w-10'} />
       <div className="leading-tight">
         <p className={`font-display font-bold text-parchment-50 ${small ? 'text-lg' : 'text-xl'}`}>
           Grimório

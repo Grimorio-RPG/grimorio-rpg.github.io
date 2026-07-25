@@ -19,7 +19,7 @@ initStore().finally(() => {
   // Service worker: permite instalar o app e usá-lo offline.
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
     const registrar = () => {
-      navigator.serviceWorker.register('/sw.js').catch(() => {
+      navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`).catch(() => {
         // sem service worker o app segue funcionando normalmente
       })
     }

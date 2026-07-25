@@ -1,0 +1,57 @@
+name: Publicar no GitHub Pages
+
+# Publica o app a cada push nesta branch. Para ativar:
+#   Settings → Pages → Source: "GitHub Actions"
+on:
+  push:
+    branches: [claude/dnd-5-5e-app-ea02kt]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Uma publicação por vez; não cancela a que já está rodando
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run build
+        env:
+          # Chaves opcionais da sincronização. Sem elas o app publica em modo
+          # local (funciona normalmente, só não sincroniza entre dispositivos).
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+
+      # O app usa HashRouter, então não precisa de regra de reescrita.
+      # O 404.html é só uma rede de segurança para links diretos.
+      - run: cp dist/index.html dist/404.html
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

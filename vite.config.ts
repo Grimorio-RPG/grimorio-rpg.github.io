@@ -4,6 +4,9 @@ import react from '@vitejs/plugin-react'
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
+  // Caminhos relativos: o app funciona na raiz de um domínio, numa subpasta
+  // (GitHub Pages) ou como arquivo único, sem precisar reconfigurar nada.
+  base: './',
   // es2022 permite top-level await (usado pelo pdf.js). Suportado por navegadores modernos.
   build: {
     target: 'es2022',
