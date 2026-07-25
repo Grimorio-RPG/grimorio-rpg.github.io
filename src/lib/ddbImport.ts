@@ -2,23 +2,18 @@
 // O PDF do D&D Beyond guarda os dados em campos de formulário (AcroForm) com
 // nomes previsíveis — lemos esses campos e montamos um Character.
 
-import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs'
-// Importa o código do worker como módulo e o registra em globalThis para que o
-// pdf.js rode no MAIN THREAD (sem Web Worker, sem Blob, sem arquivo externo).
-// Isso é essencial para funcionar sob CSPs restritivas (ex: a versão single-file
-// hospedada), que bloqueiam workers criados via blob:.
-import * as pdfjsWorker from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs'
+import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf'
+// Este módulo registra o worker em `window.pdfjsWorker`, fazendo o pdf.js rodar
+// no MAIN THREAD (sem Web Worker, sem Blob, sem arquivo externo). Isso é
+// essencial para funcionar sob CSPs restritivas — como a da versão publicada —
+// que bloqueiam workers criados via blob:.
+import 'pdfjs-dist/legacy/build/pdf.worker.entry'
 import type { AbilityKey, Attack, Character, InventoryItem, SkillKey, SpellRef } from '../types'
 import { novaFicha, uid } from './character'
 import { abilityMod } from './calc'
 
-let workerIniciado = false
 function garantirWorker() {
-  if (workerIniciado) return
-  // Ao expor o WorkerMessageHandler aqui, o pdf.js usa o "fake worker" no
-  // main thread em vez de tentar criar um Web Worker.
-  ;(globalThis as unknown as { pdfjsWorker?: unknown }).pdfjsWorker = pdfjsWorker
-  workerIniciado = true
+  // O import acima já preparou o worker no main thread.
 }
 
 // --- tabelas de tradução (D&D Beyond em inglês -> nosso app em português) ----

@@ -12,6 +12,15 @@ export default defineConfig({
   esbuild: {
     target: 'es2022',
   },
+  optimizeDeps: {
+    // O pdf.js usa top-level await. O pré-bundle do modo dev tem alvo próprio,
+    // então precisamos declarar o suporte explicitamente — sem isto o
+    // `npm run dev` derruba o servidor ao processar a dependência.
+    esbuildOptions: {
+      target: 'es2022',
+      supported: { 'top-level-await': true },
+    },
+  },
   server: {
     host: true,
     port: 5173,
