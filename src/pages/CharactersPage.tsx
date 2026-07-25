@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useCharacters } from '../hooks/useCharacters'
 import { novaFicha } from '../lib/character'
 import { parseImportedCharacter } from '../lib/storage'
-import { importarFichaDdb, type ImportResumo } from '../lib/ddbImport'
+import type { ImportResumo } from '../lib/ddbImport'
 import { abilityMod, armorClass, fmtMod } from '../lib/calc'
 import type { Character } from '../types'
 
@@ -17,9 +17,18 @@ export default function CharactersPage() {
 
   async function importarPdf(file: File) {
     setImportandoPdf(true)
+    // O leitor de PDF é pesado (~1 MB): carregado só quando o usuário importa.
+    let modulo: typeof import('../lib/ddbImport')
     try {
-      const r = await importarFichaDdb(file)
-      setPreview(r)
+      modulo = await import('../lib/ddbImport')
+    } catch (e) {
+      console.error(e)
+      setImportandoPdf(false)
+      alert('O leitor de PDF não está disponível nesta versão do app (ele é carregado à parte). Rode o app completo para importar fichas do D&D Beyond.')
+      return
+    }
+    try {
+      setPreview(await modulo.importarFichaDdb(file))
     } catch (e) {
       console.error(e)
       alert('Não consegui ler este PDF. Ele precisa ser a ficha exportada pelo D&D Beyond (menu do personagem → Export → PDF).')

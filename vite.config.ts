@@ -8,12 +8,6 @@ export default defineConfig({
   build: {
     target: 'es2022',
     chunkSizeWarningLimit: 3000,
-    rollupOptions: {
-      output: {
-        // Bundle único: facilita a geração da versão single-file do app.
-        inlineDynamicImports: true,
-      },
-    },
   },
   esbuild: {
     target: 'es2022',
