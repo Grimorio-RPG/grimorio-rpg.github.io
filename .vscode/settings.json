@@ -1,0 +1,26 @@
+{
+  // Usa a versão do TypeScript do projeto, não a embutida no editor
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true,
+
+  // Autocomplete do Tailwind dentro de className e nos helpers do projeto
+  "tailwindCSS.experimental.classRegex": [
+    ["className\\s*=\\s*[\"'`]([^\"'`]*)[\"'`]", "([a-zA-Z0-9\\-:/\\[\\]\\.%]+)"]
+  ],
+  "editor.quickSuggestions": {
+    "strings": "on"
+  },
+
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.organizeImports": "explicit"
+  },
+  "files.eol": "\n",
+
+  // Não polui a busca com artefatos de build
+  "search.exclude": {
+    "**/dist": true,
+    "**/node_modules": true,
+    "**/package-lock.json": true
+  }
+}
