@@ -39,6 +39,46 @@ function setConexao(v: EstadoConexao) {
   for (const fn of ouvintesConexao) fn()
 }
 
+// Mais de um canal pode estar de pé ao mesmo tempo: o estado da mesa (que só o
+// jogador assina) e o feed de rolagens (que todo mundo assina, DM incluído).
+// Antes só o primeiro reportava, e o DM — que nunca assina estado, porque é ele
+// quem publica — via "offline" para sempre, mesmo com o WebSocket das rolagens
+// aberto. Cada canal informa a sua fonte e o selo mostra o melhor estado entre
+// elas: basta um canal vivo para o tempo real estar de pé.
+const porFonte = new Map<string, EstadoConexao>()
+
+function recalcular() {
+  const vistos = [...porFonte.values()]
+  setConexao(
+    vistos.includes('conectado')
+      ? 'conectado'
+      : vistos.includes('conectando')
+        ? 'conectando'
+        : vistos.includes('erro')
+          ? 'erro'
+          : 'offline',
+  )
+}
+
+/** Traduz o status do canal do Supabase e registra na fonte informada. */
+export function relatarStatusCanal(fonte: string, status: string) {
+  if (status === 'SUBSCRIBED') porFonte.set(fonte, 'conectado')
+  else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') porFonte.set(fonte, 'erro')
+  else if (status === 'CLOSED') porFonte.set(fonte, 'offline')
+  else return // demais status são transitórios; não mexem no selo
+  recalcular()
+}
+
+/** O canal desta fonte deixou de existir — para de contar no selo. */
+export function esquecerCanal(fonte: string) {
+  if (porFonte.delete(fonte)) recalcular()
+}
+
+function conectando(fonte: string) {
+  porFonte.set(fonte, 'conectando')
+  recalcular()
+}
+
 async function garantirCanal(mesaId: string): Promise<Assinatura | null> {
   const existente = canais.get(mesaId)
   if (existente) return existente
@@ -47,7 +87,8 @@ async function garantirCanal(mesaId: string): Promise<Assinatura | null> {
   if (!sb) return null
 
   const porChave = new Map<string, Set<Ouvinte>>()
-  setConexao('conectando')
+  const fonte = `estado:${mesaId}`
+  conectando(fonte)
 
   const canal = sb
     .channel(`mesa:${mesaId}`)
@@ -74,11 +115,7 @@ async function garantirCanal(mesaId: string): Promise<Assinatura | null> {
         })
       },
     )
-    .subscribe((status) => {
-      if (status === 'SUBSCRIBED') setConexao('conectado')
-      else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') setConexao('erro')
-      else if (status === 'CLOSED') setConexao('offline')
-    })
+    .subscribe((status) => relatarStatusCanal(fonte, status))
 
   const assinatura: Assinatura = { canal, porChave }
   canais.set(mesaId, assinatura)
@@ -92,9 +129,9 @@ async function fecharSeVazio(mesaId: string) {
   for (const s of a.porChave.values()) total += s.size
   if (total > 0) return
   canais.delete(mesaId)
+  esquecerCanal(`estado:${mesaId}`)
   const sb = await getSupabase()
   await sb?.removeChannel(a.canal)
-  if (canais.size === 0) setConexao('offline')
 }
 
 /**

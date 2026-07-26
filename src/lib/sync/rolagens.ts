@@ -7,6 +7,7 @@
 import type { RollResult } from '../dice'
 import { getConta } from './auth'
 import { getSupabase } from './client'
+import { esquecerCanal, relatarStatusCanal } from './estado'
 import { listarMembros } from './mesa'
 
 export interface RolagemMesa {
@@ -130,9 +131,13 @@ export async function acompanharMesa(mesaId: string | null): Promise<void> {
         }
       },
     )
-    .subscribe()
+    // Este canal existe para todo mundo que está numa mesa, então é ele que diz
+    // ao selo que o tempo real está de pé — inclusive para o DM, que não assina
+    // estado nenhum.
+    .subscribe((status) => relatarStatusCanal(`rolagens:${mesaId}`, status))
 
   cancelarCanal = () => {
+    esquecerCanal(`rolagens:${mesaId}`)
     void sb.removeChannel(canal)
   }
 }
