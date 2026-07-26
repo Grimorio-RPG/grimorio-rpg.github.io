@@ -1,10 +1,14 @@
 name: Publicar no GitHub Pages
 
-# Publica o app a cada push nesta branch. Para ativar:
+# Publica o app a cada push na main. Para ativar:
 #   Settings → Pages → Source: "GitHub Actions"
+#
+# Tem de ser a main: o ambiente `github-pages` nasce com uma regra que só aceita
+# deploy da branch padrão. Publicar de outra branch exigiria cadastrá-la em
+# Settings → Environments → github-pages → Deployment branches.
 on:
   push:
-    branches: [claude/dnd-5-5e-app-ea02kt]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
