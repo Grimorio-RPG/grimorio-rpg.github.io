@@ -15,6 +15,9 @@ export function getSupabase(): Promise<SupabaseClient | null> {
           auth: {
             persistSession: true,
             autoRefreshToken: true,
+            // PKCE: o retorno do login Google vem por ?code= na URL, não por
+            // #access_token=. Evita conflito com o HashRouter, que usa o # para rotas.
+            flowType: 'pkce',
           },
         }),
       )

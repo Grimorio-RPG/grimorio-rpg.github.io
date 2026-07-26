@@ -119,6 +119,18 @@ export async function entrar(email: string, senha: string): Promise<Resultado> {
   return { ok: true }
 }
 
+/** Redireciona para o login do Google. A sessão chega depois, via onAuthStateChange. */
+export async function entrarComGoogle(): Promise<Resultado> {
+  const sb = await getSupabase()
+  if (!sb) return { ok: false, erro: 'A nuvem não está configurada neste app.' }
+  const { error } = await sb.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: location.origin + location.pathname },
+  })
+  if (error) return { ok: false, erro: traduzirErro(error.message) }
+  return { ok: true }
+}
+
 export async function cadastrar(email: string, senha: string, nome: string): Promise<Resultado> {
   const sb = await getSupabase()
   if (!sb) return { ok: false, erro: 'A nuvem não está configurada neste app.' }

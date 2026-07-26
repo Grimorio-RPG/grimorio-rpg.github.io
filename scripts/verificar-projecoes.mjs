@@ -10,6 +10,7 @@
 import { readFileSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { execSync } from 'node:child_process'
 
 // Compila os módulos de projeção para JS puro (eles não dependem de React).
@@ -28,10 +29,14 @@ execSync(
     .join(' ')} --outdir=${dir} --format=esm --log-level=error`,
 )
 
-const { projetarBatalha } = await import(join(dir, 'battle.js'))
-const { projetarCampanha } = await import(join(dir, 'campaign.js'))
-const { projetarBestiario } = await import(join(dir, 'bestiary.js'))
-const { projetarCena } = await import(join(dir, 'mapscene.js'))
+// pathToFileURL: no Windows um caminho absoluto (`C:\…`) não é URL válida para
+// o import dinâmico — o loader ESM o lê como protocolo `c:`.
+const importar = (arquivo) => import(pathToFileURL(join(dir, arquivo)).href)
+
+const { projetarBatalha } = await importar('battle.js')
+const { projetarCampanha } = await importar('campaign.js')
+const { projetarBestiario } = await importar('bestiary.js')
+const { projetarCena } = await importar('mapscene.js')
 
 let falhas = 0
 let testes = 0
