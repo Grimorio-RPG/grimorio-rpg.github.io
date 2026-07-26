@@ -15,6 +15,8 @@ export interface RollResult {
   critico: boolean // 20 natural
   falhaCritica: boolean // 1 natural
   timestamp: number
+  /** Rolada atrás da tela do mestre: fica só neste aparelho, nunca é publicada. */
+  secreta?: boolean
 }
 
 function d(faces: number): number {

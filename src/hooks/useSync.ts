@@ -3,6 +3,7 @@ import { assinarSessao, getConta, getEstadoSessao } from '../lib/sync/auth'
 import { assinarMesa, carregandoMesa, getMesa } from '../lib/sync/mesa'
 import { assinarConexao, assinarEstado, getConexao } from '../lib/sync/estado'
 import { nuvemConfigurada } from '../lib/sync/config'
+import { assinarFeed, getFeed } from '../lib/sync/rolagens'
 
 /** Conta conectada (ou nada, em modo local). */
 export function useSessao() {
@@ -28,6 +29,13 @@ export function useMesa() {
     /** Estou vendo a mesa de outra pessoa? Então a tela é só leitura. */
     souJogador: mesa !== null && mesa.papel === 'jogador',
   }
+}
+
+/** Rolagens de todos os membros da mesa, ao vivo. */
+export function useFeedDaMesa() {
+  const [, forcar] = useState(0)
+  useEffect(() => assinarFeed(() => forcar((n) => n + 1)), [])
+  return getFeed()
 }
 
 /** Estado do tempo real (para o indicador de conexão). */

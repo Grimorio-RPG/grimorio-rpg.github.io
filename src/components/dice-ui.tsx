@@ -6,13 +6,35 @@ import {
   type ModoRolagem,
   type RollResult,
 } from '../lib/dice'
-import { addRoll, clearRolls, consumirModo, getManterModo, getModo, setManterModo, setModo } from '../lib/rollLog'
+import {
+  addRoll,
+  clearRolls,
+  consumirModo,
+  getManterModo,
+  getModo,
+  getSecreto,
+  setManterModo,
+  setModo,
+  setSecreto,
+} from '../lib/rollLog'
 import { useRolls } from '../hooks/useRolls'
+import { useFeedDaMesa, useMesa } from '../hooks/useSync'
+import { getMesa } from '../lib/sync/mesa'
+import { limparFeedLocal, publicarRolagem } from '../lib/sync/rolagens'
 
 /** Executa uma rolagem já respeitando o modo (vantagem/desvantagem) armado. */
 export function rolarComModo(qtd: number, faces: number, mod: number, rotulo: string): RollResult {
   const m = faces === 20 && qtd === 1 ? consumirModo() : 'normal'
-  return addRoll(rolar(qtd, faces, mod, rotulo, m))
+  const bruto = rolar(qtd, faces, mod, rotulo, m)
+
+  // Numa mesa, o dado é de todo mundo — a não ser que o DM esteja rolando
+  // escondido atrás da tela.
+  const mesa = getMesa()
+  const secreta = !!mesa && getSecreto()
+  const r = addRoll(secreta ? { ...bruto, secreta: true } : bruto)
+  if (mesa && !secreta) void publicarRolagem(mesa.id, r)
+
+  return r
 }
 
 /** Botão inline: mostra o bônus e rola ao clicar. */
@@ -77,20 +99,34 @@ const DADOS_RAPIDOS = [4, 6, 8, 10, 12, 20, 100]
 /** Bandeja de dados flutuante: dados rápidos, modo e histórico. */
 export function DiceTray() {
   const rolls = useRolls()
+  const feed = useFeedDaMesa()
+  const { mesa, souDm } = useMesa()
   const [aberto, setAberto] = useState(false)
   const [notacao, setNotacao] = useState('')
-  const [flash, setFlash] = useState<RollResult | null>(null)
+  const [flash, setFlash] = useState<{ roll: RollResult; autor?: string } | null>(null)
   const modo = getModo()
   const manter = getManterModo()
+  const secreto = getSecreto()
   const ultima = rolls[0]
+  const secretas = rolls.filter((r) => r.secreta)
 
   // mostra o resultado mais recente por alguns segundos
   useEffect(() => {
     if (!ultima) return
-    setFlash(ultima)
+    setFlash({ roll: ultima })
     const t = setTimeout(() => setFlash(null), 4000)
     return () => clearTimeout(t)
   }, [ultima?.id])
+
+  // …e também quando um colega de mesa rola: é o que dá a sensação de estarem
+  // todos à mesma mesa, cada um no seu celular.
+  const ultimaDoGrupo = feed.find((f) => !f.minha)
+  useEffect(() => {
+    if (!ultimaDoGrupo) return
+    setFlash({ roll: ultimaDoGrupo.roll, autor: ultimaDoGrupo.autorNome })
+    const t = setTimeout(() => setFlash(null), 4000)
+    return () => clearTimeout(t)
+  }, [ultimaDoGrupo?.id])
 
   function rolarNotacao() {
     const n = parseNotacao(notacao)
@@ -107,7 +143,12 @@ export function DiceTray() {
           onClick={() => setAberto(true)}
           className="gv-fade fixed bottom-20 right-4 z-40 max-w-[80vw] rounded-xl border border-white/10 bg-ink-800/95 px-3 py-2 text-left shadow-xl backdrop-blur sm:bottom-24 sm:right-6"
         >
-          <ResultadoLinha r={flash} compacto />
+          {flash.autor && (
+            <p className="mb-0.5 text-[10px] uppercase tracking-wide text-parchment-200/45">
+              {flash.autor} rolou
+            </p>
+          )}
+          <ResultadoLinha r={flash.roll} compacto />
         </button>
       )}
 
@@ -161,6 +202,30 @@ export function DiceTray() {
                 </div>
               </div>
 
+              {/* Atrás da tela do mestre */}
+              {mesa && souDm && (
+                <label
+                  className={`mb-3 flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs transition ${
+                    secreto
+                      ? 'border-dragon-400/50 bg-dragon-500/15 text-parchment-50'
+                      : 'border-white/10 text-parchment-200/70 hover:bg-white/5'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={secreto}
+                    onChange={(e) => setSecreto(e.target.checked)}
+                    className="h-3.5 w-3.5 accent-dragon-500"
+                  />
+                  <span className="flex-1">
+                    🙈 <b>Rolagem secreta</b>
+                    <span className="block text-[11px] text-parchment-200/50">
+                      {secreto ? 'O grupo não vê estes dados.' : 'Suas rolagens aparecem para o grupo.'}
+                    </span>
+                  </span>
+                </label>
+              )}
+
               {/* Dados rápidos */}
               <div className="mb-3">
                 <span className="mb-1 block panel-title">Dados rápidos</span>
@@ -192,25 +257,83 @@ export function DiceTray() {
                 </div>
               </div>
 
-              {/* Histórico */}
-              <div className="flex items-center justify-between">
-                <span className="panel-title">Histórico</span>
-                {rolls.length > 0 && (
-                  <button className="text-[11px] text-parchment-200/50 hover:text-dragon-400" onClick={clearRolls}>limpar</button>
-                )}
-              </div>
-              {rolls.length === 0 ? (
-                <p className="mt-2 text-xs text-parchment-200/50">
-                  Nenhuma rolagem ainda. Toque nos bônus da sua ficha (perícias, salvaguardas, ataques) para rolar direto de lá.
-                </p>
+              {/* Histórico — da mesa, quando há mesa; só seu, quando não há */}
+              {mesa ? (
+                <>
+                  <div className="flex items-center justify-between">
+                    <span className="panel-title">Dados da mesa</span>
+                    {feed.length > 0 && (
+                      <button
+                        className="text-[11px] text-parchment-200/50 hover:text-dragon-400"
+                        onClick={limparFeedLocal}
+                        title="Some com o feed só na sua tela"
+                      >
+                        limpar aqui
+                      </button>
+                    )}
+                  </div>
+                  {feed.length === 0 ? (
+                    <p className="mt-2 text-xs text-parchment-200/50">
+                      Ninguém rolou nada ainda. Toque nos bônus da sua ficha para rolar direto de lá — o
+                      grupo inteiro vê o resultado.
+                    </p>
+                  ) : (
+                    <ul className="mt-2 space-y-1.5">
+                      {feed.map((item) => (
+                        <li
+                          key={item.id}
+                          className={`rounded-lg border px-2.5 py-1.5 ${
+                            item.minha
+                              ? 'border-arcane-400/40 bg-arcane-600/10'
+                              : 'border-white/10 bg-ink-900/40'
+                          }`}
+                        >
+                          <p className="mb-0.5 text-[10px] uppercase tracking-wide text-parchment-200/45">
+                            {item.minha ? 'você' : item.autorNome}
+                          </p>
+                          <ResultadoLinha r={item.roll} />
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  {secretas.length > 0 && (
+                    <details className="mt-3">
+                      <summary className="cursor-pointer text-[11px] text-parchment-200/45 hover:text-parchment-100">
+                        🙈 {secretas.length} rolagem(ns) secreta(s) — só você vê
+                      </summary>
+                      <ul className="mt-2 space-y-1.5">
+                        {secretas.map((r) => (
+                          <li key={r.id} className="rounded-lg border border-dragon-400/25 bg-dragon-500/5 px-2.5 py-1.5">
+                            <ResultadoLinha r={r} />
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
+                </>
               ) : (
-                <ul className="mt-2 space-y-1.5">
-                  {rolls.map((r) => (
-                    <li key={r.id} className="rounded-lg border border-white/10 bg-ink-900/40 px-2.5 py-1.5">
-                      <ResultadoLinha r={r} />
-                    </li>
-                  ))}
-                </ul>
+                <>
+                  <div className="flex items-center justify-between">
+                    <span className="panel-title">Histórico</span>
+                    {rolls.length > 0 && (
+                      <button className="text-[11px] text-parchment-200/50 hover:text-dragon-400" onClick={clearRolls}>limpar</button>
+                    )}
+                  </div>
+                  {rolls.length === 0 ? (
+                    <p className="mt-2 text-xs text-parchment-200/50">
+                      Nenhuma rolagem ainda. Toque nos bônus da sua ficha (perícias, salvaguardas, ataques) para rolar direto de lá.
+                    </p>
+                  ) : (
+                    <ul className="mt-2 space-y-1.5">
+                      {rolls.map((r) => (
+                        <li key={r.id} className="rounded-lg border border-white/10 bg-ink-900/40 px-2.5 py-1.5">
+                          <ResultadoLinha r={r} />
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </>
               )}
             </div>
           </div>

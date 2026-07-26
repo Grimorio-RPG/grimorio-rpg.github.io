@@ -26,7 +26,7 @@ Ele conversa direto com o **Supabase** (Postgres + Auth + Realtime).
 | 6. Projeção pública automática | ✅ pronto nas quatro abas |
 | 7. Convite por link (`#/entrar/CODIGO`) | ✅ pronto |
 | 8. Fichas do grupo visíveis para o DM | ✅ pronto (botão *Enviar para a mesa*) |
-| 9. Rolagens de dados compartilhadas | ⬜ próximo |
+| 9. Rolagens de dados compartilhadas | ✅ pronto (com rolagem secreta do DM) |
 
 **O modo local nunca deixa de existir.** Sem as variáveis de ambiente o app roda
 exatamente como hoje: IndexedDB, offline, sem conta. E mesmo com a nuvem ligada,
@@ -185,15 +185,39 @@ Vercel ou no `localhost`.
 
 O código de 6 letras continua existindo para ditar em voz alta.
 
+### Rolagens compartilhadas
+
+Numa mesa, o histórico da bandeja de dados vira o **feed do grupo**: cada
+rolagem aparece com o nome de quem rolou, e o resultado dos colegas pisca na
+tela de todo mundo. Sem mesa, a bandeja continua exatamente como era.
+
+O DM tem um interruptor **🙈 Rolagem secreta** — o equivalente a rolar atrás da
+tela do mestre. Com ele ligado a rolagem não sai do aparelho; fica recolhida
+num "só você vê" no fim do feed. Esse interruptor não existe na conta de um
+jogador.
+
+Duas decisões que valem registrar:
+
+- **O nome do autor vem da tabela de perfis, não da rolagem.** A primeira
+  versão embutia o nome no `jsonb` para evitar uma consulta — mas aí bastaria
+  adulterar o pedido para assinar um 20 natural com o nome de outra pessoa. Hoje
+  o cliente só manda o resultado; quem diz o nome é o banco, a partir do
+  `autor_id` que o RLS garante.
+- **O feed é otimista.** A sua própria rolagem aparece na hora, sem esperar a
+  ida e volta; quando o eco do banco chega, a entrada é reconciliada pelo id da
+  rolagem em vez de duplicar.
+
 ### Como isso foi verificado
 
 O schema foi rodado num Postgres limpo com um `auth.uid()` de mentira e
-exercitado com três contas — DM, jogador e um estranho. Os 17 casos passaram; os
-que importam:
+exercitado com três contas — DM, jogador e um estranho. Os arquivos estão em
+[`supabase/testes/`](../supabase/testes/) e podem ser rodados de novo se você
+mexer no `schema.sql`. As 22 verificações passaram; as que importam:
 
 - o jogador lê **só** `batalha_pub`, nunca a chave `bestiario` do DM;
 - o jogador é bloqueado ao tentar escrever em `mesa_estado`;
-- quem não é da mesa não vê mesa, estado nem fichas;
+- ninguém consegue registrar uma rolagem em nome de outra pessoa;
+- quem não é da mesa não vê mesa, estado, fichas nem rolagens;
 - código de convite inválido é recusado, e o válido funciona em minúsculas.
 
 As projeções têm um teste próprio — `npm run verificar`, 53 casos. Além de

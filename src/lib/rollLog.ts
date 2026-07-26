@@ -77,6 +77,21 @@ export function setManterModo(v: boolean): void {
   listeners.forEach((fn) => fn())
 }
 
+// --- Rolagem secreta (só do DM) ---------------------------------------------
+// Com isto ligado a rolagem não sai deste aparelho: fica só no seu histórico.
+// É o equivalente a rolar atrás da tela do mestre.
+
+let secreto = false
+
+export function getSecreto(): boolean {
+  return secreto
+}
+
+export function setSecreto(v: boolean): void {
+  secreto = v
+  listeners.forEach((fn) => fn())
+}
+
 /** Consome o modo atual; volta a normal se não estiver travado. */
 export function consumirModo(): ModoRolagem {
   const atual = modo

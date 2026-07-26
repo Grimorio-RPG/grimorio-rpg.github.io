@@ -5,7 +5,8 @@
 
 import { assinarSessao, getConta, initSessao } from './auth'
 import { nuvemConfigurada } from './config'
-import { escolherMesa, recarregarMesa } from './mesa'
+import { assinarMesa, escolherMesa, getMesa, recarregarMesa } from './mesa'
+import { acompanharMesa } from './rolagens'
 
 let ligado = false
 
@@ -21,6 +22,11 @@ export function iniciarNuvem() {
     // Ao sair da conta a mesa some da tela; ao entrar, ela é recarregada.
     if (id) void recarregarMesa()
     else escolherMesa(null)
+  })
+
+  // O feed de rolagens segue a mesa escolhida.
+  assinarMesa(() => {
+    void acompanharMesa(getMesa()?.id ?? null)
   })
 
   void initSessao()
