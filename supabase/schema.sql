@@ -122,6 +122,32 @@ create table if not exists public.rolagens (
 create index if not exists rolagens_mesa_idx on public.rolagens (mesa_id, criado_em desc);
 
 -- =============================================================================
+-- Permissões de acesso pela API
+--
+-- Ao criar o projeto, o Supabase pergunta se deve "expor novas tabelas
+-- automaticamente". Se você desmarcou essa opção, as tabelas acima nascem sem
+-- permissão nenhuma e o app responde "permission denied". Os GRANTs abaixo
+-- resolvem isso — o esquema funciona com a opção ligada ou desligada.
+--
+-- Isto NÃO abre os dados: quem decide o que cada pessoa enxerga são as
+-- políticas de RLS logo em seguida. Sem uma política que permita, um GRANT não
+-- devolve uma única linha.
+--
+-- O papel `anon` (quem não fez login) fica de fora de propósito: todas as
+-- políticas exigem estar autenticado.
+-- =============================================================================
+grant usage on schema public to anon, authenticated;
+
+grant select, insert, update, delete on
+  public.profiles,
+  public.mesas,
+  public.mesa_membros,
+  public.personagens,
+  public.mesa_estado,
+  public.rolagens
+to authenticated;
+
+-- =============================================================================
 -- Row Level Security
 -- =============================================================================
 alter table public.profiles      enable row level security;

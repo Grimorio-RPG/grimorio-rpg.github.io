@@ -19,15 +19,15 @@ psql -h localhost -p 5433 -U postgres -f supabase/testes/00-stub-supabase.sql
 
 # 3. aplique o esquema de verdade
 psql -h localhost -p 5433 -U postgres -f supabase/schema.sql
-psql -h localhost -p 5433 -U postgres -c \
-  "grant all on all tables in schema public to authenticated, anon;"
 
 # 4. rode os testes
 psql -h localhost -p 5433 -U postgres -f supabase/testes/01-regras-de-acesso.sql
 ```
 
-Cada linha da saída traz o valor obtido e o esperado ao lado. São 22
-verificações com três contas — o DM, um jogador da mesa e um estranho:
+Cada linha da saída traz o valor obtido e o esperado ao lado. São 25
+verificações com três contas — o DM, um jogador da mesa e um estranho — mais o
+visitante que nem fez login. O arquivo pode ser rodado quantas vezes quiser: ele
+limpa os dados de teste no começo.
 
 | # | O que prova |
 |---|---|
@@ -37,9 +37,15 @@ verificações com três contas — o DM, um jogador da mesa e um estranho:
 | 12–13 | cada um escreve a própria ficha; o DM lê as do grupo |
 | 14–17 | quem não é da mesa não vê nada; código inválido é recusado |
 | 18–22 | rolagens: o grupo vê as de todos, ninguém assina em nome de outro |
+| 23–25 | quem não fez login não acessa mesas, estado nem fichas |
 
 Os testes 10, 11 e 20 são os que realmente importam — os outros existem para
 que uma falha neles seja fácil de diagnosticar.
+
+O stub deste diretório **não** concede permissões automáticas às tabelas, de
+propósito: assim os testes provam que os `grant` do próprio `schema.sql` bastam,
+mesmo que você desmarque *"Automatically expose new tables"* ao criar o projeto
+no Supabase.
 
 ## Nota sobre o stub
 

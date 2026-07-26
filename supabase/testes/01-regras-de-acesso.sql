@@ -1,6 +1,14 @@
 \set ON_ERROR_STOP on
 \pset tuples_only on
 
+-- Começa do zero, para o arquivo poder ser rodado quantas vezes quiser.
+-- (apagar o usuário derruba mesas, membros, fichas e rolagens em cascata)
+delete from auth.users where id in (
+  '11111111-1111-1111-1111-111111111111',
+  '22222222-2222-2222-2222-222222222222',
+  '33333333-3333-3333-3333-333333333333'
+);
+
 -- Três contas: o DM, um jogador da mesa e um estranho.
 insert into auth.users (id, email, raw_user_meta_data) values
   ('11111111-1111-1111-1111-111111111111', 'dm@teste.com',       '{"nome":"Mestre"}'),
@@ -116,6 +124,37 @@ begin
   raise notice '22 FALHA: estranho registrou rolagem!';
 exception when others then
   raise notice '22 ok: estranho bloqueado ao registrar rolagem';
+end $$;
+
+reset role;
+
+-- ======================= Visitante sem login (papel anon) ====================
+-- O app é um site público: qualquer um carrega o JavaScript e a chave anon.
+-- Sem fazer login, não pode enxergar nada.
+reset role; set role anon;
+
+do $$
+begin
+  perform 1 from public.mesas;
+  raise notice '23 FALHA: visitante sem login leu as mesas!';
+exception when insufficient_privilege then
+  raise notice '23 ok: visitante sem login nao acessa as mesas';
+end $$;
+
+do $$
+begin
+  perform 1 from public.mesa_estado;
+  raise notice '24 FALHA: visitante sem login leu o estado das mesas!';
+exception when insufficient_privilege then
+  raise notice '24 ok: visitante sem login nao acessa o estado';
+end $$;
+
+do $$
+begin
+  perform 1 from public.personagens;
+  raise notice '25 FALHA: visitante sem login leu as fichas!';
+exception when insufficient_privilege then
+  raise notice '25 ok: visitante sem login nao acessa as fichas';
 end $$;
 
 reset role;

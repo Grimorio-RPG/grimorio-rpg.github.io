@@ -40,6 +40,14 @@ quem não entra numa mesa continua com o app inteiro só para si.
    Em [supabase.com](https://supabase.com) → *New project*. Escolha a região
    mais próxima (South America, se houver). Guarde a senha do banco.
 
+   Na seção **Security**, deixe as três caixas marcadas:
+
+   | Opção | |
+   |---|---|
+   | *Enable Data API* | é por aqui que o app fala com o banco |
+   | *Automatically expose new tables* | o Supabase sugere desmarcar; tanto faz para nós, porque o `schema.sql` concede as permissões por conta própria |
+   | *Enable automatic RLS* | rede de segurança para tabelas futuras |
+
 2. **Rodar o esquema**
    No painel → **SQL Editor** → *New query* → cole todo o conteúdo de
    [`supabase/schema.sql`](../supabase/schema.sql) → **Run**.
@@ -212,12 +220,13 @@ Duas decisões que valem registrar:
 O schema foi rodado num Postgres limpo com um `auth.uid()` de mentira e
 exercitado com três contas — DM, jogador e um estranho. Os arquivos estão em
 [`supabase/testes/`](../supabase/testes/) e podem ser rodados de novo se você
-mexer no `schema.sql`. As 22 verificações passaram; as que importam:
+mexer no `schema.sql`. As 25 verificações passaram; as que importam:
 
 - o jogador lê **só** `batalha_pub`, nunca a chave `bestiario` do DM;
 - o jogador é bloqueado ao tentar escrever em `mesa_estado`;
 - ninguém consegue registrar uma rolagem em nome de outra pessoa;
 - quem não é da mesa não vê mesa, estado, fichas nem rolagens;
+- quem não fez login não acessa nada, mesmo tendo a chave anon em mãos;
 - código de convite inválido é recusado, e o válido funciona em minúsculas.
 
 As projeções têm um teste próprio — `npm run verificar`, 53 casos. Além de

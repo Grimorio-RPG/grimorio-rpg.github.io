@@ -20,10 +20,12 @@ do $$ begin
   if not exists (select 1 from pg_roles where rolname = 'authenticated') then create role authenticated nologin; end if;
 end $$;
 
-grant usage on schema public, auth to anon, authenticated;
-alter default privileges in schema public grant all on tables to anon, authenticated;
-alter default privileges in schema public grant all on sequences to anon, authenticated;
+grant usage on schema auth to anon, authenticated;
 grant select on auth.users to authenticated;
+
+-- De propósito NÃO concedemos permissão automática às tabelas: é assim que o
+-- Supabase se comporta quando você desmarca "Automatically expose new tables"
+-- ao criar o projeto. Os testes provam que os `grant` do schema.sql bastam.
 
 do $$ begin
   if not exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
