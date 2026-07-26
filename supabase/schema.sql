@@ -228,6 +228,39 @@ create policy "registra propria rolagem" on public.rolagens
   for insert to authenticated with check (autor_id = auth.uid() and public.eh_membro(mesa_id));
 
 -- =============================================================================
+-- Criar uma mesa
+--
+-- Precisa ser uma função porque as duas escritas (mesa + membro DM) têm de
+-- acontecer juntas: logo após criar a mesa o usuário ainda não é membro dela,
+-- então o RLS impediria de ler a linha recém-criada.
+-- =============================================================================
+create or replace function public.criar_mesa(p_nome text, p_codigo text)
+returns public.mesas
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_mesa public.mesas;
+begin
+  if auth.uid() is null then
+    raise exception 'Precisa estar autenticado';
+  end if;
+
+  insert into public.mesas (dm_id, nome, codigo)
+  values (auth.uid(), coalesce(nullif(trim(p_nome), ''), 'Nova mesa'), upper(trim(p_codigo)))
+  returning * into v_mesa;
+
+  insert into public.mesa_membros (mesa_id, user_id, papel)
+  values (v_mesa.id, auth.uid(), 'dm');
+
+  return v_mesa;
+end;
+$$;
+
+revoke all on function public.criar_mesa(text, text) from public;
+grant execute on function public.criar_mesa(text, text) to authenticated;
+
+-- =============================================================================
 -- Entrar numa mesa pelo código de convite
 --
 -- Precisa ser uma função: o jogador não pode enxergar a lista de mesas para

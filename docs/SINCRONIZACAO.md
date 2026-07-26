@@ -20,13 +20,16 @@ Ele conversa direto com o **Supabase** (Postgres + Auth + Realtime).
 |---|---|
 | 1. Esquema do banco e políticas de acesso | ✅ pronto (`supabase/schema.sql`) |
 | 2. Detecção de ambiente + cliente sob demanda | ✅ pronto (`src/lib/sync/`) |
-| 3. Login e perfil | ⬜ falta o projeto Supabase |
-| 4. Mesa: criar, convidar, entrar | ⬜ |
-| 5. Realtime por aba (começando por Batalhas) | ⬜ |
-| 6. Projeção pública automática | ⬜ |
+| 3. Login e perfil | ✅ pronto (aba **Mesa**) |
+| 4. Mesa: criar, convidar, entrar | ✅ pronto (código de 6 letras) |
+| 5. Realtime — aba **Batalhas** | ✅ pronto |
+| 6. Projeção pública automática | ✅ pronto para Batalhas (`projetarBatalha`) |
+| 7. Realtime nas abas Mapa, Bestiário e Campanha | ⬜ próximo |
+| 8. Fichas do grupo visíveis para o DM | ⬜ |
 
 **O modo local nunca deixa de existir.** Sem as variáveis de ambiente o app roda
-exatamente como hoje: IndexedDB, offline, sem conta.
+exatamente como hoje: IndexedDB, offline, sem conta. E mesmo com a nuvem ligada,
+quem não entra numa mesa continua com o app inteiro só para si.
 
 ---
 
@@ -55,14 +58,32 @@ exatamente como hoje: IndexedDB, offline, sem conta.
    # preencha as duas variáveis
    npm run dev
    ```
-   Na aba **Dados**, o selo deve mudar de *📴 modo local* para *☁️ nuvem configurada*.
+   Abra a aba **Mesa**: ela deve trocar as instruções de instalação por uma
+   tela de login.
 
-5. **Me avisar** — com o projeto no ar eu implemento login, mesas e realtime.
+5. **Criar sua conta e a mesa**
+   Na aba **Mesa** → *Criar conta* → depois *Sou o DM* → dê um nome à mesa.
+   Sai um **código de 6 letras**.
+
+6. **Cada jogador**
+   Abre o mesmo endereço, cria a conta dele, escolhe *Sou jogador* e digita o
+   código. Pronto: quando você montar um encontro na aba **Batalhas**, ele
+   aparece no celular de cada um em segundos.
 
 > Não precisa me passar as chaves: elas ficam no seu `.env` (que está no
-> `.gitignore`). Só me diga que está configurado. Se quiser que eu valide de
-> ponta a ponta aqui, aí sim precisaria da URL e da chave anon — são públicas,
-> mas a escolha é sua.
+> `.gitignore`).
+
+### Se o projeto Supabase pedir confirmação de e-mail
+
+Por padrão o Supabase manda um e-mail de confirmação antes de liberar o login.
+Para uma mesa de amigos costuma ser mais prático desligar: **Authentication →
+Providers → Email → Confirm email: off**.
+
+### Publicando com a nuvem ligada
+
+No GitHub: **Settings → Secrets and variables → Actions → New repository
+secret**, criando `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY`. O workflow de
+publicação já lê esses dois nomes.
 
 ---
 
@@ -108,6 +129,34 @@ create policy "le estado permitido" on public.mesa_estado
 Um jogador **não consegue baixar** as linhas privadas — o banco recusa. O
 sistema de conhecimento progressivo deixa de ser cosmético e passa a valer de
 verdade.
+
+### O que sai numa batalha
+
+`projetarBatalha()` (em `src/lib/battle.ts`) é quem faz a censura antes de
+publicar. Para cada inimigo:
+
+| Campo | Vira |
+|---|---|
+| `nome` | `"???"` se o DM marcou *ocultar nome* |
+| `imagemUrl` (foto da ficha do DM) | a imagem de jogador |
+| `ca` | `0` |
+| `pvAtual` / `pvMax` | **porcentagem**, não o número real |
+
+A barra de vida e o rótulo (*Saudável / Ferido / Quase morrendo*) continuam
+corretos, mas nem abrindo o inspetor do navegador o jogador descobre que faltam
+exatamente 7 pontos de vida. Aliados não passam por isso: o grupo vê o próprio
+PV normalmente.
+
+### Como isso foi verificado
+
+O schema foi rodado num Postgres limpo com um `auth.uid()` de mentira e
+exercitado com três contas — DM, jogador e um estranho. Os 17 casos passaram; os
+que importam:
+
+- o jogador lê **só** `batalha_pub`, nunca a chave `bestiario` do DM;
+- o jogador é bloqueado ao tentar escrever em `mesa_estado`;
+- quem não é da mesa não vê mesa, estado nem fichas;
+- código de convite inválido é recusado, e o válido funciona em minúsculas.
 
 ## Conflitos
 

@@ -3,11 +3,15 @@ import ReactDOM from 'react-dom/client'
 import { HashRouter } from 'react-router-dom'
 import App from './App'
 import { initStore } from './lib/store'
+import { iniciarNuvem } from './lib/sync/boot'
 import './index.css'
 
 // O armazenamento (IndexedDB) é carregado antes de renderizar, para que as
 // telas possam ler os dados de forma síncrona.
 initStore().finally(() => {
+  // Sem as chaves do Supabase isto não faz nada e o app roda em modo local.
+  iniciarNuvem()
+
   ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
       <HashRouter>

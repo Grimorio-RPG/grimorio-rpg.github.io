@@ -8,6 +8,7 @@ const NAV = [
   { to: '/batalhas', label: 'Batalhas', icon: '⚔️', desc: 'Combate' },
   { to: '/mapa', label: 'Mapa', icon: '🗺️', desc: 'Mesa virtual' },
   { to: '/campanha', label: 'Campanha', icon: '📖', desc: 'Resumo & DM' },
+  { to: '/mesa', label: 'Mesa', icon: '🎲', desc: 'Jogar em grupo' },
   { to: '/dados', label: 'Dados', icon: '💾', desc: 'Backup' },
 ]
 

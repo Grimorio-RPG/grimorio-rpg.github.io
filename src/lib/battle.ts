@@ -49,6 +49,37 @@ export function saveBattle(b: Battle): Battle {
   return updated
 }
 
+/**
+ * Projeção pública da batalha — o que sai do aparelho do DM para o dos
+ * jogadores.
+ *
+ * A visão dos jogadores já esconde estas informações na tela, mas isso não
+ * bastaria: se os dados completos fossem enviados, bastaria abrir o inspetor do
+ * navegador para ler o PV exato e o nome dos inimigos "ocultos". Então a
+ * censura acontece ANTES de publicar.
+ */
+export function projetarBatalha(b: Battle): Battle {
+  return {
+    ...b,
+    combatentes: b.combatentes.map((c) => {
+      if (c.origem !== 'inimigo') return c
+      // PV vira porcentagem: a barra e o rótulo continuam certos, o número não.
+      const pct = c.pvMax > 0 ? Math.round(Math.max(0, Math.min(1, c.pvAtual / c.pvMax)) * 100) : 0
+      const img = c.imagemJogadorUrl || c.imagemUrl
+      return {
+        ...c,
+        nome: c.nomeOculto ? '???' : c.nome,
+        imagemUrl: img,
+        imagemJogadorUrl: img,
+        ca: 0,
+        iniciativaMod: 0,
+        pvMax: 100,
+        pvAtual: c.pvAtual > 0 ? Math.max(1, pct) : 0,
+      }
+    }),
+  }
+}
+
 /** Cria N combatentes inimigos a partir de um monstro do bestiário. */
 export function combatentesDeMonstro(m: Monster, qtd: number): Combatant[] {
   const mod = abilityMod(m.atributos.des)

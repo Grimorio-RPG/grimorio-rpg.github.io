@@ -14,11 +14,23 @@ import { loadCharacters } from '../lib/storage'
 import { CONDICOES } from '../data/rules'
 import { PageHeader, ViewToggle } from '../components/layout-ui'
 import { rolarComModo } from '../components/dice-ui'
+import { useEstadoMesa, useMesa } from '../hooks/useSync'
+import { CHAVES_MESA } from '../lib/sync/config'
+import { SelosDaMesa } from '../components/mesa-ui'
 
 type Modo = 'dm' | 'jogadores'
 type UpdateFn = (patch: Partial<Battle>) => void
 
 export default function BattlePage() {
+  const { mesa, souJogador } = useMesa()
+
+  // Jogador numa mesa vê o encontro do DM ao vivo; o resto do app continua
+  // igual para quem joga sozinho ou é o DM.
+  if (souJogador && mesa) return <BatalhaDaMesa mesaId={mesa.id} />
+  return <BatalhaLocal />
+}
+
+function BatalhaLocal() {
   const { battle, update } = useBattle()
   const [modo, setModo] = useState<Modo>('dm')
 
@@ -42,10 +54,40 @@ export default function BattlePage() {
           />
         }
       />
+      <SelosDaMesa />
 
       {modo === 'dm'
         ? <DmView battle={battle} update={update} ordenados={ordenados} />
         : <PlayerView battle={battle} ordenados={ordenados} />}
+    </div>
+  )
+}
+
+/** Visão de quem joga: espelho, só leitura, do que está na tela do DM. */
+function BatalhaDaMesa({ mesaId }: { mesaId: string }) {
+  const remota = useEstadoMesa<Battle>(mesaId, CHAVES_MESA.batalhaPub)
+
+  const battle: Battle | null =
+    remota && Array.isArray(remota.combatentes) ? { ...batalhaVazia(), ...remota } : null
+
+  return (
+    <div>
+      <PageHeader
+        icon="⚔️"
+        titulo="Batalhas"
+        subtitulo="O encontro que o seu DM está conduzindo, ao vivo."
+      />
+      <SelosDaMesa />
+
+      {remota === undefined ? (
+        <div className="card p-10 text-center text-sm text-parchment-200/60">Carregando o encontro…</div>
+      ) : !battle || battle.combatentes.length === 0 ? (
+        <div className="card p-10 text-center text-sm text-parchment-200/60">
+          Nenhuma batalha em andamento. Assim que o DM montar o encontro, ele aparece aqui sozinho.
+        </div>
+      ) : (
+        <PlayerView battle={battle} ordenados={ordenar(battle.combatentes)} />
+      )}
     </div>
   )
 }
