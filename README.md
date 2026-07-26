@@ -4,22 +4,28 @@ App para **DMs e jogadores de D&D 5.5e** (regras de 2024), pensado para ser
 **amigável a iniciantes**. Reúne numa só ferramenta o que hoje fica espalhado
 entre D&D Beyond, Owlbear e anotações soltas.
 
+No ar em **[grimorio-rpg.github.io](https://grimorio-rpg.github.io/)** — todo push
+na `main` republica em cerca de dois minutos.
+
 Referência de layout da ficha: [critical20.com.br](https://www.critical20.com.br/ficha/dnd55).
 
 ---
 
 ## 🚀 Rodando o projeto
 
-Requisitos: **Node.js 18+** (testado no 22).
+Requisitos: **Node.js 18+** (testado no 24).
 
 ```bash
-git clone https://github.com/gabriellimaprof/public.git grimorio
+git clone https://github.com/Grimorio-RPG/grimorio-rpg.github.io.git grimorio
 cd grimorio
-git checkout claude/dnd-5-5e-app-ea02kt
 
 npm install
 npm run dev        # abre em http://localhost:5173
 ```
+
+Para sincronizar na nuvem enquanto desenvolve, copie `.env.example` para `.env`
+e preencha as duas chaves — veja [docs/SINCRONIZACAO.md](docs/SINCRONIZACAO.md).
+Sem elas o app roda em modo local, o que é suficiente para mexer na interface.
 
 Outros comandos:
 
