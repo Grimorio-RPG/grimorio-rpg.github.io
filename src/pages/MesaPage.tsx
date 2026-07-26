@@ -86,7 +86,7 @@ function NuvemDesligada() {
 // ---------------------------------------------------------------------------
 // Entrar / criar conta
 // ---------------------------------------------------------------------------
-function FormLogin() {
+export function FormLogin() {
   const [aba, setAba] = useState<'entrar' | 'cadastrar'>('entrar')
   const [nome, setNome] = useState('')
   const [email, setEmail] = useState('')
@@ -312,7 +312,11 @@ function SemMesa() {
 function CartaoMesa({ mesa, meuId }: { mesa: Mesa; meuId: string }) {
   const conexao = useConexao()
   const [membros, setMembros] = useState<Membro[]>([])
-  const [copiado, setCopiado] = useState(false)
+  const [copiado, setCopiado] = useState<'link' | 'codigo' | null>(null)
+
+  // Monta o link a partir do endereço atual, então funciona em qualquer lugar
+  // onde o app esteja publicado (GitHub Pages, Vercel, localhost…).
+  const linkConvite = `${location.origin}${location.pathname}#/entrar/${mesa.codigo}`
 
   async function recarregarMembros() {
     setMembros(await listarMembros(mesa.id))
@@ -323,14 +327,34 @@ function CartaoMesa({ mesa, meuId }: { mesa: Mesa; meuId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mesa.id])
 
-  async function copiar() {
+  async function copiarTexto(texto: string, qual: 'link' | 'codigo') {
     try {
-      await navigator.clipboard.writeText(mesa.codigo)
-      setCopiado(true)
-      setTimeout(() => setCopiado(false), 1500)
+      await navigator.clipboard.writeText(texto)
+      setCopiado(qual)
+      setTimeout(() => setCopiado(null), 1800)
     } catch {
-      // alguns navegadores bloqueiam; o código está visível na tela mesmo assim
+      // alguns navegadores bloqueiam; o texto está visível na tela mesmo assim
     }
+  }
+  const copiarLink = () => copiarTexto(linkConvite, 'link')
+  const copiarCodigo = () => copiarTexto(mesa.codigo, 'codigo')
+
+  async function compartilhar() {
+    const dados = {
+      title: `Mesa: ${mesa.nome}`,
+      text: `Entre na minha mesa de D&D "${mesa.nome}" no Grimório:`,
+      url: linkConvite,
+    }
+    // No celular abre a folha nativa de compartilhamento; no desktop, copia.
+    if (navigator.share) {
+      try {
+        await navigator.share(dados)
+        return
+      } catch {
+        // usuário cancelou — cai no copiar
+      }
+    }
+    await copiarLink()
   }
 
   return (
@@ -358,18 +382,34 @@ function CartaoMesa({ mesa, meuId }: { mesa: Mesa; meuId: string }) {
           </button>
         </div>
 
-        <div className="mt-4 rounded-xl border border-white/10 bg-white/5 p-3">
-          <p className="panel-title mb-1">Código de convite</p>
-          <div className="flex items-center gap-3">
-            <code className="font-display text-3xl tracking-[0.3em] text-dragon-400">{mesa.codigo}</code>
-            <button type="button" className="btn-ghost" onClick={copiar}>
-              {copiado ? 'Copiado!' : 'Copiar'}
-            </button>
+        {mesa.papel === 'dm' && (
+          <div className="mt-4 rounded-xl border border-white/10 bg-white/5 p-3">
+            <p className="panel-title mb-1">Convidar o grupo</p>
+            <p className="mb-2 break-all rounded-lg bg-black/30 p-2 font-mono text-xs text-arcane-400">
+              {linkConvite}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" className="btn-primary" onClick={copiarLink}>
+                {copiado === 'link' ? 'Link copiado!' : '🔗 Copiar link'}
+              </button>
+              <button type="button" className="btn-ghost" onClick={compartilhar}>
+                📤 Compartilhar
+              </button>
+            </div>
+            <p className="mt-3 text-xs text-parchment-200/60">
+              Mande no grupo do WhatsApp. Quem abrir cria a conta e cai direto na sua campanha — não
+              precisa digitar nada.
+            </p>
+
+            <div className="mt-3 flex items-center gap-3 border-t border-white/10 pt-3">
+              <span className="text-xs text-parchment-200/50">Ou dite o código:</span>
+              <code className="font-display text-2xl tracking-[0.3em] text-dragon-400">{mesa.codigo}</code>
+              <button type="button" className="btn-ghost text-xs" onClick={copiarCodigo}>
+                {copiado === 'codigo' ? 'Copiado!' : 'Copiar'}
+              </button>
+            </div>
           </div>
-          <p className="mt-2 text-xs text-parchment-200/60">
-            Quem tem este código entra na mesa pela aba Mesa do próprio celular.
-          </p>
-        </div>
+        )}
       </div>
 
       <SectionCard title={`👥 No grupo (${membros.length})`}>

@@ -1,7 +1,20 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Campaign, Character } from '../types'
 import { useCampaign } from '../hooks/useCampaign'
-import { novaSessao, novoNpc } from '../lib/campaign'
+import { useEstadoMesa, useMesa } from '../hooks/useSync'
+import { CHAVES_MESA } from '../lib/sync/config'
+import { SelosDaMesa } from '../components/mesa-ui'
+import type { FichaDaMesa } from '../lib/sync/personagens'
+import { assinarFichasDaMesa, listarFichasDaMesa } from '../lib/sync/personagens'
+import {
+  campanhaVazia,
+  dataCurta,
+  novaAtualizacao,
+  novaSessao,
+  novoNpc,
+  ordenarAtualizacoes,
+  projetarCampanha,
+} from '../lib/campaign'
 import { loadCharacters, parseImportedCharacter } from '../lib/storage'
 import { uid } from '../lib/character'
 import {
@@ -17,10 +30,11 @@ import { Field, SectionCard, TextArea, TextField } from '../components/ui'
 import { ViewToggle } from '../components/layout-ui'
 import { CodexTab, HandoutsTab, ReputacaoTab } from '../components/codex'
 
-type Aba = 'grupo' | 'tela' | 'historia' | 'sessoes' | 'npcs' | 'codex' | 'handouts' | 'reputacao'
+type Aba = 'mural' | 'grupo' | 'tela' | 'historia' | 'sessoes' | 'npcs' | 'codex' | 'handouts' | 'reputacao'
 type Modo = 'dm' | 'jogadores'
 
 const ABAS: { id: Aba; label: string; icon: string; soDm?: boolean }[] = [
+  { id: 'mural', label: 'Mural', icon: '📌' },
   { id: 'grupo', label: 'Grupo', icon: '🛡️', soDm: true },
   { id: 'tela', label: 'Tela do Mestre', icon: '📊', soDm: true },
   { id: 'historia', label: 'História', icon: '📜' },
@@ -32,18 +46,30 @@ const ABAS: { id: Aba; label: string; icon: string; soDm?: boolean }[] = [
 ]
 
 export default function CampaignPage() {
+  const { mesa, souJogador } = useMesa()
+
+  // Quem entrou na mesa como jogador não tem visão de DM — nem por engano, nem
+  // por um botão escondido: os dados do DM sequer chegam a este aparelho.
+  if (souJogador && mesa) return <CampanhaDoJogador mesaId={mesa.id} />
+  return <CampanhaDoMestre />
+}
+
+function CampanhaDoMestre() {
   const { campaign, update } = useCampaign()
-  const [aba, setAba] = useState<Aba>('grupo')
+  const [aba, setAba] = useState<Aba>('mural')
   const [modo, setModo] = useState<Modo>('dm')
 
   if (!campaign) return null
+  // "Visão dos Jogadores" aqui é a pré-visualização do DM: mostra o mesmo
+  // recorte que o grupo recebe, sem sair da conta.
   const visaoJogador = modo === 'jogadores'
+  const dados = visaoJogador ? projetarCampanha(campaign) : campaign
   const abas = ABAS.filter((a) => !visaoJogador || !a.soDm)
   const abaAtual = abas.some((a) => a.id === aba) ? aba : abas[0].id
 
   return (
     <div>
-      <header className="mb-6 flex flex-wrap items-start justify-between gap-3">
+      <header className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div className="flex flex-1 items-center gap-3">
           <span className="text-3xl">📖</span>
           <div className="min-w-0 flex-1">
@@ -61,7 +87,7 @@ export default function CampaignPage() {
             )}
             <p className="mt-1 text-xs text-parchment-200/60 sm:text-sm">
               {visaoJogador
-                ? 'O que o grupo sabe sobre a história e o mundo.'
+                ? 'Prévia: é exatamente isto que chega ao grupo.'
                 : 'Painel do DM — fichas do grupo, mundo e documentos da mesa.'}
             </p>
           </div>
@@ -71,45 +97,254 @@ export default function CampaignPage() {
           onChange={(v) => setModo(v)}
           opcoes={[
             { valor: 'dm', label: '🎲 Visão do DM', labelCurto: '🎲 DM' },
-            { valor: 'jogadores', label: '👥 Visão dos Jogadores', labelCurto: '👥 Jogadores' },
+            { valor: 'jogadores', label: '👀 Prévia do grupo', labelCurto: '👀 Prévia' },
           ]}
         />
       </header>
 
-      {/* Abas */}
-      <div className="mb-6 flex flex-wrap gap-1 border-b border-white/10 pb-px">
-        {abas.map((a) => (
-          <button
-            key={a.id}
-            onClick={() => setAba(a.id)}
-            className={`flex items-center gap-2 rounded-t-lg px-3 py-2 text-sm font-semibold transition sm:px-4 ${
-              abaAtual === a.id
-                ? 'bg-white/5 text-parchment-50 ring-1 ring-white/10'
-                : 'text-parchment-200/60 hover:text-parchment-50'
-            }`}
-          >
-            <span>{a.icon}</span>
-            {a.label}
-            {a.id === 'grupo' && campaign.party.length > 0 && (
-              <span className="rounded-full bg-dragon-500/30 px-1.5 text-xs">{campaign.party.length}</span>
-            )}
-          </button>
-        ))}
-      </div>
+      <SelosDaMesa />
 
+      <Abas abas={abas} atual={abaAtual} onEscolher={setAba} campaign={dados} />
+
+      {abaAtual === 'mural' && <MuralTab campaign={dados} update={update} visaoJogador={visaoJogador} />}
       {abaAtual === 'grupo' && <GrupoTab campaign={campaign} update={update} />}
       {abaAtual === 'tela' && <TelaDoMestreTab campaign={campaign} />}
-      {abaAtual === 'historia' && <HistoriaTab campaign={campaign} update={update} visaoJogador={visaoJogador} />}
-      {abaAtual === 'sessoes' && <SessoesTab campaign={campaign} update={update} visaoJogador={visaoJogador} />}
+      {abaAtual === 'historia' && <HistoriaTab campaign={dados} update={update} visaoJogador={visaoJogador} />}
+      {abaAtual === 'sessoes' && <SessoesTab campaign={dados} update={update} visaoJogador={visaoJogador} />}
       {abaAtual === 'npcs' && <NpcsTab campaign={campaign} update={update} />}
-      {abaAtual === 'codex' && <CodexTab campaign={campaign} update={update} visaoJogador={visaoJogador} />}
-      {abaAtual === 'handouts' && <HandoutsTab campaign={campaign} update={update} visaoJogador={visaoJogador} />}
-      {abaAtual === 'reputacao' && <ReputacaoTab campaign={campaign} update={update} visaoJogador={visaoJogador} />}
+      {abaAtual === 'codex' && <CodexTab campaign={dados} update={update} visaoJogador={visaoJogador} />}
+      {abaAtual === 'handouts' && <HandoutsTab campaign={dados} update={update} visaoJogador={visaoJogador} />}
+      {abaAtual === 'reputacao' && <ReputacaoTab campaign={dados} update={update} visaoJogador={visaoJogador} />}
+    </div>
+  )
+}
+
+/**
+ * Campanha vista por quem joga: só leitura, alimentada pela projeção que o DM
+ * publica. Nada de abas de DM — elas não existem nesta tela.
+ */
+function CampanhaDoJogador({ mesaId }: { mesaId: string }) {
+  const remota = useEstadoMesa<Campaign>(mesaId, CHAVES_MESA.campanhaPub)
+  const [aba, setAba] = useState<Aba>('mural')
+
+  const campaign: Campaign | null = remota ? { ...campanhaVazia(), ...remota } : null
+  const abas = ABAS.filter((a) => !a.soDm)
+  const abaAtual = abas.some((a) => a.id === aba) ? aba : abas[0].id
+  const nada: UpdateFn = () => {}
+
+  return (
+    <div>
+      <header className="mb-4 flex items-center gap-3">
+        <span className="text-3xl">📖</span>
+        <div className="min-w-0">
+          <h1 className="truncate font-display text-2xl text-parchment-50 sm:text-3xl">
+            {campaign?.nome || 'A campanha'}
+          </h1>
+          <p className="mt-1 text-xs text-parchment-200/60 sm:text-sm">
+            O que o seu DM compartilhou com o grupo.
+          </p>
+        </div>
+      </header>
+
+      <SelosDaMesa />
+
+      {remota === undefined ? (
+        <div className="card p-10 text-center text-sm text-parchment-200/60">Carregando a campanha…</div>
+      ) : !campaign ? (
+        <div className="card p-10 text-center text-sm text-parchment-200/60">
+          O seu DM ainda não publicou nada desta campanha. Assim que ele escrever, aparece aqui.
+        </div>
+      ) : (
+        <>
+          <Abas abas={abas} atual={abaAtual} onEscolher={setAba} campaign={campaign} />
+          {abaAtual === 'mural' && <MuralTab campaign={campaign} update={nada} visaoJogador />}
+          {abaAtual === 'historia' && <HistoriaTab campaign={campaign} update={nada} visaoJogador />}
+          {abaAtual === 'sessoes' && <SessoesTab campaign={campaign} update={nada} visaoJogador />}
+          {abaAtual === 'codex' && <CodexTab campaign={campaign} update={nada} visaoJogador />}
+          {abaAtual === 'handouts' && <HandoutsTab campaign={campaign} update={nada} visaoJogador />}
+          {abaAtual === 'reputacao' && <ReputacaoTab campaign={campaign} update={nada} visaoJogador />}
+        </>
+      )}
+    </div>
+  )
+}
+
+function Abas({
+  abas,
+  atual,
+  onEscolher,
+  campaign,
+}: {
+  abas: typeof ABAS
+  atual: Aba
+  onEscolher: (a: Aba) => void
+  campaign: Campaign
+}) {
+  const naoLidas = campaign.atualizacoes.filter((a) => a.publicado).length
+  return (
+    <div className="mb-6 flex flex-wrap gap-1 border-b border-white/10 pb-px">
+      {abas.map((a) => (
+        <button
+          key={a.id}
+          onClick={() => onEscolher(a.id)}
+          className={`flex items-center gap-2 rounded-t-lg px-3 py-2 text-sm font-semibold transition sm:px-4 ${
+            atual === a.id
+              ? 'bg-white/5 text-parchment-50 ring-1 ring-white/10'
+              : 'text-parchment-200/60 hover:text-parchment-50'
+          }`}
+        >
+          <span>{a.icon}</span>
+          {a.label}
+          {a.id === 'grupo' && campaign.party.length > 0 && (
+            <span className="rounded-full bg-dragon-500/30 px-1.5 text-xs">{campaign.party.length}</span>
+          )}
+          {a.id === 'mural' && naoLidas > 0 && (
+            <span className="rounded-full bg-dragon-500/30 px-1.5 text-xs">{naoLidas}</span>
+          )}
+        </button>
+      ))}
     </div>
   )
 }
 
 type UpdateFn = (patch: Partial<Campaign>) => void
+
+// ---------------------------------------------------------------------------
+// Mural — a primeira tela que o grupo abre entre uma sessão e outra
+// ---------------------------------------------------------------------------
+function MuralTab({
+  campaign,
+  update,
+  visaoJogador,
+}: {
+  campaign: Campaign
+  update: UpdateFn
+  visaoJogador: boolean
+}) {
+  const lista = ordenarAtualizacoes(campaign.atualizacoes)
+
+  function patch(id: string, p: Partial<Campaign['atualizacoes'][number]>) {
+    update({ atualizacoes: campaign.atualizacoes.map((a) => (a.id === id ? { ...a, ...p } : a)) })
+  }
+  function remover(id: string) {
+    update({ atualizacoes: campaign.atualizacoes.filter((a) => a.id !== id) })
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Onde paramos */}
+      <div className="card border-dragon-500/30 bg-dragon-500/5 p-5">
+        <p className="panel-title mb-2">📍 Onde paramos</p>
+        {visaoJogador ? (
+          <p className="whitespace-pre-wrap text-sm leading-relaxed text-parchment-100">
+            {campaign.ondeParamos || 'O DM ainda não escreveu o resumo da última sessão.'}
+          </p>
+        ) : (
+          <>
+            <TextArea
+              value={campaign.ondeParamos}
+              onChange={(v) => update({ ondeParamos: v })}
+              rows={4}
+              placeholder="Vocês fugiram da cripta com o medalhão, mas Ireena ficou para trás…"
+            />
+            <p className="mt-2 text-xs text-parchment-200/50">
+              Duas ou três frases. É o que o grupo lê para lembrar tudo antes da próxima sessão.
+            </p>
+          </>
+        )}
+      </div>
+
+      {/* Recados */}
+      {!visaoJogador && (
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            className="btn-primary"
+            onClick={() => update({ atualizacoes: [novaAtualizacao(), ...campaign.atualizacoes] })}
+          >
+            ＋ Novo recado
+          </button>
+          <p className="text-xs text-parchment-200/50">
+            Rascunhos ficam só com você até marcar <b>Publicar</b>.
+          </p>
+        </div>
+      )}
+
+      {lista.length === 0 ? (
+        <VazioAviso
+          texto={
+            visaoJogador
+              ? 'Nenhum recado do DM por enquanto.'
+              : 'Avise o grupo do horário da próxima sessão, de uma reviravolta, de uma recompensa…'
+          }
+        />
+      ) : (
+        <div className="space-y-3">
+          {lista.map((a) =>
+            visaoJogador ? (
+              <article
+                key={a.id}
+                className={`card p-5 ${a.fixado ? 'border-dragon-500/40 bg-dragon-500/5' : ''}`}
+              >
+                <p className="panel-title">
+                  {a.fixado && '📌 '}
+                  {dataCurta(a.criadoEm)}
+                </p>
+                <h3 className="font-display text-lg text-parchment-50">{a.titulo || 'Recado'}</h3>
+                {a.texto && (
+                  <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-parchment-100">{a.texto}</p>
+                )}
+              </article>
+            ) : (
+              <div key={a.id} className={`card p-5 ${a.publicado ? '' : 'opacity-70'}`}>
+                <div className="mb-3 flex flex-wrap items-end gap-3">
+                  <Field label="Título" className="flex-1">
+                    <TextField
+                      value={a.titulo}
+                      onChange={(v) => patch(a.id, { titulo: v })}
+                      placeholder="Próxima sessão: quinta, 20h"
+                    />
+                  </Field>
+                  <button
+                    onClick={() => remover(a.id)}
+                    className="self-end px-2 py-2 text-parchment-200/40 hover:text-dragon-400"
+                    aria-label="Remover recado"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <TextArea
+                  value={a.texto}
+                  onChange={(v) => patch(a.id, { texto: v })}
+                  rows={3}
+                  placeholder="O que o grupo precisa saber…"
+                />
+                <div className="mt-3 flex flex-wrap items-center gap-3 text-xs">
+                  <label className="flex cursor-pointer items-center gap-1.5 text-parchment-200/80">
+                    <input
+                      type="checkbox"
+                      checked={a.publicado}
+                      onChange={(e) => patch(a.id, { publicado: e.target.checked })}
+                    />
+                    {a.publicado ? 'Publicado' : 'Rascunho'}
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-1.5 text-parchment-200/80">
+                    <input
+                      type="checkbox"
+                      checked={a.fixado}
+                      onChange={(e) => patch(a.id, { fixado: e.target.checked })}
+                    />
+                    📌 Fixar no topo
+                  </label>
+                  <span className="ml-auto text-parchment-200/40">{dataCurta(a.criadoEm)}</span>
+                </div>
+              </div>
+            ),
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
 
 // ---------------------------------------------------------------------------
 // Grupo
@@ -148,6 +383,8 @@ function GrupoTab({ campaign, update }: { campaign: Campaign; update: UpdateFn }
 
   return (
     <div className="space-y-4">
+      <FichasDaMesa />
+
       <div className="flex flex-wrap gap-3">
         <button className="btn-primary" onClick={() => fileRef.current?.click()}>
           ⬆ Importar fichas dos jogadores
@@ -213,6 +450,81 @@ function GrupoTab({ campaign, update }: { campaign: Campaign; update: UpdateFn }
         </Modal>
       )}
     </div>
+  )
+}
+
+/**
+ * Fichas que os jogadores enviaram pela mesa. Chegam sozinhas e continuam
+ * chegando: quando alguém sobe de nível ou gasta PV, o card atualiza aqui.
+ */
+function FichasDaMesa() {
+  const { mesa, souDm } = useMesa()
+  const [fichas, setFichas] = useState<FichaDaMesa[]>([])
+  const [aberta, setAberta] = useState<string | null>(null)
+
+  const mesaId = mesa && souDm ? mesa.id : null
+
+  useEffect(() => {
+    if (!mesaId) {
+      setFichas([])
+      return
+    }
+    const recarregar = () => void listarFichasDaMesa(mesaId).then(setFichas)
+    recarregar()
+    return assinarFichasDaMesa(mesaId, recarregar)
+  }, [mesaId])
+
+  if (!mesaId) return null
+
+  return (
+    <SectionCard
+      title={`☁️ Fichas do grupo (${fichas.length})`}
+      hint="Enviadas pelos jogadores da mesa. Atualizam sozinhas — você não precisa importar nada."
+    >
+      {fichas.length === 0 ? (
+        <p className="text-sm text-parchment-200/60">
+          Ninguém enviou ficha ainda. Cada jogador abre a ficha dele e toca em <b>Enviar para a mesa</b>.
+        </p>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {fichas.map((f) => (
+            <button
+              key={f.linhaId}
+              className="card p-4 text-left transition hover:border-arcane-400/40"
+              onClick={() => setAberta(f.linhaId)}
+            >
+              <div className="flex items-center gap-3">
+                <div className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-full bg-arcane-600/30">
+                  {f.ficha.avatarUrl ? (
+                    <img src={f.ficha.avatarUrl} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    '🧙'
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate font-display text-parchment-50">{f.ficha.nome || 'Sem nome'}</p>
+                  <p className="truncate text-xs text-parchment-200/60">{f.donoNome}</p>
+                </div>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                <span className="chip">Nível {f.ficha.nivel}</span>
+                <span className="chip">CA {armorClass(f.ficha)}</span>
+                <span className="chip">
+                  PV {f.ficha.pvAtual}/{f.ficha.pvMax}
+                </span>
+                <span className="chip">Perc.P. {passivePerception(f.ficha)}</span>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {aberta && (
+        <Modal onClose={() => setAberta(null)}>
+          <CharacterReadonly char={fichas.find((f) => f.linhaId === aberta)!.ficha} />
+        </Modal>
+      )}
+    </SectionCard>
   )
 }
 

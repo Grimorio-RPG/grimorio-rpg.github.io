@@ -1,4 +1,4 @@
-import type { Campaign, Handout, LoreEntry, LoreTipo, Npc, SessionEntry } from '../types'
+import type { Atualizacao, Campaign, Handout, LoreEntry, LoreTipo, Npc, SessionEntry } from '../types'
 import { normalizeCharacter, uid } from './character'
 import { CHAVES, readRaw, writeJson } from './store'
 
@@ -10,9 +10,11 @@ export function campanhaVazia(): Campaign {
     nome: '',
     sinopse: '',
     arcoAtual: '',
+    ondeParamos: '',
     party: [],
     npcs: [],
     sessoes: [],
+    atualizacoes: [],
     codex: [],
     handouts: [],
     reputacoes: [],
@@ -72,6 +74,7 @@ export function loadCampaign(): Campaign {
       party: Array.isArray(data.party) ? data.party.map(normalizeCharacter) : [],
       npcs: Array.isArray(data.npcs) ? data.npcs : [],
       sessoes: Array.isArray(data.sessoes) ? data.sessoes : [],
+      atualizacoes: Array.isArray(data.atualizacoes) ? data.atualizacoes : [],
       codex: Array.isArray(data.codex) ? data.codex : [],
       handouts: Array.isArray(data.handouts) ? data.handouts : [],
       reputacoes: Array.isArray(data.reputacoes) ? data.reputacoes : [],
@@ -93,4 +96,49 @@ export function novoNpc(): Npc {
 
 export function novaSessao(): SessionEntry {
   return { id: uid(), data: '', titulo: '', resumo: '' }
+}
+
+export function novaAtualizacao(): Atualizacao {
+  return { id: uid(), criadoEm: Date.now(), titulo: '', texto: '', fixado: false, publicado: false }
+}
+
+/** Fixadas primeiro, depois da mais recente para a mais antiga. */
+export function ordenarAtualizacoes(list: Atualizacao[]): Atualizacao[] {
+  return [...list].sort((a, b) => {
+    if (a.fixado !== b.fixado) return a.fixado ? -1 : 1
+    return b.criadoEm - a.criadoEm
+  })
+}
+
+export function dataCurta(ms: number): string {
+  return new Date(ms).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+/**
+ * Projeção pública da campanha — o que o DM publica para o grupo.
+ *
+ * Mesma ideia da batalha: a "Visão dos Jogadores" já esconde estas coisas na
+ * tela, mas aqui a remoção acontece ANTES de sair do aparelho do DM, então não
+ * adianta abrir o inspetor do navegador.
+ */
+export function projetarCampanha(c: Campaign): Campaign {
+  return {
+    ...c,
+    // Fichas do grupo e NPCs (com as notas secretas) nunca saem daqui: o
+    // jogador recebe as fichas pela tabela `personagens`, não por aqui.
+    party: [],
+    npcs: [],
+    atualizacoes: c.atualizacoes.filter((a) => a.publicado),
+    // Verbetes desconhecidos somem; os demais vão sem o campo de segredos.
+    codex: c.codex
+      .filter((v) => v.conhecimento !== 'desconhecido')
+      .map((v) => ({
+        ...v,
+        segredos: '',
+        // Quem só "ouviu falar" fica no resumo; a descrição vai a partir de
+        // "conhece" — é o mesmo corte que a tela já fazia.
+        descricao: v.conhecimento === 'desconhecido' || v.conhecimento === 'encontrado' ? '' : v.descricao,
+      })),
+    handouts: c.handouts.filter((h) => h.revelado),
+  }
 }

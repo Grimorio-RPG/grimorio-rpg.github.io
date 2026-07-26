@@ -14,12 +14,53 @@ import {
 } from '../lib/mapscene'
 import { imageToDataUrl } from '../lib/bestiary'
 import { EmptyState, PageHeader, ViewToggle } from '../components/layout-ui'
+import { useEstadoMesa, useMesa } from '../hooks/useSync'
+import { CHAVES_MESA } from '../lib/sync/config'
+import { SelosDaMesa } from '../components/mesa-ui'
 
 type Modo = 'dm' | 'jogadores'
 type Ferramenta = 'mover' | 'medir'
 type UpdateFn = (patch: Partial<MapScene>) => void
 
 export default function MapPage() {
+  const { mesa, souJogador } = useMesa()
+  if (souJogador && mesa) return <MapaDoJogador mesaId={mesa.id} />
+  return <MapaDoMestre />
+}
+
+/** O mapa como o DM o publicou: sem tokens ocultos e sem ferramentas. */
+function MapaDoJogador({ mesaId }: { mesaId: string }) {
+  const remota = useEstadoMesa<MapScene>(mesaId, CHAVES_MESA.mapaPub)
+  const [selecionado, setSelecionado] = useState<string | null>(null)
+  const scene: MapScene | null = remota ? { ...cenaVazia(), ...remota } : null
+
+  return (
+    <div>
+      <PageHeader icon="🗺️" titulo="Mapa" subtitulo="A cena que o seu DM está mostrando." />
+      <SelosDaMesa />
+      {remota === undefined ? (
+        <div className="card p-10 text-center text-sm text-parchment-200/60">Carregando o mapa…</div>
+      ) : !scene?.mapaUrl ? (
+        <EmptyState
+          icon="🗺️"
+          titulo="Nenhum mapa na mesa"
+          texto="Quando o DM colocar uma cena no ar, ela aparece aqui."
+        />
+      ) : (
+        <Board
+          scene={scene}
+          update={() => {}}
+          visaoJogador
+          ferramenta="mover"
+          selecionado={selecionado}
+          setSelecionado={setSelecionado}
+        />
+      )}
+    </div>
+  )
+}
+
+function MapaDoMestre() {
   const { scene, update, semEspaco } = useMapScene()
   const [modo, setModo] = useState<Modo>('dm')
   const [ferramenta, setFerramenta] = useState<Ferramenta>('mover')
@@ -40,11 +81,13 @@ export default function MapPage() {
             onChange={(v) => { setModo(v); setSelecionado(null) }}
             opcoes={[
               { valor: 'dm', label: '🎲 Visão do DM', labelCurto: '🎲 DM' },
-              { valor: 'jogadores', label: '👥 Visão dos Jogadores', labelCurto: '👥 Jogadores' },
+              { valor: 'jogadores', label: '👀 Prévia do grupo', labelCurto: '👀 Prévia' },
             ]}
           />
         }
       />
+
+      <SelosDaMesa />
 
       {semEspaco && (
         <div className="mb-4 rounded-lg border border-dragon-400/40 bg-dragon-500/15 p-3 text-sm text-parchment-100">

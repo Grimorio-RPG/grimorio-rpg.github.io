@@ -93,3 +93,20 @@ export function tokenObjeto(nome: string, cor: string): Token {
     x: p.x, y: p.y, tamanho: 1, cor, oculto: false, conhecimento: 'completo',
   }
 }
+
+/**
+ * Projeção pública da cena — tokens ocultos somem de verdade, e o inimigo vai
+ * com a imagem de jogador, não com a foto da ficha do DM.
+ */
+export function projetarCena(c: MapScene): MapScene {
+  return {
+    ...c,
+    tokens: c.tokens
+      .filter((t) => !t.oculto)
+      .map((t) => {
+        if (t.origem !== 'inimigo') return t
+        const img = t.imagemJogadorUrl || t.imagemUrl
+        return { ...t, imagemUrl: img, imagemJogadorUrl: img }
+      }),
+  }
+}

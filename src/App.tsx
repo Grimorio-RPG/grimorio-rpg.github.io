@@ -10,6 +10,7 @@ import MapPage from './pages/MapPage'
 import CampaignPage from './pages/CampaignPage'
 import DataPage from './pages/DataPage'
 import MesaPage from './pages/MesaPage'
+import EntrarPage from './pages/EntrarPage'
 
 export default function App() {
   return (
@@ -25,6 +26,7 @@ export default function App() {
         <Route path="mapa" element={<MapPage />} />
         <Route path="campanha" element={<CampaignPage />} />
         <Route path="mesa" element={<MesaPage />} />
+        <Route path="entrar/:codigo" element={<EntrarPage />} />
         <Route path="dados" element={<DataPage />} />
         <Route path="*" element={<Navigate to="/fichas" replace />} />
       </Route>

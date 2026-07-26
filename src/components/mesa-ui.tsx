@@ -1,5 +1,9 @@
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
+import type { Character } from '../types'
 import { useConexao, useMesa } from '../hooks/useSync'
+import { readJson, writeJson } from '../lib/store'
+import { enviarFicha } from '../lib/sync/personagens'
 
 /**
  * Faixa discreta que aparece no topo das telas compartilhadas, dizendo em que
@@ -36,6 +40,81 @@ export function SelosDaMesa() {
         {status.texto}
       </span>
     </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Compartilhar a ficha com a mesa
+// ---------------------------------------------------------------------------
+
+const CHAVE_COMPARTILHADAS = 'grimorio55e.fichasCompartilhadas.v1'
+
+function idsCompartilhados(): string[] {
+  const v = readJson<string[]>(CHAVE_COMPARTILHADAS, [])
+  return Array.isArray(v) ? v : []
+}
+
+/**
+ * Botão "enviar para a mesa" da ficha.
+ *
+ * Depois do primeiro envio a ficha passa a se manter atualizada sozinha: o DM
+ * vê o PV e o nível mudarem no painel dele sem ninguém reenviar nada. Enquanto
+ * a pessoa não clicar, nada sai do aparelho.
+ */
+export function BotaoEnviarParaMesa({ char }: { char: Character }) {
+  const { mesa } = useMesa()
+  const [compartilhada, setCompartilhada] = useState(() => idsCompartilhados().includes(char.id))
+  const [estado, setEstado] = useState<'parado' | 'enviando' | 'ok' | 'erro'>('parado')
+  const primeiraRenderizacao = useRef(true)
+
+  // Reenvia sozinha quando a ficha muda (com folga, para não mandar a cada tecla)
+  useEffect(() => {
+    if (!mesa || !compartilhada) return
+    if (primeiraRenderizacao.current) {
+      primeiraRenderizacao.current = false
+      return
+    }
+    const t = setTimeout(() => void enviarFicha(mesa.id, char), 1200)
+    return () => clearTimeout(t)
+  }, [mesa, compartilhada, char])
+
+  if (!mesa) return null
+
+  async function enviar() {
+    if (!mesa) return
+    setEstado('enviando')
+    const ok = await enviarFicha(mesa.id, char)
+    setEstado(ok ? 'ok' : 'erro')
+    if (ok && !compartilhada) {
+      writeJson(CHAVE_COMPARTILHADAS, [...idsCompartilhados(), char.id])
+      setCompartilhada(true)
+    }
+    setTimeout(() => setEstado('parado'), 2500)
+  }
+
+  const rotulo =
+    estado === 'enviando'
+      ? 'Enviando…'
+      : estado === 'ok'
+        ? 'Enviada ✓'
+        : estado === 'erro'
+          ? 'Falhou — tentar de novo'
+          : compartilhada
+            ? '☁️ Atualizando na mesa'
+            : '☁️ Enviar para a mesa'
+
+  return (
+    <button
+      className={`px-3 py-1.5 text-xs sm:px-4 sm:py-2 sm:text-sm ${compartilhada ? 'btn-ghost' : 'btn-primary'}`}
+      onClick={enviar}
+      title={
+        compartilhada
+          ? `O DM de "${mesa.nome}" vê esta ficha, e ela se atualiza sozinha.`
+          : `Compartilha esta ficha com o DM de "${mesa.nome}".`
+      }
+    >
+      {rotulo}
+    </button>
   )
 }
 

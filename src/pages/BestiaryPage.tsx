@@ -21,11 +21,70 @@ import {
   TextField,
 } from '../components/ui'
 import { EmptyState, FilterChip, PageHeader, Toolbar, ViewToggle } from '../components/layout-ui'
+import { useEstadoMesa, useMesa } from '../hooks/useSync'
+import { CHAVES_MESA } from '../lib/sync/config'
+import { SelosDaMesa } from '../components/mesa-ui'
 
 type Modo = 'dm' | 'jogadores'
 type FiltroNivel = KnowledgeLevel | 'todos'
 
 export default function BestiaryPage() {
+  const { mesa, souJogador } = useMesa()
+  // Jogador da mesa vê o bestiário publicado pelo DM — sem alternador de visão.
+  if (souJogador && mesa) return <BestiarioDoJogador mesaId={mesa.id} />
+  return <BestiarioDoMestre />
+}
+
+/** Bestiário publicado pelo DM, só leitura. */
+function BestiarioDoJogador({ mesaId }: { mesaId: string }) {
+  const remoto = useEstadoMesa<Monster[]>(mesaId, CHAVES_MESA.bestiarioPub)
+  const [busca, setBusca] = useState('')
+
+  const lista = Array.isArray(remoto) ? remoto : []
+  const filtrados = lista
+    .filter((m) => !busca.trim() || `${m.nome} ${m.tipo}`.toLowerCase().includes(busca.trim().toLowerCase()))
+    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+
+  return (
+    <div>
+      <PageHeader
+        icon="🐲"
+        titulo="Bestiário"
+        subtitulo="As criaturas que o grupo já encontrou ou estudou."
+      />
+      <SelosDaMesa />
+      {remoto === undefined ? (
+        <div className="card p-10 text-center text-sm text-parchment-200/60">Carregando…</div>
+      ) : (
+        <>
+          <div className="mb-6">
+            <input
+              className="stat-input max-w-xs"
+              value={busca}
+              placeholder="Buscar…"
+              onChange={(e) => setBusca(e.target.value)}
+            />
+          </div>
+          {filtrados.length === 0 ? (
+            <EmptyState
+              icon="🔍"
+              titulo="Nada descoberto ainda"
+              texto="Conforme vocês encontrarem criaturas, o DM as libera aqui."
+            />
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {filtrados.map((m) => (
+                <PlayerMonsterCard key={m.id} m={m} />
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
+function BestiarioDoMestre() {
   const { monstros, salvar, remover } = useBestiary()
   const [modo, setModo] = useState<Modo>('dm')
   const [busca, setBusca] = useState('')
@@ -66,11 +125,13 @@ export default function BestiaryPage() {
             onChange={setModo}
             opcoes={[
               { valor: 'dm', label: '🎲 Visão do DM', labelCurto: '🎲 DM' },
-              { valor: 'jogadores', label: '👥 Visão dos Jogadores', labelCurto: '👥 Jogadores' },
+              { valor: 'jogadores', label: '👀 Prévia do grupo', labelCurto: '👀 Prévia' },
             ]}
           />
         }
       />
+
+      <SelosDaMesa />
 
       {modo === 'dm' ? (
         <>

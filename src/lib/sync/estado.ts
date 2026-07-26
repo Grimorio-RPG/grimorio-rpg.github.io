@@ -55,13 +55,23 @@ async function garantirCanal(mesaId: string): Promise<Assinatura | null> {
       'postgres_changes',
       { event: '*', schema: 'public', table: 'mesa_estado', filter: `mesa_id=eq.${mesaId}` },
       (payload) => {
-        const linha = (payload.new ?? payload.old) as { chave?: string; dados?: unknown } | null
+        const linha = (payload.new ?? payload.old) as { chave?: string } | null
         if (!linha?.chave) return
-        const alvo = porChave.get(linha.chave)
-        if (!alvo) return
-        // Em DELETE não vem `dados`; tratamos como "voltou ao vazio".
-        const dados = payload.eventType === 'DELETE' ? null : linha.dados
-        for (const fn of alvo) fn(dados ?? null)
+        const chave = linha.chave
+        const alvo = porChave.get(chave)
+        if (!alvo || alvo.size === 0) return
+
+        if (payload.eventType === 'DELETE') {
+          for (const fn of alvo) fn(null)
+          return
+        }
+
+        // Não usamos `payload.new.dados`: o Realtime tem limite de tamanho por
+        // mensagem, e um mapa com a imagem embutida passa fácil desse limite —
+        // chegaria truncado. O evento serve só como aviso; o valor vem do banco.
+        void lerEstado(mesaId, chave).then((dados) => {
+          for (const fn of alvo) fn(dados)
+        })
       },
     )
     .subscribe((status) => {

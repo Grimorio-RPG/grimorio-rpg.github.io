@@ -180,3 +180,38 @@ export function imageToDataUrl(file: File, maxSize = 480, quality = 0.82): Promi
     reader.readAsDataURL(file)
   })
 }
+
+/**
+ * Projeção pública do bestiário — o que o DM publica para o grupo.
+ *
+ * A "Visão dos Jogadores" já mostrava só o permitido; aqui o corte acontece
+ * antes de os dados saírem do aparelho do DM, então nem o inspetor do
+ * navegador revela a ficha de um monstro ainda não estudado.
+ */
+export function projetarBestiario(list: Monster[]): Monster[] {
+  return list
+    .filter((m) => m.conhecimento !== 'desconhecido')
+    .map((m) => {
+      const img = m.imagemJogadorUrl || m.imagemUrl
+      const base = {
+        ...m,
+        imagemUrl: img,
+        imagemJogadorUrl: img,
+        taticas: '',
+      }
+      // Só "encontrou": tem a foto e o nome, mais nada.
+      if (m.conhecimento === 'encontrado') {
+        return {
+          ...base,
+          ca: 0,
+          pvMax: 0,
+          pvAtual: 0,
+          deslocamento: '',
+          tracos: '',
+          acoes: [],
+          atributos: { for: 0, des: 0, con: 0, int: 0, sab: 0, car: 0 },
+        }
+      }
+      return base
+    })
+}

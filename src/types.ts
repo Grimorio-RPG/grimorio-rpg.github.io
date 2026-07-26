@@ -187,14 +187,33 @@ export interface Reputacao {
   valor: number
 }
 
+/**
+ * Recado do DM para o grupo — "o mercador sumiu da cidade", "próxima sessão
+ * é quinta". Fica num mural em ordem cronológica.
+ *
+ * Enquanto `publicado` for falso, só o DM enxerga: dá para escrever com
+ * antecedência e soltar na hora certa.
+ */
+export interface Atualizacao {
+  id: string
+  criadoEm: number
+  titulo: string
+  texto: string
+  fixado: boolean
+  publicado: boolean
+}
+
 export interface Campaign {
   updatedAt: number
   nome: string
   sinopse: string
   arcoAtual: string
+  /** Resumo curto do fim da última sessão — a primeira coisa que o grupo lê. */
+  ondeParamos: string
   party: Character[] // fichas importadas dos jogadores (snapshots)
   npcs: Npc[]
   sessoes: SessionEntry[]
+  atualizacoes: Atualizacao[]
   codex: LoreEntry[]
   handouts: Handout[]
   reputacoes: Reputacao[]

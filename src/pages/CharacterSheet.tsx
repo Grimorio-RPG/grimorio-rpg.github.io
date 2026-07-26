@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { BotaoEnviarParaMesa } from '../components/mesa-ui'
 import { useNavigate, useParams } from 'react-router-dom'
 import type { AbilityKey, Attack, Character, InventoryItem, SkillKey, SpellRef } from '../types'
 import {
@@ -81,6 +82,7 @@ export default function CharacterSheet() {
   return (
     <div className="space-y-6">
       <TopBar
+        char={char}
         editando={editando}
         onToggleEdit={() => setEditando((v) => !v)}
         onBack={() => navigate('/fichas')}
@@ -143,7 +145,7 @@ export default function CharacterSheet() {
 }
 
 // ---------------------------------------------------------------------------
-function TopBar({ editando, onToggleEdit, onBack, onExport }: { editando: boolean; onToggleEdit: () => void; onBack: () => void; onExport: () => void }) {
+function TopBar({ char, editando, onToggleEdit, onBack, onExport }: { char: Character; editando: boolean; onToggleEdit: () => void; onBack: () => void; onExport: () => void }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3">
       <button className="btn-ghost px-3 py-1.5 text-xs sm:px-4 sm:py-2 sm:text-sm" onClick={onBack}>
@@ -154,8 +156,9 @@ function TopBar({ editando, onToggleEdit, onBack, onExport }: { editando: boolea
           {editando ? '✓ Concluir edição' : '✏️ Editar ficha'}
         </button>
         <span className="chip hidden sm:inline-flex">{editando ? 'Salvo automaticamente ✓' : 'Somente leitura'}</span>
+        <BotaoEnviarParaMesa char={char} />
         <button className="btn-ghost px-3 py-1.5 text-xs sm:px-4 sm:py-2 sm:text-sm" onClick={onExport}>
-          ⬇ <span className="sm:hidden">Exportar</span><span className="hidden sm:inline">Exportar / enviar ao DM</span>
+          ⬇ <span className="sm:hidden">Exportar</span><span className="hidden sm:inline">Exportar (.json)</span>
         </button>
       </div>
     </div>

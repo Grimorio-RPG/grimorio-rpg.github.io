@@ -30,6 +30,9 @@ jobs:
 
       - run: npm ci
 
+      # Falha a publicação se alguma projeção pública passar a vazar segredo do DM.
+      - run: npm run verificar
+
       - run: npm run build
         env:
           # Chaves opcionais da sincronização. Sem elas o app publica em modo

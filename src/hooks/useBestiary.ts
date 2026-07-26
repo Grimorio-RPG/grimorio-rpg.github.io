@@ -1,14 +1,25 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { Monster } from '../types'
-import { loadBestiary, saveBestiary } from '../lib/bestiary'
+import { loadBestiary, projetarBestiario, saveBestiary } from '../lib/bestiary'
+import { publicarComAtraso } from '../lib/sync/estado'
+import { CHAVES_MESA } from '../lib/sync/config'
+import { useMesa } from './useSync'
 
 /** Hook central do bestiário (persistido no navegador do DM). */
 export function useBestiary() {
   const [monstros, setMonstros] = useState<Monster[]>([])
+  const { mesa, souDm } = useMesa()
 
   useEffect(() => {
     setMonstros(loadBestiary())
   }, [])
+
+  // Espelha para a mesa só o que o grupo já descobriu.
+  const mesaId = mesa && souDm ? mesa.id : null
+  useEffect(() => {
+    if (!mesaId) return
+    publicarComAtraso(mesaId, CHAVES_MESA.bestiarioPub, projetarBestiario(monstros), 900)
+  }, [mesaId, monstros])
 
   const persist = useCallback((list: Monster[]) => {
     saveBestiary(list)

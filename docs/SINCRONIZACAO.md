@@ -22,10 +22,11 @@ Ele conversa direto com o **Supabase** (Postgres + Auth + Realtime).
 | 2. Detecção de ambiente + cliente sob demanda | ✅ pronto (`src/lib/sync/`) |
 | 3. Login e perfil | ✅ pronto (aba **Mesa**) |
 | 4. Mesa: criar, convidar, entrar | ✅ pronto (código de 6 letras) |
-| 5. Realtime — aba **Batalhas** | ✅ pronto |
-| 6. Projeção pública automática | ✅ pronto para Batalhas (`projetarBatalha`) |
-| 7. Realtime nas abas Mapa, Bestiário e Campanha | ⬜ próximo |
-| 8. Fichas do grupo visíveis para o DM | ⬜ |
+| 5. Realtime — Batalhas, Campanha, Bestiário e Mapa | ✅ pronto |
+| 6. Projeção pública automática | ✅ pronto nas quatro abas |
+| 7. Convite por link (`#/entrar/CODIGO`) | ✅ pronto |
+| 8. Fichas do grupo visíveis para o DM | ✅ pronto (botão *Enviar para a mesa*) |
+| 9. Rolagens de dados compartilhadas | ⬜ próximo |
 
 **O modo local nunca deixa de existir.** Sem as variáveis de ambiente o app roda
 exatamente como hoje: IndexedDB, offline, sem conta. E mesmo com a nuvem ligada,
@@ -147,6 +148,43 @@ corretos, mas nem abrindo o inspetor do navegador o jogador descobre que faltam
 exatamente 7 pontos de vida. Aliados não passam por isso: o grupo vê o próprio
 PV normalmente.
 
+### Papéis: o que cada um enxerga
+
+O papel não muda só o que a tela desenha — muda o app inteiro.
+
+| | DM | Jogador na mesa |
+|---|---|---|
+| Campanha | painel completo + **Prévia do grupo** | mural, história, sessões, codex, documentos, reputação |
+| Grupo / Tela do Mestre / NPCs | ✅ | a aba **não existe** |
+| Bestiário | cadastro completo | só o que foi revelado, sem alternador de visão |
+| Mapa | ferramentas, tokens ocultos | a cena publicada, só olhando |
+| Batalhas | controle total | inimigos, ordem de iniciativa, barras de vida |
+| Fichas | as próprias + as que o grupo enviou | as próprias |
+
+O botão *Visão dos Jogadores* que existia virou **Prévia do grupo**: continua
+sendo do DM, e agora mostra exatamente o recorte que sai pela rede — não uma
+imitação dele. Na conta de um jogador esse botão não existe, porque não haveria
+o que alternar: os dados privados nunca chegam ao aparelho dele.
+
+### Fichas do grupo
+
+O jogador abre a própria ficha e toca em **☁️ Enviar para a mesa**. A partir daí
+ela se mantém atualizada sozinha — o DM vê PV e nível mudarem no painel sem
+ninguém reenviar nada. Enquanto o botão não for tocado, a ficha não sai do
+aparelho.
+
+Quem escreve a ficha é só o dono (RLS `dono_id = auth.uid()`); o DM lê, mas não
+altera.
+
+### Convite por link
+
+O DM copia o link da aba **Mesa** — `…/#/entrar/KP4RTX` — e manda no grupo. Quem
+abre cria a conta ali mesmo e cai direto na campanha, sem digitar código. O link
+é montado a partir do endereço atual, então funciona igual no GitHub Pages, na
+Vercel ou no `localhost`.
+
+O código de 6 letras continua existindo para ditar em voz alta.
+
 ### Como isso foi verificado
 
 O schema foi rodado num Postgres limpo com um `auth.uid()` de mentira e
@@ -157,6 +195,24 @@ que importam:
 - o jogador é bloqueado ao tentar escrever em `mesa_estado`;
 - quem não é da mesa não vê mesa, estado nem fichas;
 - código de convite inválido é recusado, e o válido funciona em minúsculas.
+
+As projeções têm um teste próprio — `npm run verificar`, 53 casos. Além de
+conferir campo a campo, ele procura palavras-armadilha (`SEGREDO-…`) no JSON
+inteiro que sairia pela rede: se alguém acrescentar um campo à ficha de um
+monstro e esquecer de censurá-lo, o teste quebra. O workflow de publicação roda
+essa verificação antes do build, então uma projeção furada não chega ao ar.
+
+### O que ainda não foi testado contra um Supabase de verdade
+
+O schema, o RLS e as projeções estão verificados. O **Auth** e o **Realtime**
+foram exercitados só até onde dá sem um projeto real — se algo tropeçar, é
+nessas duas pontas.
+
+### Limitação conhecida
+
+Só a *projeção* é sincronizada. As anotações privadas do DM (NPCs, táticas,
+segredos do codex) continuam no aparelho onde ele as escreveu: trocar de
+notebook não leva o painel junto. Para isso, use o backup na aba **Dados**.
 
 ## Conflitos
 
