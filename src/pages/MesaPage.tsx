@@ -3,6 +3,8 @@ import { PageHeader } from '../components/layout-ui'
 import { Field, SectionCard, TextField } from '../components/ui'
 import { useConexao, useMesa, useSessao } from '../hooks/useSync'
 import { cadastrar, entrar, renomearPerfil, sair } from '../lib/sync/auth'
+import type { Situacao, Verificacao } from '../lib/sync/diagnostico'
+import { rodarDiagnostico } from '../lib/sync/diagnostico'
 import type { Membro, Mesa } from '../lib/sync/mesa'
 import {
   criarMesa,
@@ -31,11 +33,80 @@ export default function MesaPage() {
       ) : estado === 'carregando' ? (
         <div className="card p-10 text-center text-sm text-parchment-200/60">Conectando…</div>
       ) : !conta ? (
-        <FormLogin />
+        <div className="space-y-4">
+          <FormLogin />
+          <Diagnostico />
+        </div>
       ) : (
         <AreaLogada />
       )}
     </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Diagnóstico
+// ---------------------------------------------------------------------------
+const ICONE: Record<Situacao, string> = { ok: '✅', falhou: '❌', aviso: '⚠️', pulado: '⏭️' }
+
+/**
+ * Verifica a ligação com o Supabase passo a passo.
+ *
+ * Vale o espaço que ocupa: sem isto, um erro de configuração aparece como um
+ * "permission denied" solto, tarde, sem dizer o que fazer.
+ */
+function Diagnostico() {
+  const [resultados, setResultados] = useState<Verificacao[] | null>(null)
+  const [rodando, setRodando] = useState(false)
+
+  async function rodar() {
+    setRodando(true)
+    setResultados(await rodarDiagnostico())
+    setRodando(false)
+  }
+
+  const falhou = resultados?.some((r) => r.situacao === 'falhou')
+
+  return (
+    <SectionCard
+      title="🩺 Diagnóstico da conexão"
+      action={
+        <button type="button" className="btn-ghost text-xs" disabled={rodando} onClick={rodar}>
+          {rodando ? 'Verificando…' : resultados ? 'Verificar de novo' : 'Verificar'}
+        </button>
+      }
+    >
+      {!resultados ? (
+        <p className="text-sm text-parchment-200/70">
+          Algo não está funcionando? Toque em <b>Verificar</b> — eu testo as chaves, o servidor, as
+          tabelas e o tempo real, e digo exatamente o que falta.
+        </p>
+      ) : (
+        <>
+          <ul className="space-y-2.5">
+            {resultados.map((r) => (
+              <li key={r.nome} className="flex gap-2.5 text-sm">
+                <span className="shrink-0">{ICONE[r.situacao]}</span>
+                <div className="min-w-0">
+                  <p className="font-medium text-parchment-50">{r.nome}</p>
+                  <p className="break-words text-xs text-parchment-200/60">{r.detalhe}</p>
+                  {r.comoResolver && (
+                    <p className="mt-1 rounded-lg border border-arcane-400/25 bg-arcane-600/10 p-2 text-xs leading-relaxed text-parchment-100">
+                      👉 {r.comoResolver}
+                    </p>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+          {!falhou && (
+            <p className="mt-4 rounded-lg bg-emerald-500/10 p-2.5 text-sm text-emerald-400">
+              Tudo certo. Pode criar a conta e a mesa acima.
+            </p>
+          )}
+        </>
+      )}
+    </SectionCard>
   )
 }
 
