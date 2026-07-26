@@ -1,11 +1,19 @@
 {
+  // Este projeto existe só para checar os tipos do vite.config.ts.
+  //
+  // Como é "composite", o TypeScript exige emitir algo. Sem um outDir, ele
+  // escreve vite.config.js na raiz — e o Vite prefere .js a .ts, então passaria
+  // a ler uma cópia velha do config e ignorar suas edições em silêncio.
   "compilerOptions": {
     "composite": true,
     "skipLibCheck": true,
     "module": "ESNext",
     "moduleResolution": "bundler",
     "allowSyntheticDefaultImports": true,
-    "strict": true
+    "strict": true,
+    "outDir": "node_modules/.tmp/tsconfig-node"
   },
-  "include": ["vite.config.ts"]
+  "include": [
+    "vite.config.ts"
+  ]
 }
