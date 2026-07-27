@@ -36,40 +36,102 @@ export function skillBonus(char: Character, key: SkillKey): number {
 }
 
 /**
- * Classe de Armadura efetiva. Prioriza o valor manual; senão calcula a partir
- * da armadura equipada (respeitando o limite de Destreza) e do escudo.
+ * As partes que compõem a CA.
+ *
+ * Existe separado do total porque a ficha precisa *explicar* o número — quando
+ * ele diverge do D&D Beyond, a pessoa tem que conseguir ver de onde veio cada
+ * ponto em vez de sobrescrever tudo no campo manual.
  */
-export function armorClass(char: Character): number {
-  if (char.classeArmaduraManual != null) return char.classeArmaduraManual
+interface ParteCa {
+  valor: number
+  rotulo: string
+}
+
+/**
+ * Bases alternativas de CA vindas de traço de classe.
+ *
+ * São bases, não bônus: substituem o 10 + DES, e por isso concorrem com a
+ * armadura em vez de somar. Vale a maior — que é como a regra funciona quando
+ * alguém tem mais de uma opção.
+ */
+function basesDeTraco(char: Character): ParteCa[] {
+  const bases: ParteCa[] = []
+  const des = abilityMod(char.atributos.des)
+  const semArmadura = !char.armaduraEquipada
+
+  // Bárbaro: 10 + DES + CON, sem armadura. O escudo continua valendo.
+  if (semArmadura && char.classe === 'Bárbaro') {
+    bases.push({
+      valor: 10 + des + abilityMod(char.atributos.con),
+      rotulo: `10 ${fmtMod(des)} (DES) ${fmtMod(abilityMod(char.atributos.con))} (CON, Defesa sem Armadura)`,
+    })
+  }
+
+  // Monge: 10 + DES + SAB, sem armadura E sem escudo.
+  if (semArmadura && !char.escudoEquipado && char.classe === 'Monge') {
+    bases.push({
+      valor: 10 + des + abilityMod(char.atributos.sab),
+      rotulo: `10 ${fmtMod(des)} (DES) ${fmtMod(abilityMod(char.atributos.sab))} (SAB, Defesa sem Armadura)`,
+    })
+  }
+
+  return bases
+}
+
+/** Bônus que somam à CA, venham de onde vierem. */
+function bonusDeCa(char: Character): ParteCa[] {
+  const extras: ParteCa[] = []
+  // Estilo de luta Defesa: +1 só enquanto se usa armadura.
+  if (char.armaduraEquipada && char.talentos.includes('Defesa')) {
+    extras.push({ valor: 1, rotulo: '+1 (Defesa)' })
+  }
+  if (char.escudoEquipado) {
+    extras.push({ valor: ESCUDO_CA, rotulo: `+${ESCUDO_CA} (escudo)` })
+  }
+  return extras
+}
+
+function composicaoCa(char: Character): { base: ParteCa; extras: ParteCa[] } {
   const modDes = abilityMod(char.atributos.des)
   const armadura = char.armaduraEquipada ? acharArmadura(char.armaduraEquipada) : undefined
-  let base: number
+
+  let base: ParteCa
   if (!armadura) {
-    base = 10 + modDes
+    base = { valor: 10 + modDes, rotulo: `10 ${fmtMod(modDes)} (DES)` }
   } else {
     const limite = armadura.maxDes
     const desAplicado = limite == null ? modDes : Math.min(modDes, limite)
-    base = armadura.ca + desAplicado
+    const parteDes =
+      desAplicado !== 0 || limite !== 0
+        ? ` ${fmtMod(desAplicado)} (DES${limite != null && modDes > limite ? `, máx ${limite}` : ''})`
+        : ''
+    base = { valor: armadura.ca + desAplicado, rotulo: `${armadura.ca} (${armadura.nome})${parteDes}` }
   }
-  return base + (char.escudoEquipado ? ESCUDO_CA : 0)
+
+  for (const alternativa of basesDeTraco(char)) {
+    if (alternativa.valor > base.valor) base = alternativa
+  }
+
+  return { base, extras: bonusDeCa(char) }
+}
+
+/**
+ * Classe de Armadura efetiva.
+ *
+ * Prioriza o valor manual; senão soma a melhor base disponível (armadura ou
+ * traço de classe) com os bônus de escudo e estilo de luta.
+ */
+export function armorClass(char: Character): number {
+  if (char.classeArmaduraManual != null) return char.classeArmaduraManual
+  const { base, extras } = composicaoCa(char)
+  return extras.reduce((total, e) => total + e.valor, base.valor)
 }
 
 /** Explica como a CA foi calculada (para mostrar na ficha). */
 export function armorClassDetalhe(char: Character): string {
   if (char.classeArmaduraManual != null) return 'valor definido manualmente'
-  const modDes = abilityMod(char.atributos.des)
-  const armadura = char.armaduraEquipada ? acharArmadura(char.armaduraEquipada) : undefined
-  const partes: string[] = []
-  if (!armadura) {
-    partes.push(`10 ${fmtMod(modDes)} (DES)`)
-  } else {
-    const limite = armadura.maxDes
-    const desAplicado = limite == null ? modDes : Math.min(modDes, limite)
-    partes.push(`${armadura.ca} (${armadura.nome})`)
-    if (desAplicado !== 0 || limite !== 0) partes.push(`${fmtMod(desAplicado)} (DES${limite != null && modDes > limite ? `, máx ${limite}` : ''})`)
-  }
-  if (char.escudoEquipado) partes.push(`+${ESCUDO_CA} (escudo)`)
-  return partes.join(' ')
+  const { base, extras } = composicaoCa(char)
+  return [base.rotulo, ...extras.map((e) => e.rotulo)].join(' ')
 }
 
 /** Bônus de iniciativa: mod DES + bônus manual. */

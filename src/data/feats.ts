@@ -45,6 +45,21 @@ export const TALENTOS: Talento[] = [
   T('Líder Inspirador', 'Geral', 'Discurso de 10 minutos dá pontos de vida temporários a todo o grupo.', 'Carisma 13+'),
   T('Adepto Elemental', 'Geral', 'Suas magias de um elemento ignoram resistência e causam mais dano.', 'Conjurar magias'),
   T('Conjurador Ritual', 'Geral', 'Aprende e conjura magias com a marca de ritual sem gastar espaços.'),
+
+  // --- Estilos de luta -----------------------------------------------------
+  // Guerreiro, Paladino e Patrulheiro escolhem um. A categoria já existia e a
+  // lista estava vazia: não dava para escolher "Defesa", e por isso a CA da
+  // ficha saía um ponto abaixo da do D&D Beyond.
+  T('Arquearia', 'Estilo de Luta', '+2 nas jogadas de ataque com armas de ataque à distância.'),
+  T('Combate Cego', 'Estilo de Luta', 'Enxerga no escuro a 3 m, mesmo cego, desde que a criatura não esteja escondida.'),
+  T('Combate com Arma Grande', 'Estilo de Luta', 'Rolagens de dano de 1 e 2 com armas pesadas de duas mãos viram 3.'),
+  T('Combate com Duas Armas', 'Estilo de Luta', 'Some o modificador de atributo ao dano do ataque com a arma secundária.'),
+  T('Combate Desarmado', 'Estilo de Luta', 'Ataque desarmado causa 1d6 (1d8 sem escudo) e prende quem você agarra.'),
+  T('Defesa', 'Estilo de Luta', '+1 de CA enquanto estiver usando armadura.'),
+  T('Duelismo', 'Estilo de Luta', '+2 de dano com arma de uma mão, sem outra arma na outra mão.'),
+  T('Interceptação', 'Estilo de Luta', 'Reação para reduzir o dano sofrido por um aliado perto de você.'),
+  T('Proteção', 'Estilo de Luta', 'Com escudo, impõe desvantagem no ataque contra um aliado ao seu lado.'),
+  T('Lançamento de Armas', 'Estilo de Luta', 'Saca a arma de arremesso de graça e some +2 ao dano do arremesso.'),
 ]
 
 export const CATEGORIAS_TALENTO: Talento['categoria'][] = ['Origem', 'Geral', 'Estilo de Luta']
