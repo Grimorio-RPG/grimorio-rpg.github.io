@@ -1,5 +1,9 @@
+import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { DiceTray } from './dice-ui'
+import { FormLogin } from './login-ui'
+import { Modal } from './layout-ui'
+import { useSessao } from '../hooks/useSync'
 
 const NAV = [
   { to: '/fichas', label: 'Fichas', icon: '📜', desc: 'Personagens' },
@@ -24,13 +28,16 @@ export default function Layout() {
             <NavItem key={item.to} {...item} />
           ))}
         </nav>
-        <div className="mt-auto rounded-lg border border-white/10 bg-white/5 p-3 text-xs text-parchment-200/70">
-          <p className="font-semibold text-parchment-100">Dados salvos neste dispositivo</p>
-          <p className="mt-1 leading-relaxed">
-            Nada é enviado para servidores. Faça um <b>backup</b> na aba{' '}
-            <NavLink to="/dados" className="text-arcane-400 hover:underline">Dados</NavLink>{' '}
-            ao fim de cada sessão.
-          </p>
+        <div className="mt-auto space-y-3">
+          <BotaoConta />
+          <div className="rounded-lg border border-white/10 bg-white/5 p-3 text-xs text-parchment-200/70">
+            <p className="font-semibold text-parchment-100">Backup</p>
+            <p className="mt-1 leading-relaxed">
+              O mundo, o bestiário e o mapa ficam neste aparelho. Exporte na aba{' '}
+              <NavLink to="/dados" className="text-arcane-400 hover:underline">Dados</NavLink>{' '}
+              ao fim de cada sessão.
+            </p>
+          </div>
         </div>
       </aside>
 
@@ -38,8 +45,9 @@ export default function Layout() {
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Topbar (mobile / tablet retrato) */}
         <header className="sticky top-0 z-30 border-b border-white/10 bg-ink-900/90 backdrop-blur md:hidden">
-          <div className="flex items-center justify-between px-3 py-2">
+          <div className="flex items-center justify-between gap-2 px-3 py-2">
             <Brand small />
+            <BotaoConta compacto />
           </div>
           <nav className="flex gap-1 overflow-x-auto px-2 pb-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {NAV.map((item) => (
@@ -54,6 +62,59 @@ export default function Layout() {
         <DiceTray />
       </div>
     </div>
+  )
+}
+
+/**
+ * Conta, em qualquer tela.
+ *
+ * Antes o login existia só dentro da aba Mesa, o que escondia justamente a
+ * coisa que guarda as fichas de quem joga — a pessoa criava a ficha sem conta e
+ * a perdia ao trocar de aparelho.
+ */
+function BotaoConta({ compacto = false }: { compacto?: boolean }) {
+  const { nuvemConfigurada, estado, conta } = useSessao()
+  const [aberto, setAberto] = useState(false)
+
+  if (!nuvemConfigurada || estado === 'carregando') return null
+
+  if (conta) {
+    return (
+      <NavLink
+        to="/mesa"
+        className={
+          compacto
+            ? 'chip shrink-0 gap-1.5 text-xs'
+            : 'flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 p-2.5 text-xs text-parchment-200/80 hover:border-arcane-400/40'
+        }
+        title={`Conectado como ${conta.email}`}
+      >
+        <span>🧙</span>
+        <span className="truncate">{conta.nome}</span>
+      </NavLink>
+    )
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setAberto(true)}
+        className={compacto ? 'btn-primary shrink-0 px-3 py-1 text-xs' : 'btn-primary w-full text-sm'}
+      >
+        Entrar
+      </button>
+      {!compacto && (
+        <p className="mt-2 text-xs leading-relaxed text-parchment-200/60">
+          Entre para as suas fichas ficarem salvas na conta e abrirem em qualquer aparelho.
+        </p>
+      )}
+      {aberto && (
+        <Modal titulo="Sua conta" onClose={() => setAberto(false)}>
+          <FormLogin compacto />
+        </Modal>
+      )}
+    </>
   )
 }
 

@@ -4,7 +4,8 @@ import { PageHeader } from '../components/layout-ui'
 import { SectionCard } from '../components/ui'
 import { useSessao } from '../hooks/useSync'
 import { entrarNaMesa, getMesa } from '../lib/sync/mesa'
-import { FormLogin } from './MesaPage'
+import { guardarConvitePendente } from '../lib/sync/convite'
+import { FormLogin } from '../components/login-ui'
 
 /**
  * Tela do convite: `#/entrar/ABC123`.
@@ -21,6 +22,13 @@ export default function EntrarPage() {
   const [erro, setErro] = useState('')
   const [entrando, setEntrando] = useState(false)
   const [pronto, setPronto] = useState(false)
+
+  // Entrar com o Google manda a pessoa para fora do app, e o retorno não traz a
+  // rota de hash de volta. Guardar o código aqui é o que faz o convite
+  // sobreviver a essa ida e volta.
+  useEffect(() => {
+    if (codigo && !conta) guardarConvitePendente(codigo)
+  }, [codigo, conta])
 
   useEffect(() => {
     if (!conta || !codigo || entrando || pronto) return
