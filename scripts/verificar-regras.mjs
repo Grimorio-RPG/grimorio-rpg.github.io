@@ -14,11 +14,17 @@ import { execSync } from 'node:child_process'
 
 const dir = mkdtempSync(join(tmpdir(), 'regras-'))
 const saida = join(dir, 'calc.js')
-// --bundle: calc.ts puxa os catálogos de regras e equipamento, que são dados
-// puros — nada de DOM, então roda no Node sem adaptação.
+const saidaFeatures = join(dir, 'features.js')
+// --bundle: estes módulos puxam os catálogos de regras, que são dados puros —
+// nada de DOM, então rodam no Node sem adaptação.
 execSync(`npx esbuild src/lib/calc.ts --bundle --outfile=${saida} --format=esm --log-level=error`)
+execSync(
+  `npx esbuild src/lib/features.ts --bundle --outfile=${saidaFeatures} --format=esm --log-level=error`,
+)
 
 const { armorClass, armorClassDetalhe } = await import(pathToFileURL(saida).href)
+const { ataquesPorAcao, dadosDeAtaqueFurtivo, deslocamentoEfetivo, escolhasDoNivel, tracosDoPersonagem } =
+  await import(pathToFileURL(saidaFeatures).href)
 
 let falhas = 0
 let testes = 0
@@ -30,10 +36,12 @@ function checar(nome, obtido, esperado) {
   console.error(`  ✗ ${nome}\n      esperado: ${esperado}\n      obtido:   ${obtido}`)
 }
 
-/** Ficha mínima: só o que a CA consulta. */
 function ficha(p = {}) {
   return {
     classe: '',
+    subclasse: '',
+    nivel: 1,
+    deslocamento: 9,
     atributos: { for: 10, des: 10, con: 10, int: 10, sab: 10, car: 10 },
     classeArmaduraManual: null,
     armaduraEquipada: '',
@@ -107,6 +115,63 @@ checar(
   'valor manual vence tudo',
   armorClass({ ...guerreiro, classeArmaduraManual: 21 }),
   21,
+)
+
+// ---------------------------------------------------------------------------
+console.log('\nTraços de classe')
+
+// Ataque Extra: os traços trazem o total, então não podem se somar.
+checar('Guerreiro 1 ataca uma vez', ataquesPorAcao(ficha({ classe: 'Guerreiro', nivel: 1 })), 1)
+checar('Guerreiro 5 ataca duas vezes', ataquesPorAcao(ficha({ classe: 'Guerreiro', nivel: 5 })), 2)
+checar('Guerreiro 11 ataca três (não cinco)', ataquesPorAcao(ficha({ classe: 'Guerreiro', nivel: 11 })), 3)
+checar('Guerreiro 20 ataca quatro', ataquesPorAcao(ficha({ classe: 'Guerreiro', nivel: 20 })), 4)
+checar('Mago 11 continua com um ataque', ataquesPorAcao(ficha({ classe: 'Mago', nivel: 11 })), 1)
+
+// Ataque Furtivo: 1d6 no 1, +1d6 a cada dois níveis.
+checar('Ladino 1: 1d6', dadosDeAtaqueFurtivo(ficha({ classe: 'Ladino', nivel: 1 })), 1)
+checar('Ladino 5: 3d6', dadosDeAtaqueFurtivo(ficha({ classe: 'Ladino', nivel: 5 })), 3)
+checar('Ladino 20: 10d6', dadosDeAtaqueFurtivo(ficha({ classe: 'Ladino', nivel: 20 })), 10)
+checar('quem não é Ladino não tem', dadosDeAtaqueFurtivo(ficha({ classe: 'Guerreiro', nivel: 20 })), 0)
+
+// Movimento sem Armadura
+const monge10 = ficha({ classe: 'Monge', nivel: 10 })
+checar('Monge 10 anda 15 m', deslocamentoEfetivo(monge10), 15)
+checar('Monge de armadura perde o bônus', deslocamentoEfetivo({ ...monge10, armaduraEquipada: 'Couro' }), 9)
+checar('Bárbaro 5 anda 12 m', deslocamentoEfetivo(ficha({ classe: 'Bárbaro', nivel: 5 })), 12)
+
+// Escolhas por nível — o "não apareceu pra ele"
+const escolhasGuerreiro = escolhasDoNivel(ficha({ classe: 'Guerreiro', nivel: 6 }))
+checar(
+  'Guerreiro 6 tem estilo de luta na lista',
+  escolhasGuerreiro.some((e) => e.oque === 'estiloDeLuta'),
+  true,
+)
+checar(
+  'Guerreiro 6 já teve ASI no 4 e no 6',
+  escolhasGuerreiro.filter((e) => e.oque === 'talento').length,
+  2,
+)
+checar(
+  'Mago 6 teve só um ASI',
+  escolhasDoNivel(ficha({ classe: 'Mago', nivel: 6 })).filter((e) => e.oque === 'talento').length,
+  1,
+)
+checar(
+  'subclasse aparece no nível 3',
+  escolhasDoNivel(ficha({ classe: 'Ladino', nivel: 3 })).some((e) => e.oque === 'subclasse'),
+  true,
+)
+checar(
+  'nível 2 ainda não pede subclasse',
+  escolhasDoNivel(ficha({ classe: 'Ladino', nivel: 2 })).some((e) => e.oque === 'subclasse'),
+  false,
+)
+
+// Nenhum traço pode vazar de um nível que a pessoa ainda não alcançou.
+checar(
+  'nada acima do nível atual',
+  tracosDoPersonagem(ficha({ classe: 'Guerreiro', nivel: 4 })).every((t) => t.nivel <= 4),
+  true,
 )
 
 console.log('')

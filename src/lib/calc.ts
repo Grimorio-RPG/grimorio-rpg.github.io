@@ -1,6 +1,7 @@
 import type { AbilityKey, Character, SkillKey } from '../types'
 import { CLASSES, SKILLS } from '../data/rules'
 import { ESCUDO_CA, acharArmadura } from '../data/equipment'
+import { defesaSemArmadura } from './features'
 
 /** Modificador de atributo: floor((valor - 10) / 2). */
 export function abilityMod(score: number): number {
@@ -55,27 +56,18 @@ interface ParteCa {
  * alguém tem mais de uma opção.
  */
 function basesDeTraco(char: Character): ParteCa[] {
-  const bases: ParteCa[] = []
+  // Quem sabe se o traço vale agora é o catálogo de classes: ele conhece a
+  // diferença entre o Bárbaro (mantém com escudo) e o Monge (perde).
+  const atributo = defesaSemArmadura(char)
+  if (!atributo) return []
   const des = abilityMod(char.atributos.des)
-  const semArmadura = !char.armaduraEquipada
-
-  // Bárbaro: 10 + DES + CON, sem armadura. O escudo continua valendo.
-  if (semArmadura && char.classe === 'Bárbaro') {
-    bases.push({
-      valor: 10 + des + abilityMod(char.atributos.con),
-      rotulo: `10 ${fmtMod(des)} (DES) ${fmtMod(abilityMod(char.atributos.con))} (CON, Defesa sem Armadura)`,
-    })
-  }
-
-  // Monge: 10 + DES + SAB, sem armadura E sem escudo.
-  if (semArmadura && !char.escudoEquipado && char.classe === 'Monge') {
-    bases.push({
-      valor: 10 + des + abilityMod(char.atributos.sab),
-      rotulo: `10 ${fmtMod(des)} (DES) ${fmtMod(abilityMod(char.atributos.sab))} (SAB, Defesa sem Armadura)`,
-    })
-  }
-
-  return bases
+  const extra = abilityMod(char.atributos[atributo])
+  return [
+    {
+      valor: 10 + des + extra,
+      rotulo: `10 ${fmtMod(des)} (DES) ${fmtMod(extra)} (${atributo.toUpperCase()}, Defesa sem Armadura)`,
+    },
+  ]
 }
 
 /** Bônus que somam à CA, venham de onde vierem. */

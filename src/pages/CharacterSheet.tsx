@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { BotaoEnviarParaMesa } from '../components/mesa-ui'
+import { TracosDeClasse } from '../components/tracos-ui'
 import { useNavigate, useParams } from 'react-router-dom'
 import type { AbilityKey, Attack, Character, InventoryItem, SkillKey, SpellRef } from '../types'
 import {
@@ -117,8 +118,15 @@ export default function CharacterSheet() {
 
           <InventorySection char={char} update={update} />
 
+          <SectionCard
+            title={`Traços de ${char.classe || 'classe'}`}
+            hint="O que a sua classe já deu por nível, e o que ainda falta escolher."
+          >
+            <TracosDeClasse char={char} />
+          </SectionCard>
+
           <div className="grid gap-6 md:grid-cols-2">
-            <SectionCard title="Características & Traços" hint="Habilidades da sua classe, espécie e antecedente. Ex: Fúria, Visão no Escuro, Segunda História.">
+            <SectionCard title="Características & Traços" hint="Espécie, antecedente e subclasse — o que ainda não entra na lista acima.">
               <TextArea value={char.caracteristicas} onChange={(v) => update({ caracteristicas: v })} rows={6} placeholder="Liste aqui os traços que seu personagem ganhou…" />
             </SectionCard>
             <SectionCard title="Anotações de equipamento">
