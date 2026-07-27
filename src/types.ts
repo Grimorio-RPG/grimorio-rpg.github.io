@@ -342,6 +342,15 @@ export interface MonsterAction {
  */
 export type KnowledgeLevel = 'desconhecido' | 'encontrado' | 'parcial' | 'completo'
 
+/**
+ * Peso da criatura na campanha.
+ *
+ * Serve para separar o lixo de encontro do que é marco: só Mini Boss e Boss
+ * ganham o tratamento de "derrotado" na tela do grupo — riscar um goblin
+ * qualquer não conta história nenhuma.
+ */
+export type CategoriaMonstro = 'comum' | 'elite' | 'miniboss' | 'boss'
+
 // ---------------------------------------------------------------------------
 // Batalhas (rastreador de combate)
 // ---------------------------------------------------------------------------
@@ -421,4 +430,8 @@ export interface Monster {
   acoes: MonsterAction[]
   taticas: string // notas do DM (como usar em combate) — sempre privadas
   conhecimento: KnowledgeLevel // o que o grupo já sabe sobre a criatura
+  /** Peso na campanha. Opcional: fichas antigas viram 'comum'. */
+  categoria?: CategoriaMonstro
+  /** O grupo já derrubou. Risca o card — só vale para Mini Boss e Boss. */
+  derrotado?: boolean
 }

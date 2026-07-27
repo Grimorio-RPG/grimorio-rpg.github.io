@@ -190,6 +190,16 @@ checar('só "encontrado": sem ações', lobo.acoes.length === 0)
 checar('só "encontrado": mantém nome e foto de jogador', lobo.nome === 'Lobo' && lobo.imagemUrl === 'foto-jogador')
 checar('"completo": estatísticas passam', ogro.ca === 11 && ogro.pvMax === 59)
 checar('táticas do DM nunca saem', pbst.every((m) => m.taticas === ''))
+
+// Categoria e marco de derrota precisam chegar ao grupo: é o que risca o card.
+const chefes = projetarBestiario([
+  { ...bestiario[2], id: 'b1', nome: 'Rukha', categoria: 'miniboss', derrotado: true },
+  { ...bestiario[0], id: 'b2', nome: 'SEGREDO-BOSS-FINAL', categoria: 'boss', derrotado: false },
+])
+checar('chefe derrotado leva a marca', chefes.find((m) => m.id === 'b1').derrotado === true)
+checar('categoria chega ao grupo', chefes.find((m) => m.id === 'b1').categoria === 'miniboss')
+checar('chefe ainda desconhecido continua fora', !chefes.some((m) => m.id === 'b2'))
+semVazamento('bestiário chefes', chefes, ['SEGREDO-BOSS-FINAL'])
 semVazamento('bestiário', pbst, [
   'SEGREDO-MONSTRO-OCULTO', 'SEGREDO-TRACOS-0', 'SEGREDO-TATICA-0', 'FOTO-DM-LOBO',
   'SEGREDO-TRACOS-1', 'SEGREDO-ACAO-1', 'SEGREDO-TATICA-1', 'SEGREDO-TATICA-2',

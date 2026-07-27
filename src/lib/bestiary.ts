@@ -53,7 +53,31 @@ export function novoMonstro(): Monster {
     acoes: [],
     taticas: '',
     conhecimento: 'desconhecido',
+    categoria: 'comum',
+    derrotado: false,
   }
+}
+
+export const CATEGORIAS_MONSTRO: {
+  valor: NonNullable<Monster['categoria']>
+  label: string
+  icone: string
+  /** Só os pesos-pesados aparecem como marco derrubado para o grupo. */
+  marcavel: boolean
+}[] = [
+  { valor: 'comum', label: 'Comum', icone: '🐾', marcavel: false },
+  { valor: 'elite', label: 'Elite', icone: '⭐', marcavel: false },
+  { valor: 'miniboss', label: 'Mini Boss', icone: '💀', marcavel: true },
+  { valor: 'boss', label: 'Boss', icone: '👑', marcavel: true },
+]
+
+export function categoriaInfo(c: Monster['categoria']) {
+  return CATEGORIAS_MONSTRO.find((x) => x.valor === (c ?? 'comum')) ?? CATEGORIAS_MONSTRO[0]
+}
+
+/** Riscar só faz sentido em criatura que o grupo persegue por sessões. */
+export function podeMarcarDerrota(m: Monster): boolean {
+  return categoriaInfo(m.categoria).marcavel
 }
 
 /** Completa campos ausentes e migra dados antigos (ex: revelado -> conhecimento). */

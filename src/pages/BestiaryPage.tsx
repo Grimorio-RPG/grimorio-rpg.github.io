@@ -1,11 +1,13 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { KnowledgeLevel, Monster, MonsterAction } from '../types'
 import { useBestiary } from '../hooks/useBestiary'
 import {
+  CATEGORIAS_MONSTRO,
   NDS,
   NIVEIS_CONHECIMENTO,
   TAMANHOS,
   TIPOS,
+  categoriaInfo,
   imageToDataUrl,
   nivelInfo,
   novoMonstro,
@@ -39,6 +41,7 @@ export default function BestiaryPage() {
 function BestiarioDoJogador({ mesaId }: { mesaId: string }) {
   const remoto = useEstadoMesa<Monster[]>(mesaId, CHAVES_MESA.bestiarioPub)
   const [busca, setBusca] = useState('')
+  const [ampliada, setAmpliada] = useState('')
 
   const lista = Array.isArray(remoto) ? remoto : []
   const filtrados = lista
@@ -74,12 +77,13 @@ function BestiarioDoJogador({ mesaId }: { mesaId: string }) {
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {filtrados.map((m) => (
-                <PlayerMonsterCard key={m.id} m={m} />
+                <PlayerMonsterCard key={m.id} m={m} setAmpliada={setAmpliada} />
               ))}
             </div>
           )}
         </>
       )}
+      {ampliada && <Lightbox url={ampliada} onClose={() => setAmpliada('')} />}
     </div>
   )
 }
@@ -90,6 +94,7 @@ function BestiarioDoMestre() {
   const [busca, setBusca] = useState('')
   const [filtro, setFiltro] = useState<FiltroNivel>('todos')
   const [editando, setEditando] = useState<Monster | null>(null)
+  const [ampliada, setAmpliada] = useState('')
 
   const filtrados = useMemo(() => {
     const q = busca.trim().toLowerCase()
@@ -178,13 +183,16 @@ function BestiarioDoMestre() {
                   }}
                   onHp={(pvAtual) => salvar({ ...m, pvAtual })}
                   onNivel={(conhecimento) => salvar({ ...m, conhecimento })}
+                  onCategoria={(categoria) => salvar({ ...m, categoria })}
+                  onDerrotado={(derrotado) => salvar({ ...m, derrotado })}
+                  setAmpliada={setAmpliada}
                 />
               ))}
             </div>
           )}
         </>
       ) : (
-        <PlayerView monstros={conhecidos} busca={busca} setBusca={setBusca} />
+        <PlayerView monstros={conhecidos} busca={busca} setBusca={setBusca} setAmpliada={setAmpliada} />
       )}
 
       {editando && (
@@ -197,6 +205,8 @@ function BestiarioDoMestre() {
           }}
         />
       )}
+
+      {ampliada && <Lightbox url={ampliada} onClose={() => setAmpliada('')} />}
     </div>
   )
 }
@@ -211,6 +221,9 @@ function DmMonsterCard({
   onDelete,
   onHp,
   onNivel,
+  onCategoria,
+  onDerrotado,
+  setAmpliada,
 }: {
   m: Monster
   onEdit: () => void
@@ -218,27 +231,49 @@ function DmMonsterCard({
   onDelete: () => void
   onHp: (pv: number) => void
   onNivel: (n: KnowledgeLevel) => void
+  onCategoria: (c: NonNullable<Monster['categoria']>) => void
+  onDerrotado: (v: boolean) => void
+  setAmpliada: (url: string) => void
 }) {
   const pct = m.pvMax > 0 ? Math.max(0, Math.min(100, (m.pvAtual / m.pvMax) * 100)) : 0
   const cor = pct > 50 ? 'bg-emerald-500' : pct > 25 ? 'bg-amber-500' : 'bg-dragon-500'
   const ajusta = (d: number) => onHp(Math.max(0, Math.min(m.pvMax, m.pvAtual + d)))
   const nivel = nivelInfo(m.conhecimento)
+  const cat = categoriaInfo(m.categoria)
   const ferido = m.pvAtual < m.pvMax
 
   return (
     <div className="card gv-fade group relative overflow-hidden transition hover:ring-1 hover:ring-dragon-500/40">
       <div className="relative h-36 w-full overflow-hidden bg-ink-900/60">
         {m.imagemUrl ? (
-          <img src={m.imagemUrl} alt={m.nome} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+          // Um stat block inteiro colado como imagem é ilegível cortado em 144
+          // px de altura. Clicar abre em tamanho real.
+          <button
+            type="button"
+            className="block h-full w-full cursor-zoom-in"
+            onClick={() => setAmpliada(m.imagemUrl)}
+            title="Ver imagem inteira"
+          >
+            <img src={m.imagemUrl} alt={m.nome} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+          </button>
         ) : (
           <div className="grid h-full w-full place-items-center text-5xl opacity-40">🐾</div>
         )}
         <span className="absolute left-2 top-2 rounded-full bg-black/50 px-2 py-0.5 text-[11px] text-parchment-100 backdrop-blur" title={nivel.label}>
           {nivel.icone} {nivel.curto}
         </span>
+        <span className="absolute right-2 top-2 rounded-full bg-black/50 px-2 py-0.5 text-[11px] text-parchment-100 backdrop-blur">
+          {cat.icone} {cat.label}
+        </span>
         <div className="absolute inset-x-0 bottom-0 flex items-end justify-between bg-gradient-to-t from-ink-900 via-ink-900/70 to-transparent p-3">
           <div>
-            <p className="font-display text-lg leading-tight text-parchment-50 drop-shadow">{m.nome || 'Sem nome'}</p>
+            <p
+              className={`font-display text-lg leading-tight text-parchment-50 drop-shadow ${
+                m.derrotado ? 'line-through decoration-dragon-500 decoration-2' : ''
+              }`}
+            >
+              {m.nome || 'Sem nome'}
+            </p>
             <p className="text-xs text-parchment-100/80">{[m.tamanho, m.tipo].filter(Boolean).join(' · ')}</p>
           </div>
         </div>
@@ -249,6 +284,29 @@ function DmMonsterCard({
           <span className="chip">ND {m.nd}</span>
           <span className="chip">CA {m.ca}</span>
           <span className="chip">Desl. {m.deslocamento}</span>
+        </div>
+
+        {/* Categoria e marco de derrota */}
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <select
+            value={m.categoria ?? 'comum'}
+            onChange={(e) => onCategoria(e.target.value as NonNullable<Monster['categoria']>)}
+            className="stat-input flex-1 appearance-none py-1.5 text-sm"
+          >
+            {CATEGORIAS_MONSTRO.map((c) => (
+              <option key={c.valor} value={c.valor}>{c.icone} {c.label}</option>
+            ))}
+          </select>
+          {cat.marcavel && (
+            <button
+              type="button"
+              onClick={() => onDerrotado(!m.derrotado)}
+              className={`chip shrink-0 ${m.derrotado ? 'border-dragon-500/60 text-dragon-400' : ''}`}
+              title={m.derrotado ? 'Marcar como vivo de novo' : 'O grupo derrubou — risca para todos'}
+            >
+              {m.derrotado ? '☠️ Derrotado' : 'Marcar derrota'}
+            </button>
+          )}
         </div>
 
         {/* Nível de conhecimento do grupo */}
@@ -324,10 +382,12 @@ function PlayerView({
   monstros,
   busca,
   setBusca,
+  setAmpliada,
 }: {
   monstros: Monster[]
   busca: string
   setBusca: (v: string) => void
+  setAmpliada: (url: string) => void
 }) {
   return (
     <>
@@ -352,7 +412,7 @@ function PlayerView({
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {monstros.map((m) => (
-            <PlayerMonsterCard key={m.id} m={m} />
+            <PlayerMonsterCard key={m.id} m={m} setAmpliada={setAmpliada} />
           ))}
         </div>
       )}
@@ -360,25 +420,43 @@ function PlayerView({
   )
 }
 
-function PlayerMonsterCard({ m }: { m: Monster }) {
+function PlayerMonsterCard({ m, setAmpliada }: { m: Monster; setAmpliada?: (url: string) => void }) {
   const nivel = nivelInfo(m.conhecimento)
+  const cat = categoriaInfo(m.categoria)
   const img = m.imagemJogadorUrl || m.imagemUrl
   const mostraStats = m.conhecimento === 'parcial' || m.conhecimento === 'completo'
   const mostraFicha = m.conhecimento === 'completo'
 
   return (
-    <div className="card overflow-hidden">
+    <div className={`card overflow-hidden ${m.derrotado ? 'opacity-75' : ''}`}>
       <div className="relative h-40 w-full overflow-hidden bg-ink-900/60">
         {img ? (
-          <img src={img} alt={m.nome} className="h-full w-full object-cover" />
+          <button
+            type="button"
+            className="block h-full w-full cursor-zoom-in"
+            onClick={() => setAmpliada?.(img)}
+            title="Ver imagem inteira"
+          >
+            <img src={img} alt={m.nome} className={`h-full w-full object-cover ${m.derrotado ? 'grayscale' : ''}`} />
+          </button>
         ) : (
           <div className="grid h-full w-full place-items-center text-5xl opacity-40">🐾</div>
         )}
         <span className="absolute right-2 top-2 rounded-full bg-black/50 px-2 py-0.5 text-xs text-parchment-100 backdrop-blur">
           {nivel.icone} {nivel.curto}
         </span>
+        {cat.marcavel && (
+          <span className="absolute left-2 top-2 rounded-full bg-black/50 px-2 py-0.5 text-xs text-parchment-100 backdrop-blur">
+            {cat.icone} {cat.label}
+          </span>
+        )}
+        {m.derrotado && (
+          <span className="absolute inset-x-0 top-1/2 -translate-y-1/2 bg-dragon-600/85 py-1 text-center font-display text-lg tracking-wide text-parchment-50">
+            Derrotado
+          </span>
+        )}
         <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-ink-900 to-transparent p-3">
-          <p className="font-display text-lg leading-tight text-parchment-50 drop-shadow">{m.nome || '???'}</p>
+          <p className={`font-display text-lg leading-tight text-parchment-50 drop-shadow ${m.derrotado ? 'line-through decoration-2' : ''}`}>{m.nome || '???'}</p>
           <p className="text-xs text-parchment-100/80">{[m.tamanho, m.tipo].filter(Boolean).join(' · ')}</p>
         </div>
       </div>
@@ -665,3 +743,41 @@ function ImageSlot({
   )
 }
 
+
+// ---------------------------------------------------------------------------
+// Imagem em tamanho real
+//
+// Um stat block colado como imagem não cabe numa miniatura de card. Aqui ele
+// abre inteiro, com rolagem, e fecha no clique ou no Esc.
+// ---------------------------------------------------------------------------
+function Lightbox({ url, onClose }: { url: string; onClose: () => void }) {
+  useEffect(() => {
+    const aoTeclar = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', aoTeclar)
+    return () => window.removeEventListener('keydown', aoTeclar)
+  }, [onClose])
+
+  return (
+    <div
+      className="fixed inset-0 z-50 grid place-items-center overflow-auto bg-black/85 p-4"
+      onClick={onClose}
+      role="presentation"
+    >
+      <img
+        src={url}
+        alt=""
+        className="mx-auto max-w-full rounded-lg shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      />
+      <button
+        type="button"
+        className="fixed right-4 top-4 rounded-full bg-black/60 px-3 py-1.5 text-sm text-parchment-50 backdrop-blur hover:bg-black/80"
+        onClick={onClose}
+      >
+        ✕ Fechar
+      </button>
+    </div>
+  )
+}
