@@ -216,7 +216,12 @@ export function projetarBestiario(list: Monster[]): Monster[] {
   return list
     .filter((m) => m.conhecimento !== 'desconhecido')
     .map((m) => {
-      const img = m.imagemJogadorUrl || m.imagemUrl
+      // Sem cair na imagem do DM. Ela é referência privada, e muita gente cola
+      // ali o stat block inteiro — com táticas e lore. Antes havia um fallback
+      // `imagemJogadorUrl || imagemUrl`, que entregava essa folha ao grupo no
+      // instante em que a criatura virasse "encontrada". Quem quer compartilhar
+      // a arte usa o botão de copiar para a foto do grupo, explicitamente.
+      const img = m.imagemJogadorUrl
       const base = {
         ...m,
         imagemUrl: img,

@@ -605,13 +605,25 @@ function MonsterEditor({
           <div className="grid grid-cols-2 gap-3">
             <ImageSlot
               titulo="Foto do DM"
-              hint="Sua referência completa."
+              hint="🙈 Privada. Cabe o stat block inteiro — guardo em alta para dar para ler."
               url={m.imagemUrl}
+              maxSize={1600}
               onChange={(url) => set({ imagemUrl: url })}
+              acao={
+                m.imagemUrl && m.imagemUrl !== m.imagemJogadorUrl ? (
+                  <button
+                    type="button"
+                    className="btn-ghost w-full text-xs"
+                    onClick={() => set({ imagemJogadorUrl: m.imagemUrl })}
+                  >
+                    ↳ Usar também para o grupo
+                  </button>
+                ) : undefined
+              }
             />
             <ImageSlot
               titulo="Foto dos jogadores"
-              hint="O que o grupo vê ao encontrar. Vazio = usa a foto do DM."
+              hint="A única que sai para o grupo. Vazio = eles veem só a silhueta."
               url={m.imagemJogadorUrl}
               onChange={(url) => set({ imagemJogadorUrl: url })}
             />
@@ -734,11 +746,16 @@ function ImageSlot({
   hint,
   url,
   onChange,
+  maxSize = 640,
+  acao,
 }: {
   titulo: string
   hint: string
   url: string
   onChange: (url: string) => void
+  /** Retrato de card cabe em 640; stat block colado precisa ser legível. */
+  maxSize?: number
+  acao?: React.ReactNode
 }) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [carregando, setCarregando] = useState(false)
@@ -746,7 +763,7 @@ function ImageSlot({
   async function onFile(file: File) {
     setCarregando(true)
     try {
-      onChange(await imageToDataUrl(file))
+      onChange(await imageToDataUrl(file, maxSize, 0.78))
     } catch {
       alert('Não consegui processar essa imagem.')
     } finally {
@@ -770,6 +787,7 @@ function ImageSlot({
         </button>
         {url && <button className="btn-ghost px-2 py-1.5 text-xs" onClick={() => onChange('')}>✕</button>}
       </div>
+      {acao && <div className="mt-1.5">{acao}</div>}
       <input
         ref={fileRef}
         type="file"
@@ -796,37 +814,96 @@ function ImageSlot({
 // ---------------------------------------------------------------------------
 // Imagem em tamanho real
 //
-// Um stat block colado como imagem não cabe numa miniatura de card. Aqui ele
-// abre inteiro, com rolagem, e fecha no clique ou no Esc.
+// Um stat block colado como imagem não se lê numa miniatura. Abre ocupando a
+// tela, com zoom e arrasto — a lupa do navegador não serve porque o overlay é
+// fixo e não rola junto.
 // ---------------------------------------------------------------------------
 function Lightbox({ url, onClose }: { url: string; onClose: () => void }) {
+  const [zoom, setZoom] = useState(1)
+  const [pos, setPos] = useState({ x: 0, y: 0 })
+  const arrasto = useRef<{ x: number; y: number } | null>(null)
+
   useEffect(() => {
     const aoTeclar = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
+      if (e.key === '+' || e.key === '=') setZoom((z) => Math.min(6, z + 0.25))
+      if (e.key === '-') setZoom((z) => Math.max(0.5, z - 0.25))
+      if (e.key === '0') {
+        setZoom(1)
+        setPos({ x: 0, y: 0 })
+      }
     }
     window.addEventListener('keydown', aoTeclar)
     return () => window.removeEventListener('keydown', aoTeclar)
   }, [onClose])
 
+  function aoRolar(e: React.WheelEvent) {
+    e.preventDefault()
+    setZoom((z) => Math.max(0.5, Math.min(6, z - e.deltaY * 0.002)))
+  }
+
+  const encaixado = zoom === 1 && pos.x === 0 && pos.y === 0
+
   return (
-    <div
-      className="fixed inset-0 z-50 grid place-items-center overflow-auto bg-black/85 p-4"
-      onClick={onClose}
-      role="presentation"
-    >
-      <img
-        src={url}
-        alt=""
-        className="mx-auto max-w-full rounded-lg shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      />
-      <button
-        type="button"
-        className="fixed right-4 top-4 rounded-full bg-black/60 px-3 py-1.5 text-sm text-parchment-50 backdrop-blur hover:bg-black/80"
-        onClick={onClose}
+    <div className="fixed inset-0 z-50 select-none overflow-hidden bg-black/90" onWheel={aoRolar}>
+      <div
+        className="grid h-full w-full place-items-center"
+        style={{ cursor: zoom > 1 ? (arrasto.current ? 'grabbing' : 'grab') : 'zoom-in' }}
+        onPointerDown={(e) => {
+          if (zoom <= 1) return
+          arrasto.current = { x: e.clientX - pos.x, y: e.clientY - pos.y }
+        }}
+        onPointerMove={(e) => {
+          if (!arrasto.current) return
+          setPos({ x: e.clientX - arrasto.current.x, y: e.clientY - arrasto.current.y })
+        }}
+        onPointerUp={() => (arrasto.current = null)}
+        onPointerLeave={() => (arrasto.current = null)}
+        // Clicar no fundo fecha; clicar na imagem sem zoom aproxima.
+        onClick={(e) => {
+          if (e.target === e.currentTarget) onClose()
+        }}
       >
-        ✕ Fechar
-      </button>
+        <img
+          src={url}
+          alt=""
+          draggable={false}
+          onClick={() => zoom === 1 && setZoom(2)}
+          className="max-h-[92vh] max-w-[95vw] rounded shadow-2xl transition-[transform] duration-75"
+          style={{ transform: `translate(${pos.x}px, ${pos.y}px) scale(${zoom})` }}
+        />
+      </div>
+
+      <div className="fixed inset-x-0 bottom-4 flex justify-center">
+        <div className="flex items-center gap-1 rounded-full bg-black/70 px-2 py-1.5 text-sm text-parchment-50 backdrop-blur">
+          <button type="button" className="px-2.5 py-0.5 hover:text-arcane-400" onClick={() => setZoom((z) => Math.max(0.5, z - 0.25))} title="Diminuir (−)">−</button>
+          <button
+            type="button"
+            className="min-w-[4.5rem] px-2 py-0.5 text-xs hover:text-arcane-400"
+            onClick={() => {
+              setZoom(1)
+              setPos({ x: 0, y: 0 })
+            }}
+            title="Tamanho original (0)"
+          >
+            {Math.round(zoom * 100)}%
+          </button>
+          <button type="button" className="px-2.5 py-0.5 hover:text-arcane-400" onClick={() => setZoom((z) => Math.min(6, z + 0.25))} title="Aumentar (+)">+</button>
+          <span className="mx-1 h-4 w-px bg-white/20" />
+          <a href={url} target="_blank" rel="noreferrer" className="px-2 py-0.5 text-xs hover:text-arcane-400" title="Abrir em outra aba">
+            ↗ Abrir
+          </a>
+          <button type="button" className="px-2 py-0.5 text-xs hover:text-dragon-400" onClick={onClose}>
+            ✕ Fechar
+          </button>
+        </div>
+      </div>
+
+      {encaixado && (
+        <p className="fixed inset-x-0 top-4 text-center text-xs text-parchment-200/50">
+          Clique na imagem ou role para aproximar · arraste para mover · Esc fecha
+        </p>
+      )}
     </div>
   )
 }

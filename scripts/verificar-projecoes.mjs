@@ -188,6 +188,9 @@ checar('só "encontrado": PV zerado', lobo.pvMax === 0)
 checar('só "encontrado": atributos zerados', Object.values(lobo.atributos).every((v) => v === 0))
 checar('só "encontrado": sem ações', lobo.acoes.length === 0)
 checar('só "encontrado": mantém nome e foto de jogador', lobo.nome === 'Lobo' && lobo.imagemUrl === 'foto-jogador')
+// Sem foto de jogador, o grupo NÃO herda a do DM: muita gente cola ali o stat
+// block inteiro, e o fallback antigo o entregava ao virar "encontrado".
+checar('sem foto de jogador, o grupo não recebe a do DM', ogro.imagemUrl === '')
 checar('"completo": estatísticas passam', ogro.ca === 11 && ogro.pvMax === 59)
 checar('táticas do DM nunca saem', pbst.every((m) => m.taticas === ''))
 
