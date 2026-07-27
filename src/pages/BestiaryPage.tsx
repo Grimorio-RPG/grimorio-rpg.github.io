@@ -13,6 +13,7 @@ import {
   novoMonstro,
 } from '../lib/bestiary'
 import { uid } from '../lib/character'
+import { lerStatBlock } from '../lib/statblock'
 import { abilityMod, fmtMod } from '../lib/calc'
 import { ABILITIES } from '../data/rules'
 import {
@@ -527,9 +528,20 @@ function MonsterEditor({
   onSave: (m: Monster) => void
 }) {
   const [m, setM] = useState<Monster>(inicial)
+  const [colando, setColando] = useState(false)
+  const [texto, setTexto] = useState('')
+  const [lido, setLido] = useState<string[]>([])
 
   function set(patch: Partial<Monster>) {
     setM((prev) => ({ ...prev, ...patch }))
+  }
+
+  function aplicarTextoColado() {
+    const { campos, reconhecidos } = lerStatBlock(texto)
+    // Mescla: campo não reconhecido preserva o que já estava preenchido.
+    setM((prev) => ({ ...prev, ...campos }))
+    setLido(reconhecidos)
+    if (reconhecidos.length > 0) setColando(false)
   }
 
   function addAcao() {
@@ -549,6 +561,43 @@ function MonsterEditor({
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-xl text-parchment-50">{inicial.nome ? 'Editar criatura' : 'Nova criatura'}</h2>
           <button className="btn-ghost" onClick={onClose}>Cancelar</button>
+        </div>
+
+        {/* Colar bloco de estatísticas */}
+        <div className="mb-5">
+          {!colando ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <button type="button" className="btn-ghost" onClick={() => setColando(true)}>
+                📋 Colar bloco de estatísticas
+              </button>
+              {lido.length > 0 && (
+                <span className="text-xs text-emerald-400">
+                  Preenchi: {lido.join(', ')}. Confira antes de salvar.
+                </span>
+              )}
+            </div>
+          ) : (
+            <div className="rounded-lg border border-white/10 bg-white/5 p-3">
+              <p className="mb-2 text-xs text-parchment-200/70">
+                Selecione o bloco no PDF ou site, copie e cole aqui. O que eu não reconhecer fica
+                como está — não invento campo.
+              </p>
+              <TextArea
+                value={texto}
+                onChange={setTexto}
+                rows={8}
+                placeholder={'Rukha, o Sábio da Raiz\nHumanoide Médio (orc), leal e mau\nCA 15\nPV 52…'}
+              />
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button type="button" className="btn-primary" onClick={aplicarTextoColado} disabled={!texto.trim()}>
+                  Preencher a ficha
+                </button>
+                <button type="button" className="btn-ghost" onClick={() => setColando(false)}>
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="grid gap-5 md:grid-cols-[1fr_1fr]">
