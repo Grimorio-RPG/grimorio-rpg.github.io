@@ -204,6 +204,60 @@ export interface Atualizacao {
 }
 
 // ---------------------------------------------------------------------------
+// Mundo — mapas de campanha, região e cidade
+//
+// Diferente do mapa da aba Mapa, que é tático (grade, tokens de combate). Aqui
+// é o mapa que fica na mesa: lugares com nome, revelados conforme o grupo
+// descobre.
+//
+// A imagem NÃO mora aqui. Ela pesa ~500 KB e quase nunca muda, enquanto os
+// pontos mudam toda hora — juntas, revelar um lugar reenviaria o mapa inteiro
+// pela rede. Ver `ImagemMapa`.
+// ---------------------------------------------------------------------------
+
+export type TipoPonto = 'cidade' | 'ruina' | 'masmorra' | 'marco' | 'perigo' | 'acampamento'
+
+export interface PontoInteresse {
+  id: string
+  nome: string
+  tipo: TipoPonto
+  /** Posição no mapa, fração 0..1 — mesma convenção do Token. */
+  x: number
+  y: number
+  /** O que o grupo lê quando o ponto está revelado. */
+  descricao: string
+  /** Anotação do DM. A projeção pública apaga este campo. */
+  notasSecretas: string
+  /** Enquanto for falso, o ponto não existe para o grupo. */
+  revelado: boolean
+}
+
+export interface MapaMundo {
+  id: string
+  nome: string
+  escopo: 'campanha' | 'regiao' | 'cidade'
+  pontos: PontoInteresse[]
+  /** Mapa inteiro escondido: nem ele nem a imagem saem para o grupo. */
+  revelado: boolean
+  atualizadoEm: number
+}
+
+/**
+ * A imagem de um mapa, guardada e publicada à parte — uma chave por mapa.
+ * Sobe uma vez; depois disso só os pontos trafegam.
+ */
+export interface ImagemMapa {
+  id: string
+  dataUrl: string
+}
+
+export interface Mundo {
+  mapas: MapaMundo[]
+  /** Qual mapa está aberto na mesa. */
+  mapaAtivoId: string
+}
+
+// ---------------------------------------------------------------------------
 // Viagem — a crônica da estrada
 //
 // O trecho entre dois lugares é a parte mais pulada de uma sessão. Aqui ele vira

@@ -19,6 +19,10 @@ export const CHAVES = {
   bestiarioSeed: 'grimorio55e.bestiary.seeded.v1',
   batalha: 'grimorio55e.battle.v1',
   mapa: 'grimorio55e.mapscene.v1',
+  mundo: 'grimorio55e.mundo.v1',
+  // As imagens dos mapas ficam à parte: salvar um ponto não pode reescrever
+  // megabytes de imagem.
+  mundoImagens: 'grimorio55e.mundo.imagens.v1',
   rolagens: 'grimorio55e.rolls.v1',
 } as const
 

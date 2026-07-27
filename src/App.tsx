@@ -7,6 +7,7 @@ import SpellsPage from './pages/SpellsPage'
 import BestiaryPage from './pages/BestiaryPage'
 import BattlePage from './pages/BattlePage'
 import MapPage from './pages/MapPage'
+import WorldPage from './pages/WorldPage'
 import CampaignPage from './pages/CampaignPage'
 import DataPage from './pages/DataPage'
 import MesaPage from './pages/MesaPage'
@@ -24,6 +25,7 @@ export default function App() {
         <Route path="bestiario" element={<BestiaryPage />} />
         <Route path="batalhas" element={<BattlePage />} />
         <Route path="mapa" element={<MapPage />} />
+        <Route path="mundo" element={<WorldPage />} />
         <Route path="campanha" element={<CampaignPage />} />
         <Route path="mesa" element={<MesaPage />} />
         <Route path="entrar/:codigo" element={<EntrarPage />} />

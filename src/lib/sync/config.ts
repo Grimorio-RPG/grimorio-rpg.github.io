@@ -28,9 +28,23 @@ export const CHAVES_MESA = {
   batalhaPub: 'batalha_pub',
   mapa: 'mapa',
   mapaPub: 'mapa_pub',
+  mundo: 'mundo',
+  mundoPub: 'mundo_pub',
 } as const
 
 export type ChaveMesa = (typeof CHAVES_MESA)[keyof typeof CHAVES_MESA]
+
+/**
+ * Chave da imagem de um mapa do mundo — uma por mapa, de propósito.
+ *
+ * A imagem sobe uma vez e fica; os pontos mudam a cada revelação. Numa chave só,
+ * revelar um lugar reenviaria a imagem inteira pela rede. Continua terminando em
+ * `_pub`, então a política de RLS já a reconhece como pública — nenhuma regra
+ * nova no banco.
+ */
+export function chaveImagemMapa(id: string, publica = false): string {
+  return `mundoimg_${id}${publica ? '_pub' : ''}`
+}
 
 /** É uma chave que os jogadores podem ler? */
 export function ehChavePublica(chave: string): boolean {

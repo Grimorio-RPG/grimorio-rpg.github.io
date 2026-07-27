@@ -15,7 +15,7 @@ import { execSync } from 'node:child_process'
 
 // Compila os módulos de projeção para JS puro (eles não dependem de React).
 const dir = mkdtempSync(join(tmpdir(), 'proj-'))
-for (const arquivo of ['battle', 'campaign', 'bestiary', 'mapscene']) {
+for (const arquivo of ['battle', 'campaign', 'bestiary', 'mapscene', 'mundo']) {
   const src = readFileSync(`src/lib/${arquivo}.ts`, 'utf8')
   // Só nos interessam as funções puras de projeção; o resto importa store/DOM.
   const corte = src.indexOf('export function projetar')
@@ -24,7 +24,7 @@ for (const arquivo of ['battle', 'campaign', 'bestiary', 'mapscene']) {
   writeFileSync(join(dir, `${arquivo}.ts`), trecho)
 }
 execSync(
-  `npx esbuild ${['battle', 'campaign', 'bestiary', 'mapscene']
+  `npx esbuild ${['battle', 'campaign', 'bestiary', 'mapscene', 'mundo']
     .map((f) => join(dir, `${f}.ts`))
     .join(' ')} --outdir=${dir} --format=esm --log-level=error`,
 )
@@ -37,6 +37,7 @@ const { projetarBatalha } = await importar('battle.js')
 const { projetarCampanha } = await importar('campaign.js')
 const { projetarBestiario } = await importar('bestiary.js')
 const { projetarCena } = await importar('mapscene.js')
+const { projetarMundo } = await importar('mundo.js')
 
 let falhas = 0
 let testes = 0
@@ -213,6 +214,42 @@ checar('token oculto some de verdade', pm.tokens.length === 2)
 checar('inimigo visível usa a foto de jogador', pm.tokens.find((t) => t.id === 't2').imagemUrl === 'foto-jogador')
 checar('aliado mantém o avatar', pm.tokens.find((t) => t.id === 't3').imagemUrl === 'avatar')
 semVazamento('mapa', pm, ['SEGREDO-EMBOSCADA', 'FOTO-DM-GOBLIN'])
+
+// ---------------------------------------------------------------------------
+console.log('Mundo')
+const mundo = {
+  mapaAtivoId: 'w2',
+  mapas: [
+    {
+      id: 'w1', nome: 'As Planícies Partidas', escopo: 'regiao', revelado: true, atualizadoEm: 1,
+      pontos: [
+        { id: 'p1', nome: 'Stonehall', tipo: 'cidade', x: 0.2, y: 0.3, descricao: 'Muralhas altas.',
+          notasSecretas: 'SEGREDO-NOTA-DO-DM', revelado: true },
+        { id: 'p2', nome: 'SEGREDO-COVIL-NAO-DESCOBERTO', tipo: 'masmorra', x: 0.8, y: 0.7,
+          descricao: 'SEGREDO-DESCRICAO-COVIL', notasSecretas: 'SEGREDO-NOTA-COVIL', revelado: false },
+      ],
+    },
+    {
+      id: 'w2', nome: 'SEGREDO-MAPA-DO-ATO-3', escopo: 'campanha', revelado: false, atualizadoEm: 1,
+      pontos: [
+        { id: 'p3', nome: 'SEGREDO-CIDADE-FINAL', tipo: 'cidade', x: 0.5, y: 0.5, descricao: 'd',
+          notasSecretas: 'n', revelado: true },
+      ],
+    },
+  ],
+}
+const pw = projetarMundo(mundo)
+checar('mapa escondido não é publicado', pw.mapas.length === 1)
+checar('ponto não revelado some', pw.mapas[0].pontos.length === 1)
+checar('ponto revelado passa com a descrição', pw.mapas[0].pontos[0].descricao === 'Muralhas altas.')
+checar('notas do DM são apagadas', pw.mapas[0].pontos.every((p) => p.notasSecretas === ''))
+checar('mapa ativo escondido não vaza como atalho', pw.mapaAtivoId === '')
+// Um ponto revelado dentro de um mapa escondido continua escondido: quem manda
+// é o mapa. Sem isto, esconder o mapa do ato 3 não esconderia nada.
+semVazamento('mundo', pw, [
+  'SEGREDO-NOTA-DO-DM', 'SEGREDO-COVIL-NAO-DESCOBERTO', 'SEGREDO-DESCRICAO-COVIL',
+  'SEGREDO-NOTA-COVIL', 'SEGREDO-MAPA-DO-ATO-3', 'SEGREDO-CIDADE-FINAL',
+])
 
 // ---------------------------------------------------------------------------
 console.log(
