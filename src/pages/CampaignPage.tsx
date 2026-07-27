@@ -29,14 +29,26 @@ import CharacterReadonly from '../components/CharacterReadonly'
 import { Field, SectionCard, TextArea, TextField } from '../components/ui'
 import { ViewToggle } from '../components/layout-ui'
 import { CodexTab, HandoutsTab, ReputacaoTab } from '../components/codex'
+import { EstradaTab } from '../components/estrada'
 
-type Aba = 'mural' | 'grupo' | 'tela' | 'historia' | 'sessoes' | 'npcs' | 'codex' | 'handouts' | 'reputacao'
+type Aba =
+  | 'mural'
+  | 'grupo'
+  | 'tela'
+  | 'estrada'
+  | 'historia'
+  | 'sessoes'
+  | 'npcs'
+  | 'codex'
+  | 'handouts'
+  | 'reputacao'
 type Modo = 'dm' | 'jogadores'
 
 const ABAS: { id: Aba; label: string; icon: string; soDm?: boolean }[] = [
   { id: 'mural', label: 'Mural', icon: '📌' },
   { id: 'grupo', label: 'Grupo', icon: '🛡️', soDm: true },
   { id: 'tela', label: 'Tela do Mestre', icon: '📊', soDm: true },
+  { id: 'estrada', label: 'Estrada', icon: '🧭' },
   { id: 'historia', label: 'História', icon: '📜' },
   { id: 'sessoes', label: 'Sessões', icon: '📅' },
   { id: 'npcs', label: 'NPCs', icon: '🎭', soDm: true },
@@ -109,6 +121,7 @@ function CampanhaDoMestre() {
       {abaAtual === 'mural' && <MuralTab campaign={dados} update={update} visaoJogador={visaoJogador} />}
       {abaAtual === 'grupo' && <GrupoTab campaign={campaign} update={update} />}
       {abaAtual === 'tela' && <TelaDoMestreTab campaign={campaign} />}
+      {abaAtual === 'estrada' && <EstradaTab campaign={dados} update={update} visaoJogador={visaoJogador} />}
       {abaAtual === 'historia' && <HistoriaTab campaign={dados} update={update} visaoJogador={visaoJogador} />}
       {abaAtual === 'sessoes' && <SessoesTab campaign={dados} update={update} visaoJogador={visaoJogador} />}
       {abaAtual === 'npcs' && <NpcsTab campaign={campaign} update={update} />}
@@ -158,6 +171,7 @@ function CampanhaDoJogador({ mesaId }: { mesaId: string }) {
         <>
           <Abas abas={abas} atual={abaAtual} onEscolher={setAba} campaign={campaign} />
           {abaAtual === 'mural' && <MuralTab campaign={campaign} update={nada} visaoJogador />}
+          {abaAtual === 'estrada' && <EstradaTab campaign={campaign} update={nada} visaoJogador />}
           {abaAtual === 'historia' && <HistoriaTab campaign={campaign} update={nada} visaoJogador />}
           {abaAtual === 'sessoes' && <SessoesTab campaign={campaign} update={nada} visaoJogador />}
           {abaAtual === 'codex' && <CodexTab campaign={campaign} update={nada} visaoJogador />}

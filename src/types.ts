@@ -203,6 +203,52 @@ export interface Atualizacao {
   publicado: boolean
 }
 
+// ---------------------------------------------------------------------------
+// Viagem — a crônica da estrada
+//
+// O trecho entre dois lugares é a parte mais pulada de uma sessão. Aqui ele vira
+// registro: em que dia o grupo está, onde está, e o que a estrada trouxe.
+// ---------------------------------------------------------------------------
+
+/** Uma linha da tabela que o DM sorteia na estrada. */
+export interface EventoEstrada {
+  id: string
+  /** Resultado do dado que traz este evento. */
+  face: number
+  texto: string
+}
+
+/** Uma entrada da crônica: o que aconteceu, em que dia, onde. */
+export interface EntradaCronica {
+  id: string
+  criadoEm: number
+  dia: number
+  local: string
+  texto: string
+  /**
+   * Anotação de bastidor. A projeção pública remove estas entradas, então elas
+   * nunca chegam ao aparelho de um jogador.
+   */
+  soDm: boolean
+}
+
+export interface Viagem {
+  emCurso: boolean
+  /** Dia de marcha. Genérico de propósito: conte como a sua campanha contar. */
+  dia: number
+  /** Onde o grupo está agora. Texto livre. */
+  local: string
+  destino: string
+  /** Quantas faces tem o dado da tabela (1d6 por padrão). */
+  facesDado: number
+  /**
+   * O que *pode* acontecer na estrada. É prep do DM: sai inteira da projeção
+   * pública, senão o grupo lê o roteiro antes de vivê-lo.
+   */
+  tabelaEventos: EventoEstrada[]
+  cronica: EntradaCronica[]
+}
+
 export interface Campaign {
   updatedAt: number
   nome: string
@@ -217,6 +263,7 @@ export interface Campaign {
   codex: LoreEntry[]
   handouts: Handout[]
   reputacoes: Reputacao[]
+  viagem: Viagem
 }
 
 // ---------------------------------------------------------------------------

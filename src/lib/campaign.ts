@@ -1,8 +1,31 @@
-import type { Atualizacao, Campaign, Handout, LoreEntry, LoreTipo, Npc, SessionEntry } from '../types'
+import type {
+  Atualizacao,
+  Campaign,
+  EntradaCronica,
+  EventoEstrada,
+  Handout,
+  LoreEntry,
+  LoreTipo,
+  Npc,
+  SessionEntry,
+  Viagem,
+} from '../types'
 import { normalizeCharacter, uid } from './character'
 import { CHAVES, readRaw, writeJson } from './store'
 
 const KEY = CHAVES.campanha
+
+export function viagemVazia(): Viagem {
+  return {
+    emCurso: false,
+    dia: 1,
+    local: '',
+    destino: '',
+    facesDado: 6,
+    tabelaEventos: [],
+    cronica: [],
+  }
+}
 
 export function campanhaVazia(): Campaign {
   return {
@@ -18,7 +41,30 @@ export function campanhaVazia(): Campaign {
     codex: [],
     handouts: [],
     reputacoes: [],
+    viagem: viagemVazia(),
   }
+}
+
+/** Campanhas salvas antes da viagem existir não têm o campo — daí o merge. */
+export function normalizarViagem(v: unknown): Viagem {
+  const base = viagemVazia()
+  if (!v || typeof v !== 'object') return base
+  const d = v as Partial<Viagem>
+  return {
+    ...base,
+    ...d,
+    facesDado: Number(d.facesDado) > 1 ? Number(d.facesDado) : base.facesDado,
+    tabelaEventos: Array.isArray(d.tabelaEventos) ? d.tabelaEventos : [],
+    cronica: Array.isArray(d.cronica) ? d.cronica : [],
+  }
+}
+
+export function novoEventoEstrada(face: number): EventoEstrada {
+  return { id: uid(), face, texto: '' }
+}
+
+export function novaEntradaCronica(dia: number, local: string, texto: string, soDm = false): EntradaCronica {
+  return { id: uid(), criadoEm: Date.now(), dia, local, texto, soDm }
 }
 
 export const TIPOS_LORE: { valor: LoreTipo; label: string; icone: string }[] = [
@@ -78,6 +124,7 @@ export function loadCampaign(): Campaign {
       codex: Array.isArray(data.codex) ? data.codex : [],
       handouts: Array.isArray(data.handouts) ? data.handouts : [],
       reputacoes: Array.isArray(data.reputacoes) ? data.reputacoes : [],
+      viagem: normalizarViagem(data.viagem),
     }
   } catch {
     return campanhaVazia()
@@ -140,5 +187,13 @@ export function projetarCampanha(c: Campaign): Campaign {
         descricao: v.conhecimento === 'desconhecido' || v.conhecimento === 'encontrado' ? '' : v.descricao,
       })),
     handouts: c.handouts.filter((h) => h.revelado),
+    // A crônica é do grupo, mas a tabela de eventos é prep: publicá-la
+    // entregaria o que ainda vai acontecer na estrada. As entradas marcadas
+    // como bastidor também ficam.
+    viagem: {
+      ...c.viagem,
+      tabelaEventos: [],
+      cronica: c.viagem.cronica.filter((e) => !e.soDm),
+    },
   }
 }

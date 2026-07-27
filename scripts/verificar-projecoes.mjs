@@ -125,6 +125,18 @@ const campanha = {
     { id: 'h2', titulo: 'SEGREDO-HANDOUT', texto: 'não revelado', imagemUrl: '', revelado: false },
   ],
   reputacoes: [],
+  viagem: {
+    emCurso: true, dia: 12, local: 'Vau do Glassrun', destino: 'O Portão', facesDado: 6,
+    // Prep do DM: é o que ainda vai acontecer. Nada disto pode sair.
+    tabelaEventos: [
+      { id: 'e1', face: 1, texto: 'SEGREDO-EVENTO-EMBOSCADA' },
+      { id: 'e2', face: 6, texto: 'SEGREDO-EVENTO-CARAVANA' },
+    ],
+    cronica: [
+      { id: 'k1', criadoEm: 1, dia: 10, local: 'Stonehall', texto: 'A estrada alagou.', soDm: false },
+      { id: 'k2', criadoEm: 2, dia: 11, local: 'Ironridge', texto: 'SEGREDO-BASTIDOR-GUIA-MENTIU', soDm: true },
+    ],
+  },
 }
 const pc = projetarCampanha(campanha)
 checar('party não é publicada', pc.party.length === 0)
@@ -138,10 +150,15 @@ checar('"completo" leva a descrição', pc.codex.find((v) => v.id === 'v1').desc
 checar('handout não revelado some', pc.handouts.length === 1)
 checar('sinopse e onde paramos continuam', pc.sinopse === 'sinopse pública' && pc.ondeParamos === 'resumo público')
 checar('sessões continuam', pc.sessoes.length === 1)
+checar('tabela de eventos da estrada não é publicada', pc.viagem.tabelaEventos.length === 0)
+checar('entrada de bastidor da crônica some', pc.viagem.cronica.length === 1)
+checar('entrada normal da crônica passa', pc.viagem.cronica[0].texto === 'A estrada alagou.')
+checar('dia e local da viagem continuam', pc.viagem.dia === 12 && pc.viagem.local === 'Vau do Glassrun')
 semVazamento('campanha', pc, [
   'FICHA-DO-GRUPO', 'SEGREDO-NPC', 'RASCUNHO-SECRETO', 'SEGREDO-RASCUNHO',
   'SEGREDO-CODEX-1', 'SEGREDO-CODEX-2', 'SEGREDO-VERBETE-OCULTO',
   'SEGREDO-DESCRICAO-NAO-ESTUDADA', 'SEGREDO-HANDOUT',
+  'SEGREDO-EVENTO-EMBOSCADA', 'SEGREDO-EVENTO-CARAVANA', 'SEGREDO-BASTIDOR-GUIA-MENTIU',
 ])
 
 // ---------------------------------------------------------------------------
