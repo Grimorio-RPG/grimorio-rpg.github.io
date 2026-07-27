@@ -6,11 +6,34 @@
 
 import type { AbilityKey, Character } from '../types'
 import { TRACOS_DE_CLASSE, type EfeitoTraco, type TracoClasse } from '../data/features'
+import { tracosDaSubclasse } from '../data/subclasses'
+import { TRACO_ANTECEDENTE, tracosDaEspecie } from '../data/species'
 
-/** Traços que o personagem já tem, do nível 1 até o atual. */
-export function tracosDoPersonagem(char: Character): TracoClasse[] {
-  const todos = TRACOS_DE_CLASSE[char.classe] ?? []
-  return todos.filter((t) => t.nivel <= char.nivel).sort((a, b) => a.nivel - b.nivel)
+/** De onde um traço veio — a ficha agrupa por isso. */
+export type Origem = 'classe' | 'subclasse' | 'especie' | 'antecedente'
+
+export interface TracoComOrigem extends TracoClasse {
+  origem: Origem
+}
+
+function ate(nivel: number, tracos: TracoClasse[], origem: Origem): TracoComOrigem[] {
+  return tracos.filter((t) => t.nivel <= nivel).map((t) => ({ ...t, origem }))
+}
+
+/**
+ * Tudo que o personagem já tem, de todas as fontes, até o nível atual.
+ *
+ * Espécie e antecedente entram pelo mesmo caminho da classe: os traços deles
+ * também têm nível (o sopro do Draconato cresce em 5, 11 e 17), então a mesma
+ * peneira serve para os quatro.
+ */
+export function tracosDoPersonagem(char: Character): TracoComOrigem[] {
+  return [
+    ...ate(char.nivel, TRACOS_DE_CLASSE[char.classe] ?? [], 'classe'),
+    ...ate(char.nivel, tracosDaSubclasse(char.subclasse), 'subclasse'),
+    ...ate(char.nivel, tracosDaEspecie(char.especie), 'especie'),
+    ...ate(char.nivel, TRACO_ANTECEDENTE(char.antecedente), 'antecedente'),
+  ].sort((a, b) => a.nivel - b.nivel)
 }
 
 function efeitos<T extends EfeitoTraco['tipo']>(
@@ -66,7 +89,8 @@ export function deslocamentoEfetivo(char: Character): number {
 export interface EscolhaPendente {
   nivel: number
   nome: string
-  oque: 'talento' | 'estiloDeLuta' | 'subclasse'
+  oque: 'talento' | 'estiloDeLuta' | 'subclasse' | 'manobra'
+  quantidade: number
 }
 
 /**
@@ -79,19 +103,50 @@ export interface EscolhaPendente {
 export function escolhasDoNivel(char: Character): EscolhaPendente[] {
   return tracosDoPersonagem(char)
     .filter((t) => t.efeito?.tipo === 'escolha')
-    .map((t) => ({
-      nivel: t.nivel,
-      nome: t.nome,
-      oque: (t.efeito as Extract<EfeitoTraco, { tipo: 'escolha' }>).oque,
-    }))
+    .map((t) => {
+      const e = t.efeito as Extract<EfeitoTraco, { tipo: 'escolha' }>
+      return { nivel: t.nivel, nome: t.nome, oque: e.oque, quantidade: e.quantidade }
+    })
 }
 
-/** Escolhas que ainda parecem não ter sido feitas. */
+/**
+ * O que este nível específico concede.
+ *
+ * Usado pelo modal de subida de nível, que antes só perguntava PV e subclasse —
+ * e por isso deixava passar batido justamente os níveis com escolha.
+ */
+export function tracosGanhosNoNivel(char: Character, nivel: number): TracoComOrigem[] {
+  return tracosDoPersonagem({ ...char, nivel }).filter((t) => t.nivel === nivel)
+}
+
+/** Quantas manobras o personagem já deveria conhecer. */
+export function manobrasDevidas(char: Character): number {
+  return escolhasDoNivel(char)
+    .filter((e) => e.oque === 'manobra')
+    .reduce((total, e) => total + e.quantidade, 0)
+}
+
+/**
+ * Escolhas que ainda parecem não ter sido feitas.
+ *
+ * Aumento de Atributo fica de fora de propósito: não há como distinguir um
+ * atributo subido de um digitado, e um alerta que não some é pior que nenhum.
+ */
 export function escolhasPendentes(char: Character): EscolhaPendente[] {
+  const manobrasFeitas = char.manobras?.length ?? 0
+  const devidas = manobrasDevidas(char)
+
   return escolhasDoNivel(char).filter((e) => {
     if (e.oque === 'subclasse') return !char.subclasse
     if (e.oque === 'estiloDeLuta') return !char.talentos.some((t) => ESTILOS.includes(t))
-    return false // talento/ASI: não dá para saber se a pessoa subiu atributo
+    // Uma linha só para as manobras, na maior: senão o nível 3 e o 7 apareceriam
+    // como pendências separadas mesmo já tendo escolhido tudo.
+    if (e.oque === 'manobra') {
+      return manobrasFeitas < devidas && e.nivel === Math.max(
+        ...escolhasDoNivel(char).filter((x) => x.oque === 'manobra').map((x) => x.nivel),
+      )
+    }
+    return false
   })
 }
 

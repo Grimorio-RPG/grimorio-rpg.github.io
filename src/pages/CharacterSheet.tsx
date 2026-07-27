@@ -122,7 +122,7 @@ export default function CharacterSheet() {
             title={`Traços de ${char.classe || 'classe'}`}
             hint="O que a sua classe já deu por nível, e o que ainda falta escolher."
           >
-            <TracosDeClasse char={char} />
+            <TracosDeClasse char={char} update={update} />
           </SectionCard>
 
           <div className="grid gap-6 md:grid-cols-2">

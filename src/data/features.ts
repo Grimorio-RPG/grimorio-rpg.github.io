@@ -19,7 +19,7 @@ export type EfeitoTraco =
   /** Dados de Ataque Furtivo (d6). */
   | { tipo: 'ataqueFurtivo'; dados: number }
   /** Nível em que a pessoa precisa escolher algo — é o que "não aparecia". */
-  | { tipo: 'escolha'; oque: 'talento' | 'estiloDeLuta' | 'subclasse'; quantidade: number }
+  | { tipo: 'escolha'; oque: 'talento' | 'estiloDeLuta' | 'subclasse' | 'manobra'; quantidade: number }
 
 export interface TracoClasse {
   nome: string

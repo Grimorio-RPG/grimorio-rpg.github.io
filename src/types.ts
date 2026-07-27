@@ -102,6 +102,8 @@ export interface Character {
   armaduraEquipada: string // nome da armadura do catálogo ('' = sem armadura)
   escudoEquipado: boolean
   talentos: string[] // nomes dos talentos escolhidos
+  /** Manobras escolhidas (Mestre de Batalha). Opcional: fichas antigas não têm. */
+  manobras?: string[]
   iniciativaBonus: number
   deslocamento: number
   pvMax: number

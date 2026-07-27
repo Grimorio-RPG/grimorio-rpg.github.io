@@ -3,6 +3,7 @@ import type { Character } from '../types'
 import { CLASSES, rotuloClasse } from '../data/rules'
 import { espacosPorNivel, marcosDoNivel, mediaDoDado, temEspacos } from '../data/progression'
 import { abilityMod, classInfo, proficiencyBonus } from '../lib/calc'
+import { tracosGanhosNoNivel } from '../lib/features'
 import { rolar } from '../lib/dice'
 import { addRoll } from '../lib/rollLog'
 import { Modal } from './layout-ui'
@@ -130,6 +131,14 @@ export function LevelUpModal({
   const precisaSubclasse = novoNivel === 3 && !char.subclasse
   const marcos = useMemo(() => marcosDoNivel(char.classe, novoNivel), [char.classe, novoNivel])
 
+  // A subclasse escolhida agora já conta: quem vira Mestre de Batalha aqui vê
+  // as Manobras aparecerem na lista antes de confirmar.
+  const tracosNovos = useMemo(
+    () => tracosGanhosNoNivel({ ...char, subclasse: subclasse || char.subclasse }, novoNivel),
+    [char, subclasse, novoNivel],
+  )
+  const temEscolha = tracosNovos.some((t) => t.efeito?.tipo === 'escolha')
+
   const ganhoBase = metodo === 'media' ? media : (rolado ?? 0)
   const ganhoPv = ganhoBase > 0 ? Math.max(1, ganhoBase + conMod) : 0
 
@@ -235,24 +244,47 @@ export function LevelUpModal({
           </div>
         )}
 
-        {/* Marcos */}
-        {marcos.length > 0 && (
+        {/* O que este nível dá — vem do catálogo de traços, não de texto solto */}
+        {(tracosNovos.length > 0 || marcos.length > 0) && (
           <div className="rounded-xl border border-white/10 bg-ink-900/40 p-3">
-            <h4 className="mb-2 panel-title">O que muda neste nível</h4>
+            <h4 className="mb-2 panel-title">O que você ganha neste nível</h4>
             <ul className="space-y-1.5">
-              {marcos.map((m) => (
-                <li key={m} className="flex gap-2 text-sm text-parchment-100">
-                  <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-dragon-400" />
-                  {m}
+              {tracosNovos.map((t) => (
+                <li key={`${t.origem}-${t.nome}`} className="flex gap-2 text-sm text-parchment-100">
+                  <span
+                    className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${
+                      t.efeito?.tipo === 'escolha' ? 'bg-amber-400' : 'bg-dragon-400'
+                    }`}
+                  />
+                  <span>
+                    <b>{t.nome}</b>
+                    {t.efeito?.tipo === 'escolha' && (
+                      <span className="ml-1 text-xs text-amber-300">— precisa escolher</span>
+                    )}
+                    <span className="block text-xs text-parchment-200/60">{t.resumo}</span>
+                  </span>
                 </li>
               ))}
+              {/* Marcos antigos que o catálogo ainda não cobre */}
+              {marcos
+                .filter((m) => !tracosNovos.some((t) => m.includes(t.nome)))
+                .map((m) => (
+                  <li key={m} className="flex gap-2 text-sm text-parchment-100">
+                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-dragon-400" />
+                    {m}
+                  </li>
+                ))}
             </ul>
+            {temEscolha && (
+              <p className="mt-2 text-xs text-amber-300/80">
+                As escolhas em amarelo ficam marcadas na ficha até você fazê-las.
+              </p>
+            )}
           </div>
         )}
 
         <p className="text-xs text-parchment-200/50">
           Bônus de proficiência: +{proficiencyBonus(char.nivel)} → <b className="text-parchment-100">+{proficiencyBonus(novoNivel)}</b>.
-          Novas magias e habilidades da classe você adiciona depois, editando a ficha.
         </p>
 
         <div className="flex justify-end gap-2">

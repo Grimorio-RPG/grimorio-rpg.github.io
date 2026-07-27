@@ -23,8 +23,16 @@ execSync(
 )
 
 const { armorClass, armorClassDetalhe } = await import(pathToFileURL(saida).href)
-const { ataquesPorAcao, dadosDeAtaqueFurtivo, deslocamentoEfetivo, escolhasDoNivel, tracosDoPersonagem } =
-  await import(pathToFileURL(saidaFeatures).href)
+const {
+  ataquesPorAcao,
+  dadosDeAtaqueFurtivo,
+  deslocamentoEfetivo,
+  escolhasDoNivel,
+  escolhasPendentes,
+  manobrasDevidas,
+  tracosDoPersonagem,
+  tracosGanhosNoNivel,
+} = await import(pathToFileURL(saidaFeatures).href)
 
 let falhas = 0
 let testes = 0
@@ -40,6 +48,8 @@ function ficha(p = {}) {
   return {
     classe: '',
     subclasse: '',
+    especie: '',
+    antecedente: '',
     nivel: 1,
     deslocamento: 9,
     atributos: { for: 10, des: 10, con: 10, int: 10, sab: 10, car: 10 },
@@ -171,6 +181,83 @@ checar(
 checar(
   'nada acima do nível atual',
   tracosDoPersonagem(ficha({ classe: 'Guerreiro', nivel: 4 })).every((t) => t.nivel <= 4),
+  true,
+)
+
+// ---------------------------------------------------------------------------
+console.log('\nSubclasse, espécie e escolhas')
+
+const mestreDeBatalha = ficha({
+  classe: 'Guerreiro',
+  subclasse: 'Mestre de Batalha (Battle Master)',
+  nivel: 3,
+})
+
+// O caso literal do relato: "pra minha subclasse tive que fazer manualmente".
+checar(
+  'Mestre de Batalha 3 tem as Manobras na lista',
+  tracosDoPersonagem(mestreDeBatalha).some((t) => t.nome === 'Manobras'),
+  true,
+)
+checar('Mestre de Batalha 3 deve 4 manobras', manobrasDevidas(mestreDeBatalha), 4)
+checar('Mestre de Batalha 7 deve 6', manobrasDevidas({ ...mestreDeBatalha, nivel: 7 }), 6)
+checar('Mestre de Batalha 15 deve 10', manobrasDevidas({ ...mestreDeBatalha, nivel: 15 }), 10)
+checar('Campeão não deve manobra nenhuma', manobrasDevidas({ ...mestreDeBatalha, subclasse: 'Campeão (Champion)' }), 0)
+
+// Sem manobras escolhidas, a ficha cobra; com as quatro, para de cobrar.
+checar(
+  'cobra as manobras que faltam',
+  escolhasPendentes(mestreDeBatalha).some((e) => e.oque === 'manobra'),
+  true,
+)
+checar(
+  'para de cobrar quando estão completas',
+  escolhasPendentes({ ...mestreDeBatalha, manobras: ['Aparar', 'Resposta', 'Ataque Rasteira', 'Ataque Preciso'] })
+    .some((e) => e.oque === 'manobra'),
+  false,
+)
+
+// Traço de subclasse não pode aparecer para quem não a escolheu.
+checar(
+  'sem subclasse, nenhum traço de subclasse',
+  tracosDoPersonagem(ficha({ classe: 'Guerreiro', nivel: 10 })).some((t) => t.origem === 'subclasse'),
+  false,
+)
+checar(
+  'subclasse não catalogada não quebra a ficha',
+  tracosDoPersonagem({ ...mestreDeBatalha, subclasse: 'Inventada (Made Up)' }).length > 0,
+  true,
+)
+
+// Espécie entra pelo mesmo caminho e respeita o nível.
+const draconato = ficha({ classe: 'Guerreiro', especie: 'Draconato', nivel: 1 })
+checar(
+  'Draconato 1 tem sopro',
+  tracosDoPersonagem(draconato).some((t) => t.nome === 'Sopro'),
+  true,
+)
+checar(
+  'Draconato 1 ainda não tem Voo Dracônico',
+  tracosDoPersonagem(draconato).some((t) => t.nome === 'Voo Dracônico'),
+  false,
+)
+checar(
+  'Draconato 5 já tem Voo Dracônico',
+  tracosDoPersonagem({ ...draconato, nivel: 5 }).some((t) => t.nome === 'Voo Dracônico'),
+  true,
+)
+checar(
+  'origem do traço é marcada',
+  tracosDoPersonagem(draconato).find((t) => t.nome === 'Sopro').origem,
+  'especie',
+)
+
+// O que o modal de level-up mostra: só o nível alvo, nada antes nem depois.
+const ganhos = tracosGanhosNoNivel(mestreDeBatalha, 3)
+checar('level-up mostra só o nível alvo', ganhos.every((t) => t.nivel === 3), true)
+checar(
+  'level-up marca a escolha de manobras',
+  ganhos.some((t) => t.efeito?.tipo === 'escolha' && t.efeito.oque === 'manobra'),
   true,
 )
 
