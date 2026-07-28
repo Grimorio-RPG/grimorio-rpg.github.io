@@ -4,6 +4,10 @@ import { rotuloClasse } from '../data/rules'
 import { espacosPorNivel, marcosDoNivel, mediaDoDado, temEspacos } from '../data/progression'
 import { abilityMod, classInfo, proficiencyBonus } from '../lib/calc'
 import { tracosGanhosNoNivel } from '../lib/features'
+import { registrarGanho, reverterNivel } from '../lib/levelup'
+import { ABILITIES } from '../data/rules'
+import { TALENTOS } from '../data/feats'
+import type { AbilityKey } from '../types'
 import { EscolhaDeSubclasse } from './subclasse-ui'
 import { rolar } from '../lib/dice'
 import { addRoll } from '../lib/rollLog'
@@ -127,6 +131,12 @@ export function LevelUpModal({
   const [metodo, setMetodo] = useState<'media' | 'rolar'>('media')
   const [rolado, setRolado] = useState<number | null>(null)
   const [subclasse, setSubclasse] = useState(char.subclasse)
+  // Aumento de Atributo resolvido aqui dentro: anunciar sem oferecer é meio
+  // caminho do defeito que o jogador reportou no estilo de luta.
+  const [modoAsi, setModoAsi] = useState<'atributos' | 'talento'>('atributos')
+  const [atrA, setAtrA] = useState<AbilityKey>('for')
+  const [atrB, setAtrB] = useState<AbilityKey | ''>('')
+  const [talento, setTalento] = useState('')
 
   const precisaSubclasse = novoNivel === 3 && !char.subclasse
   const marcos = useMemo(() => marcosDoNivel(char.classe, novoNivel), [char.classe, novoNivel])
@@ -138,6 +148,7 @@ export function LevelUpModal({
     [char, subclasse, novoNivel],
   )
   const temEscolha = tracosNovos.some((t) => t.efeito?.tipo === 'escolha')
+  const temAsi = tracosNovos.some((t) => t.efeito?.tipo === 'escolha' && t.efeito.oque === 'talento')
 
   const ganhoBase = metodo === 'media' ? media : (rolado ?? 0)
   const ganhoPv = ganhoBase > 0 ? Math.max(1, ganhoBase + conMod) : 0
@@ -166,21 +177,14 @@ export function LevelUpModal({
   function descerDeNivel() {
     const anterior = char.nivel - 1
     if (anterior < 1) return
-    const perda = Math.max(1, media + conMod)
-    if (
-      !confirm(
-        `Descer para o nível ${anterior}?
+    const { pvGanho: perda, exata, historico } = reverterNivel(char, faces, conMod)
+    const explicacao = exata
+      ? `Vou tirar exatamente os ${perda} PV que este nível deu.`
+      : `Esta subida é anterior ao registro de histórico, então vou tirar ${perda} PV pela média ` +
+        `do d${faces} mais CON — confira o máximo depois.`
+    if (!confirm(`Descer para o nível ${anterior}?
 
-` +
-          `Vou tirar ${perda} PV (a média do d${faces} mais CON) e devolver os espaços de magia ` +
-          `do nível ${anterior}.
-
-Se você rolou os PV ao subir, o valor pode não bater exatamente — ` +
-          `confira o máximo depois.`,
-      )
-    ) {
-      return
-    }
+${explicacao}`)) return
     const espacos = espacosPorNivel(char.classe, anterior).map((s, i) => ({
       total: s.total,
       usados: Math.min(char.espacosMagia[i]?.usados ?? 0, s.total),
@@ -193,6 +197,7 @@ Se você rolou os PV ao subir, o valor pode não bater exatamente — ` +
       dadosDeVida: `${anterior}d${faces}`,
       dadosDeVidaUsados: Math.min(char.dadosDeVidaUsados ?? 0, anterior),
       espacosMagia: temEspacos(char.classe) ? espacos : char.espacosMagia,
+      historicoNiveis: historico,
     })
     onClose()
   }
@@ -204,14 +209,38 @@ Se você rolou os PV ao subir, o valor pode não bater exatamente — ` +
       total: s.total,
       usados: Math.min(char.espacosMagia[i]?.usados ?? 0, s.total),
     }))
-    update({
+    const patch: Partial<Character> = {
       nivel: novoNivel,
       pvMax: char.pvMax + ganhoPv,
       pvAtual: char.pvAtual + ganhoPv,
       dadosDeVida: `${novoNivel}d${faces}`,
       subclasse: subclasse || char.subclasse,
       espacosMagia: temEspacos(char.classe) ? espacos : char.espacosMagia,
-    })
+      // Guardar o que este nível deu é o que torna a descida exata depois.
+      historicoNiveis: registrarGanho(char.historicoNiveis, {
+        nivel: novoNivel,
+        pvGanho: ganhoPv,
+        rolado: metodo === 'rolar',
+      }),
+    }
+
+    if (temAsi) {
+      if (modoAsi === 'talento' && talento) {
+        patch.talentos = [...char.talentos, talento]
+      } else if (modoAsi === 'atributos') {
+        const atributos = { ...char.atributos }
+        // +2 num atributo, ou +1 em dois. Teto de 20, como manda a regra.
+        if (atrB) {
+          atributos[atrA] = Math.min(20, atributos[atrA] + 1)
+          atributos[atrB] = Math.min(20, atributos[atrB] + 1)
+        } else {
+          atributos[atrA] = Math.min(20, atributos[atrA] + 2)
+        }
+        patch.atributos = atributos
+      }
+    }
+
+    update(patch)
     onClose()
   }
 
@@ -269,6 +298,83 @@ Se você rolou os PV ao subir, o valor pode não bater exatamente — ` +
               onEscolher={setSubclasse}
               nivel={novoNivel}
             />
+          </div>
+        )}
+
+        {/* Aumento de Atributo — resolvido aqui, não só anunciado */}
+        {temAsi && (
+          <div className="rounded-xl border border-amber-400/40 bg-amber-500/10 p-3">
+            <h4 className="mb-1 panel-title">Aumento de Atributo</h4>
+            <p className="mb-2.5 text-xs text-parchment-200/70">
+              +2 num atributo, +1 em dois, ou um talento no lugar. O teto é 20.
+            </p>
+
+            <div className="mb-3 flex gap-1 rounded-lg border border-white/10 bg-white/5 p-1">
+              {(['atributos', 'talento'] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setModoAsi(m)}
+                  className={`flex-1 rounded px-2 py-1 text-xs transition ${
+                    modoAsi === m ? 'bg-arcane-500/25 text-parchment-50' : 'text-parchment-200/70'
+                  }`}
+                >
+                  {m === 'atributos' ? 'Subir atributos' : 'Pegar um talento'}
+                </button>
+              ))}
+            </div>
+
+            {modoAsi === 'atributos' ? (
+              <div className="grid gap-2 sm:grid-cols-2">
+                <label className="text-xs text-parchment-200/70">
+                  {atrB ? 'Primeiro (+1)' : 'Atributo (+2)'}
+                  <select
+                    className="stat-input mt-1 py-1.5 text-sm"
+                    value={atrA}
+                    onChange={(e) => setAtrA(e.target.value as AbilityKey)}
+                  >
+                    {ABILITIES.map((a) => (
+                      <option key={a.key} value={a.key}>
+                        {a.nome} ({char.atributos[a.key]} → {Math.min(20, char.atributos[a.key] + (atrB ? 1 : 2))})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="text-xs text-parchment-200/70">
+                  Segundo (+1) — opcional
+                  <select
+                    className="stat-input mt-1 py-1.5 text-sm"
+                    value={atrB}
+                    onChange={(e) => setAtrB(e.target.value as AbilityKey | '')}
+                  >
+                    <option value="">Nenhum (dar +2 no primeiro)</option>
+                    {ABILITIES.filter((a) => a.key !== atrA).map((a) => (
+                      <option key={a.key} value={a.key}>
+                        {a.nome} ({char.atributos[a.key]} → {Math.min(20, char.atributos[a.key] + 1)})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            ) : (
+              <select
+                className="stat-input py-1.5 text-sm"
+                value={talento}
+                onChange={(e) => setTalento(e.target.value)}
+              >
+                <option value="">Selecione um talento…</option>
+                {TALENTOS.filter((t) => t.categoria === 'Geral' && !char.talentos.includes(t.nome)).map((t) => (
+                  <option key={t.nome} value={t.nome}>
+                    {t.nome}{t.requisito ? ` — precisa de ${t.requisito}` : ''}
+                  </option>
+                ))}
+              </select>
+            )}
+            {modoAsi === 'talento' && talento && (
+              <p className="mt-2 text-xs text-parchment-200/60">
+                {TALENTOS.find((t) => t.nome === talento)?.resumo}
+              </p>
+            )}
           </div>
         )}
 
@@ -348,7 +454,11 @@ Se você rolou os PV ao subir, o valor pode não bater exatamente — ` +
           <button className="btn-ghost" onClick={onClose}>Cancelar</button>
           <button
             className="btn-primary"
-            disabled={ganhoPv <= 0 || (precisaSubclasse && !subclasse)}
+            disabled={
+              ganhoPv <= 0 ||
+              (precisaSubclasse && !subclasse) ||
+              (temAsi && modoAsi === 'talento' && !talento)
+            }
             onClick={confirmar}
           >
             ✓ Subir para o nível {novoNivel}

@@ -74,6 +74,15 @@ export interface TestesMorte {
   falhas: number // 0-3
 }
 
+/** O que uma subida de nível concedeu, para poder ser desfeita. */
+export interface GanhoDeNivel {
+  /** Nível alcançado nesta subida. */
+  nivel: number
+  pvGanho: number
+  /** Rolado ou média — só para a interface explicar o que aconteceu. */
+  rolado: boolean
+}
+
 export interface Character {
   id: string
   updatedAt: number
@@ -104,6 +113,14 @@ export interface Character {
   talentos: string[] // nomes dos talentos escolhidos
   /** Manobras escolhidas (Mestre de Batalha). Opcional: fichas antigas não têm. */
   manobras?: string[]
+  /**
+   * O que cada subida de nível deu.
+   *
+   * Existe para descer de nível ser exato em vez de estimado: sem guardar o PV
+   * ganho, a única reversão possível é pela média do dado, que erra sempre que
+   * a pessoa rolou. Opcional — fichas anteriores a isto não têm histórico.
+   */
+  historicoNiveis?: GanhoDeNivel[]
   iniciativaBonus: number
   deslocamento: number
   pvMax: number

@@ -265,6 +265,48 @@ checar(
   true,
 )
 
+// ---------------------------------------------------------------------------
+console.log('')
+console.log('Subir e descer de nível')
+
+const saidaLevel = join(dir, 'levelup.js')
+execSync(`npx esbuild src/lib/levelup.ts --bundle --outfile=${saidaLevel} --format=esm --log-level=error`)
+const { registrarGanho, reverterNivel, mediaDoDadoDeVida } = await import(pathToFileURL(saidaLevel).href)
+
+checar('média do d10 é 6', mediaDoDadoDeVida(10), 6)
+checar('média do d6 é 4', mediaDoDadoDeVida(6), 4)
+
+// Uma subida rolada alta: 9 no d10 + 3 de CON = 12 PV. A média daria 9.
+// É exatamente aqui que a estimativa errava.
+const comHistorico = ficha({
+  classe: 'Guerreiro',
+  nivel: 5,
+  historicoNiveis: [
+    { nivel: 4, pvGanho: 7, rolado: false },
+    { nivel: 5, pvGanho: 12, rolado: true },
+  ],
+})
+const rev = reverterNivel(comHistorico, 10, 3)
+checar('devolve o PV rolado, não a média', rev.pvGanho, 12)
+checar('a reversão se diz exata', rev.exata, true)
+checar('o nível revertido sai do histórico', rev.historico.length, 1)
+checar('o histórico do nível anterior fica', rev.historico[0].nivel, 4)
+
+// Ficha antiga, sem histórico: cai na média e admite ser estimativa.
+const semHistorico = ficha({ classe: 'Guerreiro', nivel: 5 })
+const rev2 = reverterNivel(semHistorico, 10, 3)
+checar('sem registro, usa a média', rev2.pvGanho, 9)
+checar('e avisa que não é exata', rev2.exata, false)
+
+// Subir, descer e subir de novo não pode deixar entrada morta no histórico.
+const h1 = registrarGanho([], { nivel: 5, pvGanho: 12, rolado: true })
+const h2 = registrarGanho(h1, { nivel: 5, pvGanho: 7, rolado: false })
+checar('resubir substitui o registro do nível', h2.length, 1)
+checar('e guarda o valor novo', h2[0].pvGanho, 7)
+
+// Nunca devolve menos de 1 PV, mesmo com CON negativa.
+checar('piso de 1 PV', reverterNivel(ficha({ nivel: 3 }), 6, -5).pvGanho, 1)
+
 console.log('')
 if (falhas > 0) {
   console.error(`✗ ${falhas} de ${testes} verificações de regra falharam\n`)
