@@ -10,6 +10,9 @@ import {
   removerFichaDaConta,
   salvarFichaNaConta,
 } from '../lib/sync/fichas'
+import { assinarFichasDaMesa, listarFichasDaMesa } from '../lib/sync/personagens'
+import { useMesa } from './useSync'
+import { saveCharacters } from '../lib/storage'
 
 /**
  * Hook central para a lista de fichas.
@@ -27,6 +30,38 @@ export function useCharacters() {
     // sem isto a tela continuaria mostrando a lista antiga.
     return assinarFichasDaConta(() => setCharacters(loadCharacters()))
   }, [])
+
+  const { mesa } = useMesa()
+
+  /**
+   * O DM ajustou a minha ficha no combate.
+   *
+   * A ficha enviada para a mesa é a mesma que está aqui, e agora o DM pode
+   * mexer no PV dela durante o encontro. Sem escutar isso, o jogador veria a
+   * própria vida cheia enquanto o resto da mesa a via pela metade.
+   *
+   * Vence o `updatedAt` maior, então uma edição sua feita depois não é
+   * atropelada pelo eco da alteração do DM.
+   */
+  useEffect(() => {
+    if (!mesa) return
+    const aplicar = () =>
+      void listarFichasDaMesa(mesa.id).then((doGrupo) => {
+        const locais = loadCharacters()
+        let mudou = false
+        const juntas = locais.map((local) => {
+          const remota = doGrupo.find((f) => f.ficha.id === local.id)?.ficha
+          if (!remota || (remota.updatedAt ?? 0) <= (local.updatedAt ?? 0)) return local
+          mudou = true
+          return remota
+        })
+        if (!mudou) return
+        saveCharacters(juntas)
+        setCharacters(juntas)
+      })
+    aplicar()
+    return assinarFichasDaMesa(mesa.id, aplicar)
+  }, [mesa?.id])
 
   const save = useCallback((char: Character) => {
     const lista = upsertCharacter(char)

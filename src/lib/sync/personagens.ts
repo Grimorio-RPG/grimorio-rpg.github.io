@@ -128,3 +128,45 @@ export function assinarFichasDaMesa(mesaId: string, aoMudar: () => void): () => 
     })()
   }
 }
+
+/**
+ * O DM ajusta o estado de combate de uma ficha do grupo.
+ *
+ * Escreve apenas PV e condições, mesclando sobre o que já está lá — o DM não
+ * reescreve a ficha de ninguém. O resto (atributos, magias, história) continua
+ * sendo do jogador, mesmo agora que a política do banco permitiria mais.
+ *
+ * Ler-mesclar-gravar tem uma corrida conhecida: se o dono salvar entre a leitura
+ * e a escrita, aquela alteração se perde. Aceitável aqui porque a janela é de
+ * milissegundos e o campo em disputa é o PV, que o DM está justamente ajustando
+ * na frente de todo mundo.
+ */
+export async function ajustarFichaDaMesa(
+  mesaId: string,
+  fichaId: string,
+  estado: { pvAtual?: number; condicoes?: string[] },
+): Promise<boolean> {
+  const sb = await getSupabase()
+  if (!sb) return false
+
+  const { data, error } = await sb
+    .from('personagens')
+    .select('id, dados')
+    .eq('mesa_id', mesaId)
+    .eq('dados->>id', fichaId)
+    .maybeSingle()
+
+  if (error || !data?.id) return false
+
+  const dados = { ...(data.dados as Character), ...estado, updatedAt: Date.now() }
+  const { error: erroUpdate } = await sb
+    .from('personagens')
+    .update({ dados, atualizado_em: new Date().toISOString() })
+    .eq('id', data.id)
+
+  if (erroUpdate) {
+    console.warn('[grimório] não consegui ajustar a ficha da mesa:', erroUpdate.message)
+    return false
+  }
+  return true
+}

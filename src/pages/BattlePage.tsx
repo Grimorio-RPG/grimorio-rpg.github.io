@@ -14,7 +14,7 @@ import { PartyBar } from '../components/party-bar'
 import { useCharacters } from '../hooks/useCharacters'
 import { loadCharacters } from '../lib/storage'
 import type { FichaDaMesa } from '../lib/sync/personagens'
-import { assinarFichasDaMesa, listarFichasDaMesa } from '../lib/sync/personagens'
+import { ajustarFichaDaMesa, assinarFichasDaMesa, listarFichasDaMesa } from '../lib/sync/personagens'
 import { CONDICOES } from '../data/rules'
 import { PageHeader, ViewToggle } from '../components/layout-ui'
 import { rolarComModo } from '../components/dice-ui'
@@ -116,10 +116,27 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
     const alvo = battle.combatentes.find((c) => c.id === id)
     update({ combatentes: battle.combatentes.map((c) => (c.id === id ? { ...c, ...p } : c)) })
 
-    if (alvo?.origem !== 'aliado' || p.pvAtual == null || !alvo.refId) return
+    if (alvo?.origem !== 'aliado' || !alvo.refId) return
+    if (p.pvAtual == null && p.condicoes == null) return
+
     const ficha = loadCharacters().find((f) => f.id === alvo.refId)
-    if (!ficha || ficha.pvAtual === p.pvAtual) return
-    salvarFicha({ ...ficha, pvAtual: p.pvAtual })
+    if (ficha) {
+      // Ficha deste aparelho: grava direto.
+      salvarFicha({
+        ...ficha,
+        ...(p.pvAtual != null ? { pvAtual: p.pvAtual } : {}),
+        ...(p.condicoes != null ? { condicoes: p.condicoes } : {}),
+      })
+      return
+    }
+
+    // Ficha de um jogador: o DM ajusta pelo banco, e o aparelho dele recebe.
+    if (souDm && mesa) {
+      void ajustarFichaDaMesa(mesa.id, alvo.refId, {
+        ...(p.pvAtual != null ? { pvAtual: p.pvAtual } : {}),
+        ...(p.condicoes != null ? { condicoes: p.condicoes } : {}),
+      })
+    }
   }
   function removerC(id: string) {
     update({ combatentes: battle.combatentes.filter((c) => c.id !== id) })

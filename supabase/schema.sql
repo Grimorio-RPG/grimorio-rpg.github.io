@@ -218,6 +218,22 @@ drop policy if exists "dono altera personagem" on public.personagens;
 create policy "dono altera personagem" on public.personagens
   for update to authenticated using (dono_id = auth.uid()) with check (dono_id = auth.uid());
 
+-- O DM ajusta a ficha de quem está na mesa dele.
+--
+-- Sem isto o controle de combate fica dividido: o DM aplica dano no encontro e
+-- a ficha do jogador continua cheia, e cada um passa a sessão com um número
+-- diferente na frente.
+--
+-- O limite que importa está no `mesa_id is not null`: alcança só as fichas
+-- ENVIADAS para a mesa. A cópia privada da conta do jogador (mesa_id nulo)
+-- continua fora do alcance de qualquer um que não seja o dono — enviar a ficha
+-- é o consentimento, e ele continua reversível.
+drop policy if exists "dm ajusta ficha da mesa" on public.personagens;
+create policy "dm ajusta ficha da mesa" on public.personagens
+  for update to authenticated
+  using (mesa_id is not null and public.eh_dm(mesa_id))
+  with check (mesa_id is not null and public.eh_dm(mesa_id));
+
 drop policy if exists "dono apaga personagem" on public.personagens;
 create policy "dono apaga personagem" on public.personagens
   for delete to authenticated using (dono_id = auth.uid());
