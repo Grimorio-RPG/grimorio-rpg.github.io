@@ -65,3 +65,83 @@
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 999px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+
+/* ---------------------------------------------------------------------------
+ * Impressão / PDF
+ *
+ * O "Salvar como PDF" do navegador é o que gera a ficha: sai com texto real,
+ * selecionável e pesquisável, e sem uma biblioteca de PDF nova no pacote. Uma
+ * biblioteca redesenharia a ficha à mão e viveria desatualizada em relação à
+ * tela.
+ *
+ * A ficha do app é escura; papel é branco. Aqui ela é invertida para não gastar
+ * meio cartucho de tinta por página.
+ * ------------------------------------------------------------------------- */
+@media print {
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+
+  /* Some tudo que não é a ficha: navegação, bandeja de dados, botões. */
+  aside,
+  header.sticky,
+  .nao-imprimir {
+    display: none !important;
+  }
+
+  html,
+  body,
+  #root {
+    background: #fff !important;
+    color: #111 !important;
+  }
+
+  main {
+    max-width: none !important;
+    padding: 0 !important;
+  }
+
+  /* Cartões viram blocos com borda fina, e não quebram no meio da página. */
+  .card,
+  section.card {
+    background: #fff !important;
+    border: 1px solid #bbb !important;
+    box-shadow: none !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+    margin-bottom: 8px;
+  }
+
+  .chip {
+    border-color: #bbb !important;
+    background: #f4f4f4 !important;
+    color: #111 !important;
+  }
+
+  h1, h2, h3, h4, p, span, td, th, li, div, b, strong {
+    color: #111 !important;
+  }
+
+  .panel-title {
+    color: #555 !important;
+  }
+
+  /* Campos de formulário viram texto impresso. */
+  input,
+  select,
+  textarea,
+  .stat-input {
+    background: #fff !important;
+    color: #111 !important;
+    border-color: #ccc !important;
+  }
+
+  a {
+    text-decoration: none !important;
+  }
+
+  img {
+    filter: none !important;
+  }
+}

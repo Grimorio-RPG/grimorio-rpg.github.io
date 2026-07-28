@@ -141,7 +141,7 @@ export function DiceTray() {
       {flash && !aberto && (
         <button
           onClick={() => setAberto(true)}
-          className="gv-fade fixed bottom-20 right-4 z-40 max-w-[80vw] rounded-xl border border-white/10 bg-ink-800/95 px-3 py-2 text-left shadow-xl backdrop-blur sm:bottom-24 sm:right-6"
+          className="nao-imprimir gv-fade fixed bottom-20 right-4 z-40 max-w-[80vw] rounded-xl border border-white/10 bg-ink-800/95 px-3 py-2 text-left shadow-xl backdrop-blur sm:bottom-24 sm:right-6"
         >
           {flash.autor && (
             <p className="mb-0.5 text-[10px] uppercase tracking-wide text-parchment-200/45">
@@ -156,7 +156,7 @@ export function DiceTray() {
       <button
         onClick={() => setAberto((v) => !v)}
         aria-label="Rolar dados"
-        className="fixed bottom-4 right-4 z-40 grid h-14 w-14 place-items-center rounded-full text-2xl shadow-xl transition active:scale-95 sm:bottom-6 sm:right-6"
+        className="nao-imprimir fixed bottom-4 right-4 z-40 grid h-14 w-14 place-items-center rounded-full text-2xl shadow-xl transition active:scale-95 sm:bottom-6 sm:right-6"
         style={{
           backgroundImage: 'linear-gradient(180deg, #b23c35, #8f2a24)',
           boxShadow: '0 1px 0 rgba(255,255,255,.15) inset, 0 8px 22px -8px rgba(163,49,43,.9)',
@@ -167,7 +167,7 @@ export function DiceTray() {
 
       {/* Painel */}
       {aberto && (
-        <div className="fixed inset-0 z-40" onClick={() => setAberto(false)}>
+        <div className="nao-imprimir fixed inset-0 z-40" onClick={() => setAberto(false)}>
           <div
             className="gv-fade absolute bottom-20 right-2 max-h-[75vh] w-[min(22rem,92vw)] overflow-hidden rounded-2xl border border-white/10 bg-ink-800/95 shadow-2xl backdrop-blur sm:bottom-24 sm:right-6"
             onClick={(e) => e.stopPropagation()}

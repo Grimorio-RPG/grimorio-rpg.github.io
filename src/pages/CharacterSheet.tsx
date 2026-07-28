@@ -33,6 +33,8 @@ import {
 import { loadCharacters } from '../lib/storage'
 import { uid } from '../lib/character'
 import { imageToDataUrl } from '../lib/bestiary'
+import { EscolhaDeSubclasse } from '../components/subclasse-ui'
+import { Modal } from '../components/layout-ui'
 import { useCharacters } from '../hooks/useCharacters'
 import CharacterSheetView from '../components/CharacterSheetView'
 import {
@@ -155,8 +157,21 @@ export default function CharacterSheet() {
 
 // ---------------------------------------------------------------------------
 function TopBar({ char, editando, onToggleEdit, onBack, onExport }: { char: Character; editando: boolean; onToggleEdit: () => void; onBack: () => void; onExport: () => void }) {
+  /**
+   * PDF pela impressão do navegador.
+   *
+   * Sai com texto real — selecionável e pesquisável — e sem uma biblioteca de
+   * PDF no pacote, que redesenharia a ficha à mão e viveria desatualizada em
+   * relação à tela. Sair da edição antes: campos de formulário imprimem pior
+   * que o texto da visão de leitura.
+   */
+  function imprimir() {
+    if (editando) onToggleEdit()
+    setTimeout(() => window.print(), 120)
+  }
+
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3">
+    <div className="nao-imprimir flex flex-wrap items-center justify-between gap-2 sm:gap-3">
       <button className="btn-ghost px-3 py-1.5 text-xs sm:px-4 sm:py-2 sm:text-sm" onClick={onBack}>
         ← Fichas
       </button>
@@ -166,8 +181,15 @@ function TopBar({ char, editando, onToggleEdit, onBack, onExport }: { char: Char
         </button>
         <span className="chip hidden sm:inline-flex">{editando ? 'Salvo automaticamente ✓' : 'Somente leitura'}</span>
         <BotaoEnviarParaMesa char={char} />
+        <button
+          className="btn-ghost px-3 py-1.5 text-xs sm:px-4 sm:py-2 sm:text-sm"
+          onClick={imprimir}
+          title="Abre a impressão do navegador — escolha 'Salvar como PDF'"
+        >
+          🖨️ <span className="sm:hidden">PDF</span><span className="hidden sm:inline">Imprimir / PDF</span>
+        </button>
         <button className="btn-ghost px-3 py-1.5 text-xs sm:px-4 sm:py-2 sm:text-sm" onClick={onExport}>
-          ⬇ <span className="sm:hidden">Exportar</span><span className="hidden sm:inline">Exportar (.json)</span>
+          ⬇ <span className="sm:hidden">.json</span><span className="hidden sm:inline">Exportar (.json)</span>
         </button>
       </div>
     </div>
@@ -177,6 +199,7 @@ function TopBar({ char, editando, onToggleEdit, onBack, onExport }: { char: Char
 // ---------------------------------------------------------------------------
 function IdentitySection({ char, update }: { char: Character; update: (p: Partial<Character>) => void }) {
   const info = classInfo(char.classe)
+  const [comparando, setComparando] = useState(false)
   const esp = ESPECIES.find((e) => e.nome === char.especie)
   const ant = ANTECEDENTES.find((a) => a.nome === char.antecedente)
   return (
@@ -225,13 +248,25 @@ function IdentitySection({ char, update }: { char: Character; update: (p: Partia
               options={CLASSES.map((c) => ({ value: c.nome, label: `${c.nome} (${c.nomeEn})` }))}
             />
           </Field>
-          <Field label="Subclasse" hint="Uma especialização dentro da classe, geralmente escolhida no nível 3.">
-            <SelectField
-              value={char.subclasse}
-              onChange={(v) => update({ subclasse: v })}
-              options={(info?.subclasses ?? []).map((s) => ({ value: s, label: s }))}
-              placeholder={info ? 'Selecione…' : 'Escolha a classe antes'}
-            />
+          <Field label="Subclasse" hint="Uma especialização dentro da classe, escolhida no nível 3.">
+            <div className="flex gap-2">
+              <SelectField
+                value={char.subclasse}
+                onChange={(v) => update({ subclasse: v })}
+                options={(info?.subclasses ?? []).map((s) => ({ value: s, label: s }))}
+                placeholder={info ? 'Selecione…' : 'Escolha a classe antes'}
+              />
+              {info && (
+                <button
+                  type="button"
+                  className="btn-ghost shrink-0 px-3 text-xs"
+                  onClick={() => setComparando(true)}
+                  title="Ver o que cada subclasse faz"
+                >
+                  Comparar
+                </button>
+              )}
+            </div>
           </Field>
           <Field label="Nível" hint="De 1 a 20. Sobe conforme a campanha avança e melhora quase tudo na ficha.">
             <NumberField value={char.nivel} min={1} max={20} onChange={(v) => update({ nivel: Math.max(1, Math.min(20, v)) })} />
@@ -258,6 +293,20 @@ function IdentitySection({ char, update }: { char: Character; update: (p: Partia
           </Field>
         </div>
       </div>
+
+      {comparando && (
+        <Modal titulo={`Subclasses de ${char.classe}`} onClose={() => setComparando(false)} largura="max-w-2xl">
+          <EscolhaDeSubclasse
+            classe={char.classe}
+            valor={char.subclasse}
+            nivel={char.nivel}
+            onEscolher={(v) => {
+              update({ subclasse: v })
+              setComparando(false)
+            }}
+          />
+        </Modal>
+      )}
     </section>
   )
 }

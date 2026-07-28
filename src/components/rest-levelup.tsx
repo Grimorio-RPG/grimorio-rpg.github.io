@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react'
 import type { Character } from '../types'
-import { CLASSES, rotuloClasse } from '../data/rules'
+import { rotuloClasse } from '../data/rules'
 import { espacosPorNivel, marcosDoNivel, mediaDoDado, temEspacos } from '../data/progression'
 import { abilityMod, classInfo, proficiencyBonus } from '../lib/calc'
 import { tracosGanhosNoNivel } from '../lib/features'
+import { EscolhaDeSubclasse } from './subclasse-ui'
 import { rolar } from '../lib/dice'
 import { addRoll } from '../lib/rollLog'
 import { Modal } from './layout-ui'
@@ -127,7 +128,6 @@ export function LevelUpModal({
   const [rolado, setRolado] = useState<number | null>(null)
   const [subclasse, setSubclasse] = useState(char.subclasse)
 
-  const info = classInfo(char.classe)
   const precisaSubclasse = novoNivel === 3 && !char.subclasse
   const marcos = useMemo(() => marcosDoNivel(char.classe, novoNivel), [char.classe, novoNivel])
 
@@ -215,13 +215,16 @@ export function LevelUpModal({
         {/* Subclasse */}
         {precisaSubclasse && (
           <div className="rounded-xl border border-arcane-400/40 bg-arcane-500/10 p-3">
-            <h4 className="mb-2 panel-title">Escolha sua subclasse</h4>
-            <select className="stat-input py-1.5 text-sm" value={subclasse} onChange={(e) => setSubclasse(e.target.value)}>
-              <option value="">Selecione…</option>
-              {(info?.subclasses ?? CLASSES.find((c) => c.nome === char.classe)?.subclasses ?? []).map((sb) => (
-                <option key={sb} value={sb}>{sb}</option>
-              ))}
-            </select>
+            <h4 className="mb-1 panel-title">Escolha sua subclasse</h4>
+            <p className="mb-2.5 text-xs text-parchment-200/70">
+              É a decisão mais pesada do personagem e vale a campanha inteira.
+            </p>
+            <EscolhaDeSubclasse
+              classe={char.classe}
+              valor={subclasse}
+              onEscolher={setSubclasse}
+              nivel={novoNivel}
+            />
           </div>
         )}
 
