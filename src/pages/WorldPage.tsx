@@ -3,6 +3,7 @@ import type { MapaMundo, Mundo, PontoInteresse } from '../types'
 import { useMundo } from '../hooks/useMundo'
 import { useEstadoMesa, useMesa } from '../hooks/useSync'
 import { CHAVES_MESA, chaveImagemMapa } from '../lib/sync/config'
+import { lerEstado } from '../lib/sync/estado'
 import { SelosDaMesa } from '../components/mesa-ui'
 import {
   ESCOPOS,
@@ -35,13 +36,33 @@ function MundoDoMestre() {
   const [imagem, setImagem] = useState('')
   const [erro, setErro] = useState('')
   const arquivoRef = useRef<HTMLInputElement>(null)
+  const { mesa, souDm } = useMesa()
+  const mesaIdDm = mesa && souDm ? mesa.id : null
 
   const mapa = mundo?.mapas.find((m) => m.id === mundo.mapaAtivoId) ?? null
 
-  // A imagem não vive no objeto do mundo — é lida à parte, por mapa.
+  // A imagem não vive no objeto do mundo — é lida à parte, por mapa. Se este
+  // aparelho não a tem (o mapa foi criado noutro), busca a cópia da nuvem e
+  // guarda aqui: sem isto o mapa sincronizava e aparecia vazio.
   useEffect(() => {
-    setImagem(mapa ? lerImagem(mapa.id) : '')
-  }, [mapa?.id, mapa?.atualizadoEm])
+    if (!mapa) {
+      setImagem('')
+      return
+    }
+    const local = lerImagem(mapa.id)
+    setImagem(local)
+    if (local || !mesaIdDm) return
+    let vivo = true
+    void lerEstado(mesaIdDm, chaveImagemMapa(mapa.id)).then((r) => {
+      const url = (r as { dataUrl?: string } | null)?.dataUrl
+      if (!vivo || !url) return
+      salvarImagem(mapa.id, url)
+      setImagem(url)
+    })
+    return () => {
+      vivo = false
+    }
+  }, [mapa?.id, mapa?.atualizadoEm, mesaIdDm])
 
   if (!mundo) return null
 

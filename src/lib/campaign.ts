@@ -131,6 +131,19 @@ export function loadCampaign(): Campaign {
   }
 }
 
+/**
+ * Grava sem recarimbar o `updatedAt`.
+ *
+ * Necessário ao receber a versão de outro aparelho: `saveCampaign` marca a hora
+ * atual, o que faria a cópia recebida parecer mais nova que a original e voltar
+ * pela rede — os dois aparelhos ficariam se reenviando a mesma campanha para
+ * sempre.
+ */
+export function persistirCampanha(c: Campaign): Campaign {
+  writeJson(KEY, c)
+  return c
+}
+
 export function saveCampaign(c: Campaign): Campaign {
   const updated = { ...c, updatedAt: Date.now() }
   writeJson(KEY, updated)

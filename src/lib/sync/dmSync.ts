@@ -8,7 +8,7 @@
 // O banco já permitia isto desde sempre: a política `le estado permitido` deixa
 // o DM ler qualquer chave da mesa dele, `_pub` ou não. Faltava o app usar.
 
-import { lerEstado, publicarComAtraso } from './estado'
+import { assinarEstado, lerEstado, publicarComAtraso } from './estado'
 
 /** Qualquer coisa com carimbo de tempo — é o que resolve o empate. */
 interface ComData {
@@ -53,4 +53,32 @@ export async function puxarListaDoDm<T extends ComData>(
 export function empurrarListaDoDm<T>(mesaId: string | null, chave: string, lista: T[]): void {
   if (!mesaId) return
   publicarComAtraso(mesaId, chave, lista, 1200)
+}
+
+/**
+ * Acompanha uma chave privada do DM ao vivo, entre os aparelhos dele.
+ *
+ * Puxar só ao abrir a tela resolve "mudei no PC e depois abri no celular", mas
+ * não "os dois abertos ao mesmo tempo". `mesa_estado` já está na publicação de
+ * tempo real, e o RLS deixa o DM ler as chaves privadas da mesa dele — então dá
+ * para escutar a própria chave e receber a mudança na hora.
+ *
+ * O eco da própria escrita também chega; quem chama compara e ignora quando não
+ * há novidade, senão a tela pisca a cada tecla digitada.
+ */
+export function assinarDadoDoDm<T>(
+  mesaId: string | null,
+  chave: string,
+  aoReceber: (dados: T) => void,
+): () => void {
+  if (!mesaId) return () => {}
+  return assinarEstado(mesaId, chave, (dados) => {
+    if (dados != null) aoReceber(dados as T)
+  })
+}
+
+/** Publica um objeto (não lista) na chave privada. */
+export function empurrarDadoDoDm<T>(mesaId: string | null, chave: string, dados: T): void {
+  if (!mesaId) return
+  publicarComAtraso(mesaId, chave, dados, 1200)
 }
