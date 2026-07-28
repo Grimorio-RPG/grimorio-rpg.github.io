@@ -202,21 +202,39 @@ export async function sairDaMesa(): Promise<void> {
   await recarregarMesa()
 }
 
+/**
+ * Quem está na mesa.
+ *
+ * Em duas consultas, de propósito. A versão anterior pedia
+ * `select('user_id, papel, profiles(nome)')` — um *embed* do PostgREST, que
+ * exige chave estrangeira entre as tabelas. E não existe: `mesa_membros.user_id`
+ * referencia `auth.users`, não `public.profiles`. A consulta falhava sempre, o
+ * erro era ignorado, e a lista voltava vazia — nem o DM, que criou a mesa,
+ * aparecia. Era a origem do eterno "Ninguém entrou ainda".
+ */
 export async function listarMembros(mesaId: string): Promise<Membro[]> {
   const sb = await getSupabase()
   if (!sb) return []
-  const { data } = await sb
+
+  const { data: linhas, error } = await sb
     .from('mesa_membros')
-    .select('user_id, papel, profiles(nome)')
+    .select('user_id, papel')
     .eq('mesa_id', mesaId)
-  return (data ?? []).map((linha) => {
-    const p = umDe<{ nome: string }>(linha.profiles)
-    return {
-      userId: linha.user_id as string,
-      nome: p?.nome || 'Jogador',
-      papel: linha.papel as 'dm' | 'jogador',
-    }
-  })
+
+  if (error || !linhas?.length) {
+    if (error) console.warn('[grimório] não consegui listar os membros:', error.message)
+    return []
+  }
+
+  const ids = linhas.map((l) => l.user_id as string)
+  const { data: perfis } = await sb.from('profiles').select('id, nome').in('id', ids)
+  const nomes = new Map((perfis ?? []).map((p) => [p.id as string, (p.nome as string) || '']))
+
+  return linhas.map((l) => ({
+    userId: l.user_id as string,
+    nome: nomes.get(l.user_id as string) || 'Jogador',
+    papel: l.papel as 'dm' | 'jogador',
+  }))
 }
 
 /** O DM pode remover alguém da mesa. */

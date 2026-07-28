@@ -59,29 +59,40 @@ export async function removerFicha(linhaId: string): Promise<boolean> {
   return !error
 }
 
-function umDe<T>(v: unknown): T | null {
-  if (Array.isArray(v)) return (v[0] as T) ?? null
-  return (v as T) ?? null
-}
-
+/**
+ * Fichas que o grupo compartilhou.
+ *
+ * Em duas consultas pelo mesmo motivo de `listarMembros`: o *embed*
+ * `profiles:dono_id(nome)` exige uma chave estrangeira que não existe —
+ * `personagens.dono_id` referencia `auth.users`, não `public.profiles`. A
+ * consulta falhava e o painel do DM ficava vazio mesmo com fichas enviadas.
+ */
 export async function listarFichasDaMesa(mesaId: string): Promise<FichaDaMesa[]> {
   const sb = await getSupabase()
   if (!sb) return []
-  const { data } = await sb
+  const { data, error } = await sb
     .from('personagens')
-    .select('id, dono_id, atualizado_em, dados, profiles:dono_id(nome)')
+    .select('id, dono_id, atualizado_em, dados')
     .eq('mesa_id', mesaId)
     .order('atualizado_em', { ascending: false })
 
-  return (data ?? []).flatMap((linha) => {
-    const perfil = umDe<{ nome: string }>((linha as { profiles?: unknown }).profiles)
+  if (error || !data?.length) {
+    if (error) console.warn('[grimório] não consegui listar as fichas da mesa:', error.message)
+    return []
+  }
+
+  const ids = [...new Set(data.map((l) => l.dono_id as string))]
+  const { data: perfis } = await sb.from('profiles').select('id, nome').in('id', ids)
+  const nomes = new Map((perfis ?? []).map((p) => [p.id as string, (p.nome as string) || '']))
+
+  return data.flatMap((linha) => {
     const dados = linha.dados as Partial<Character> | null
     if (!dados) return []
     return [
       {
         linhaId: linha.id as string,
         donoId: linha.dono_id as string,
-        donoNome: perfil?.nome || 'Jogador',
+        donoNome: nomes.get(linha.dono_id as string) || 'Jogador',
         atualizadoEm: linha.atualizado_em as string,
         ficha: normalizeCharacter(dados),
       },

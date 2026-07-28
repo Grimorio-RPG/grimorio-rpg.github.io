@@ -34,7 +34,11 @@ export const MANOBRAS: { nome: string; resumo: string }[] = [
   { nome: 'Ataque Rasteira', resumo: 'O alvo faz salvaguarda de Força ou cai Caído.' },
   { nome: 'Avaliação Tática', resumo: 'Soma o dado a um teste de História, Intuição ou Investigação.' },
   { nome: 'Emboscada', resumo: 'Soma o dado à iniciativa ou a um teste de Furtividade.' },
-  { nome: 'Golpe Comandado', resumo: 'Cede um ataque para um aliado atacar na hora.' },
+  {
+    nome: 'Golpe Comandado',
+    resumo:
+      'Abre mão de um dos seus ataques e gasta a ação bônus; um aliado usa a reação dele para atacar, somando o dado ao dano.',
+  },
   { nome: 'Isca e Troca', resumo: 'Troca de lugar com um aliado adjacente e dá CA extra a um dos dois.' },
   { nome: 'Manobra de Agarrão', resumo: 'Soma o dado ao teste e tenta Agarrar o alvo.' },
   { nome: 'Passos Evasivos', resumo: 'Soma o dado à CA enquanto se move.' },
@@ -47,7 +51,7 @@ export const TRACOS_DE_SUBCLASSE: Record<string, TracoClasse[]> = {
   // --- Guerreiro -----------------------------------------------------------
   'Mestre de Batalha (Battle Master)': [
     T(3, 'Superioridade em Combate', 'Quatro dados de superioridade d8, recuperados em descanso curto.'),
-    T(3, 'Manobras', 'Aprende 4 manobras.', { tipo: 'escolha', oque: 'manobra', quantidade: 4 }),
+    T(3, 'Manobras', 'Aprende 3 manobras.', { tipo: 'escolha', oque: 'manobra', quantidade: 3 }),
     T(3, 'Estudante da Guerra', 'Proficiência em uma ferramenta de artesão e uma perícia.'),
     T(7, 'Conheça o Inimigo', 'Aprende mais 2 manobras e ganha um dado de superioridade.', {
       tipo: 'escolha',

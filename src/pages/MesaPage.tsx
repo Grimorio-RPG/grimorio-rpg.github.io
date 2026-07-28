@@ -354,9 +354,26 @@ function CartaoMesa({ mesa, meuId }: { mesa: Mesa; meuId: string }) {
           <div>
             <p className="panel-title">Mesa atual</p>
             <p className="font-display text-2xl text-parchment-50">{mesa.nome}</p>
-            <p className="mt-1 text-xs text-parchment-200/60">
-              {mesa.papel === 'dm' ? 'Você conduz esta mesa.' : 'Você joga nesta mesa.'}{' '}
-              {conexao === 'conectado' ? 'Tempo real ativo.' : 'Conectando ao tempo real…'}
+            {/* Status explícito: um jogador reportou não saber se estava mesmo
+                dentro da sessão, porque a tela só dizia o nome da mesa. */}
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs">
+              <span className="chip border-emerald-400/40 text-emerald-400">
+                ✓ Você está nesta mesa
+              </span>
+              <span className="chip">{mesa.papel === 'dm' ? '🎲 Como DM' : '🛡️ Como jogador'}</span>
+              <span className="chip gap-1.5">
+                <span
+                  className={`inline-block h-1.5 w-1.5 rounded-full ${
+                    conexao === 'conectado' ? 'bg-emerald-400' : 'bg-amber-400 animate-pulse'
+                  }`}
+                />
+                {conexao === 'conectado' ? 'ao vivo' : 'conectando…'}
+              </span>
+            </div>
+            <p className="mt-1.5 text-xs text-parchment-200/60">
+              {mesa.papel === 'dm'
+                ? 'O que você publicar aparece no aparelho do grupo.'
+                : 'A Campanha, o Bestiário e o Mapa mostram o que o seu DM liberou.'}
             </p>
           </div>
           <button

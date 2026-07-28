@@ -199,9 +199,13 @@ checar(
   tracosDoPersonagem(mestreDeBatalha).some((t) => t.nome === 'Manobras'),
   true,
 )
-checar('Mestre de Batalha 3 deve 4 manobras', manobrasDevidas(mestreDeBatalha), 4)
-checar('Mestre de Batalha 7 deve 6', manobrasDevidas({ ...mestreDeBatalha, nivel: 7 }), 6)
-checar('Mestre de Batalha 15 deve 10', manobrasDevidas({ ...mestreDeBatalha, nivel: 15 }), 10)
+// 3 no nível 3, +2 no 7, +2 no 10, +2 no 15 = 9. Eu havia escrito 4 no nível 3
+// (confundido com os 4 dados de superioridade); quem jogou com o livro aberto
+// corrigiu.
+checar('Mestre de Batalha 3 deve 3 manobras', manobrasDevidas(mestreDeBatalha), 3)
+checar('Mestre de Batalha 7 deve 5', manobrasDevidas({ ...mestreDeBatalha, nivel: 7 }), 5)
+checar('Mestre de Batalha 10 deve 7', manobrasDevidas({ ...mestreDeBatalha, nivel: 10 }), 7)
+checar('Mestre de Batalha 15 deve 9', manobrasDevidas({ ...mestreDeBatalha, nivel: 15 }), 9)
 checar('Campeão não deve manobra nenhuma', manobrasDevidas({ ...mestreDeBatalha, subclasse: 'Campeão (Champion)' }), 0)
 
 // Sem manobras escolhidas, a ficha cobra; com as quatro, para de cobrar.
@@ -212,7 +216,7 @@ checar(
 )
 checar(
   'para de cobrar quando estão completas',
-  escolhasPendentes({ ...mestreDeBatalha, manobras: ['Aparar', 'Resposta', 'Ataque Rasteira', 'Ataque Preciso'] })
+  escolhasPendentes({ ...mestreDeBatalha, manobras: ['Aparar', 'Resposta', 'Ataque Rasteira'] })
     .some((e) => e.oque === 'manobra'),
   false,
 )

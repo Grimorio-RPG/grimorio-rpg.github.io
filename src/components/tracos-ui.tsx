@@ -1,6 +1,7 @@
 import type { Character } from '../types'
 import {
   ataquesPorAcao,
+  escolhasDoNivel,
   dadosDeAtaqueFurtivo,
   deslocamentoEfetivo,
   escolhasPendentes,
@@ -9,6 +10,7 @@ import {
   type Origem,
 } from '../lib/features'
 import { MANOBRAS, subclasseCatalogada } from '../data/subclasses'
+import { TALENTOS } from '../data/feats'
 
 const ROTULO_ESCOLHA: Record<string, string> = {
   subclasse: 'Escolha a sua subclasse',
@@ -44,6 +46,7 @@ export function TracosDeClasse({
   const furtivo = dadosDeAtaqueFurtivo(char)
   const deslocamento = deslocamentoEfetivo(char)
   const devidas = manobrasDevidas(char)
+  const estilosDevidos = escolhasDoNivel(char).filter((e) => e.oque === 'estiloDeLuta').length
 
   const porOrigem = (['classe', 'subclasse', 'especie', 'antecedente'] as Origem[])
     .map((o) => ({ origem: o, itens: tracos.filter((t) => t.origem === o) }))
@@ -82,6 +85,10 @@ export function TracosDeClasse({
         )}
       </div>
 
+      {estilosDevidos > 0 && update && (
+        <SeletorDeEstilo char={char} update={update} devidos={estilosDevidos} />
+      )}
+
       {devidas > 0 && update && <SeletorDeManobras char={char} update={update} devidas={devidas} />}
 
       {porOrigem.map((g) => (
@@ -109,6 +116,72 @@ export function TracosDeClasse({
           características.
         </p>
       )}
+    </div>
+  )
+}
+
+/**
+ * Estilo de luta.
+ *
+ * Guerreiro, Paladino e Patrulheiro escolhem um, e o Campeão um segundo no 7.
+ * A ficha cobrava a escolha no aviso amarelo e não oferecia onde fazê-la — o
+ * estilo ficava perdido no meio da lista geral de talentos.
+ */
+function SeletorDeEstilo({
+  char,
+  update,
+  devidos,
+}: {
+  char: Character
+  update: (patch: Partial<Character>) => void
+  devidos: number
+}) {
+  const estilos = TALENTOS.filter((t) => t.categoria === 'Estilo de Luta')
+  const escolhidos = char.talentos.filter((t) => estilos.some((e) => e.nome === t))
+  const cheio = escolhidos.length >= devidos
+
+  function alternar(nome: string) {
+    const tem = char.talentos.includes(nome)
+    if (!tem && cheio) return
+    update({
+      talentos: tem ? char.talentos.filter((t) => t !== nome) : [...char.talentos, nome],
+    })
+  }
+
+  return (
+    <div className="rounded-lg border border-white/10 bg-white/5 p-3">
+      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+        <h4 className="panel-title">Estilo de luta</h4>
+        <span className={`text-xs ${cheio ? 'text-parchment-200/50' : 'text-amber-300'}`}>
+          {escolhidos.length} de {devidos}
+        </span>
+      </div>
+      <div className="space-y-1.5">
+        {estilos.map((e) => {
+          const ativo = char.talentos.includes(e.nome)
+          return (
+            <button
+              key={e.nome}
+              type="button"
+              onClick={() => alternar(e.nome)}
+              disabled={!ativo && cheio}
+              className={`w-full rounded-lg border p-2 text-left transition ${
+                ativo
+                  ? 'border-arcane-400/60 bg-arcane-500/10'
+                  : cheio
+                    ? 'border-white/10 opacity-40'
+                    : 'border-white/10 hover:border-arcane-400/40'
+              }`}
+            >
+              <p className="text-sm font-medium text-parchment-50">
+                {ativo ? '✓ ' : ''}
+                {e.nome}
+              </p>
+              <p className="text-xs text-parchment-200/70">{e.resumo}</p>
+            </button>
+          )
+        })}
+      </div>
     </div>
   )
 }
