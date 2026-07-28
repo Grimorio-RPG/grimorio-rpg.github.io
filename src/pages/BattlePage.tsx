@@ -11,12 +11,13 @@ import {
   statusPV,
 } from '../lib/battle'
 import { PartyBar } from '../components/party-bar'
+import { xpDoNd, progressoDeXp } from '../data/progression'
 import { useCharacters } from '../hooks/useCharacters'
 import { loadCharacters } from '../lib/storage'
 import type { FichaDaMesa } from '../lib/sync/personagens'
 import { ajustarFichaDaMesa, assinarFichasDaMesa, listarFichasDaMesa } from '../lib/sync/personagens'
 import { CONDICOES } from '../data/rules'
-import { PageHeader, ViewToggle } from '../components/layout-ui'
+import { Modal, PageHeader, ViewToggle } from '../components/layout-ui'
 import { rolarComModo } from '../components/dice-ui'
 import { useEstadoMesa, useMesa } from '../hooks/useSync'
 import { CHAVES_MESA } from '../lib/sync/config'
@@ -149,13 +150,78 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
     })
   }
   function iniciar() { update({ emAndamento: true, rodada: 1, turnoIndex: 0 }) }
+  /**
+   * Inimigo caído não tem turno; personagem caído tem.
+   *
+   * A diferença é regra, não conveniência: um monstro a 0 PV está morto e sai
+   * da ordem, enquanto um personagem a 0 PV rola teste de morte no turno dele —
+   * pular seria tirar do jogador o momento mais tenso que ele tem.
+   */
+  function pulaTurno(c: Combatant) {
+    return c.origem === 'inimigo' && c.pvAtual <= 0
+  }
+
   function proximoTurno() {
     const n = ordenados.length
     if (n === 0) return
-    const prox = battle.turnoIndex + 1
-    if (prox >= n) update({ turnoIndex: 0, rodada: battle.rodada + 1 })
-    else update({ turnoIndex: prox })
+
+    let i = battle.turnoIndex
+    let rodada = battle.rodada
+    // Anda no máximo uma volta: se todos estiverem fora, para em vez de girar
+    // para sempre.
+    for (let passos = 0; passos < n; passos++) {
+      i += 1
+      if (i >= n) {
+        i = 0
+        rodada += 1
+      }
+      if (!pulaTurno(ordenados[i])) break
+    }
+    update({ turnoIndex: i, rodada })
   }
+  /**
+   * Encerra o encontro e paga o XP.
+   *
+   * O XP vem dos inimigos derrotados, pelo ND de cada um, dividido pelo tamanho
+   * do grupo — como manda a regra. Só as SUAS fichas recebem: a do jogador é
+   * dele, e somar XP na ficha alheia sem ele ver seria pior que não somar.
+   *
+   * Nada é aplicado antes de você confirmar na tela: o DM decide se aquele
+   * encontro valeu recompensa.
+   */
+  function encerrar() {
+    const derrotados = battle.combatentes.filter((c) => c.origem === 'inimigo' && c.pvAtual <= 0)
+    const aliados = battle.combatentes.filter((c) => c.origem === 'aliado')
+
+    const xpTotal = derrotados.reduce((soma, c) => {
+      const m = monstros.find((x) => x.id === c.refId)
+      return soma + (m ? xpDoNd(m.nd) : 0)
+    }, 0)
+
+    if (xpTotal <= 0 || aliados.length === 0) {
+      update({ emAndamento: false })
+      return
+    }
+    setRecompensa({
+      xpTotal,
+      porPersonagem: Math.floor(xpTotal / aliados.length),
+      derrotados: derrotados.length,
+      aliados,
+    })
+  }
+
+  function pagarRecompensa() {
+    if (!recompensa) return
+    const locais = loadCharacters()
+    for (const a of recompensa.aliados) {
+      const ficha = locais.find((f) => f.id === a.refId)
+      if (!ficha) continue
+      salvarFicha({ ...ficha, xp: (ficha.xp ?? 0) + recompensa.porPersonagem })
+    }
+    setRecompensa(null)
+    update({ emAndamento: false })
+  }
+
   function turnoAnterior() {
     if (battle.turnoIndex === 0) {
       if (battle.rodada > 1) update({ turnoIndex: ordenados.length - 1, rodada: battle.rodada - 1 })
@@ -169,9 +235,77 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
   const aliados = ordenados.filter((c) => c.origem === 'aliado')
   const { mesa, souDm } = useMesa()
   const { save: salvarFicha } = useCharacters()
+  const { monstros } = useBestiary()
+  const [recompensa, setRecompensa] = useState<{
+    xpTotal: number
+    porPersonagem: number
+    derrotados: number
+    aliados: Combatant[]
+  } | null>(null)
 
   return (
     <div className="space-y-5">
+      {recompensa && (
+        <Modal titulo="⚔️ Encontro vencido" onClose={() => setRecompensa(null)}>
+          <p className="text-sm text-parchment-200/80">
+            {recompensa.derrotados} {recompensa.derrotados === 1 ? 'inimigo derrotado' : 'inimigos derrotados'} ·{' '}
+            <b className="text-amber-300">{recompensa.xpTotal.toLocaleString('pt-BR')} XP</b> no total
+          </p>
+
+          <div className="mt-4 space-y-2">
+            {recompensa.aliados.map((a) => {
+              const ficha = loadCharacters().find((f) => f.id === a.refId)
+              if (!ficha) {
+                return (
+                  <p key={a.id} className="text-xs text-parchment-200/50">
+                    {a.nome} — ficha de outro jogador, o XP fica com ele.
+                  </p>
+                )
+              }
+              const antes = ficha.xp ?? 0
+              const depois = antes + recompensa.porPersonagem
+              const p = progressoDeXp(depois, ficha.nivel)
+              return (
+                <div key={a.id} className="rounded-lg border border-white/10 bg-white/5 p-2.5">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-sm text-parchment-50">{ficha.nome || a.nome}</span>
+                    <span className="text-sm text-amber-300">
+                      +{recompensa.porPersonagem.toLocaleString('pt-BR')} XP
+                    </span>
+                  </div>
+                  <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/10">
+                    <div
+                      className={`h-full rounded-full transition-all duration-700 ${
+                        p.podeSubir ? 'bg-amber-400' : 'bg-arcane-400'
+                      }`}
+                      style={{ width: `${p.podeSubir ? 100 : p.pct}%` }}
+                    />
+                  </div>
+                  {p.podeSubir ? (
+                    <p className="mt-1 text-xs font-semibold text-amber-300">
+                      ✨ Subiu de nível! Abra a ficha para escolher o que ganha.
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-[11px] text-parchment-200/50">
+                      faltam {p.faltam.toLocaleString('pt-BR')} para o nível {ficha.nivel + 1}
+                    </p>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+
+          <div className="mt-4 flex flex-wrap justify-end gap-2">
+            <button className="btn-ghost" onClick={() => { setRecompensa(null); update({ emAndamento: false }) }}>
+              Encerrar sem XP
+            </button>
+            <button className="btn-primary" onClick={pagarRecompensa}>
+              ✓ Distribuir o XP
+            </button>
+          </div>
+        </Modal>
+      )}
+
       <PartyBar combatentes={ordenados} atualId={atual?.id} />
 
       <AddCombatentes battle={battle} update={update} mesaId={souDm && mesa ? mesa.id : null} />
@@ -190,7 +324,7 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
                 <button className="btn-ghost" onClick={turnoAnterior} aria-label="Turno anterior">←</button>
                 <span className="rounded-lg bg-dragon-500/15 px-3 py-1.5 text-sm font-semibold text-parchment-50">Rodada {battle.rodada}</span>
                 <button className="btn-primary" onClick={proximoTurno}>Próximo turno →</button>
-                <button className="btn-ghost" onClick={() => update({ emAndamento: false })}>■ Encerrar</button>
+                <button className="btn-ghost" onClick={encerrar}>■ Encerrar</button>
               </>
             )}
             <button className="btn-ghost ml-auto text-parchment-200/50" onClick={limpar}>Limpar tudo</button>
