@@ -10,6 +10,7 @@ import {
   rolarIniciativa,
   statusPV,
 } from '../lib/battle'
+import { PartyBar } from '../components/party-bar'
 import { loadCharacters } from '../lib/storage'
 import type { FichaDaMesa } from '../lib/sync/personagens'
 import { assinarFichasDaMesa, listarFichasDaMesa } from '../lib/sync/personagens'
@@ -136,6 +137,8 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
 
   return (
     <div className="space-y-5">
+      <PartyBar combatentes={ordenados} atualId={atual?.id} />
+
       <AddCombatentes battle={battle} update={update} mesaId={souDm && mesa ? mesa.id : null} />
 
       {battle.combatentes.length > 0 && (
@@ -192,9 +195,14 @@ function CombatantRow({
   const st = statusPV(c.pvAtual, c.pvMax)
   const ajusta = (d: number) => onPatch({ pvAtual: Math.max(0, Math.min(c.pvMax, c.pvAtual + d)) })
   const inimigo = c.origem === 'inimigo'
+  const caido = c.pvAtual <= 0
 
   return (
-    <div className={`card gv-fade p-3 transition ${atual ? 'ring-2 ring-dragon-500' : ''} ${c.pvAtual <= 0 ? 'opacity-50' : ''}`}>
+    <div
+      className={`card gv-fade p-3 transition ${
+        atual ? 'gv-turno ring-2 ring-amber-400/70' : ''
+      } ${caido ? 'gv-caido' : ''}`}
+    >
       <div className="flex flex-wrap items-center gap-3">
         {/* Iniciativa */}
         <div className="flex shrink-0 flex-col items-center">
@@ -379,6 +387,10 @@ function PlayerView({ battle, ordenados }: { battle: Battle; ordenados: Combatan
 
   return (
     <div className="space-y-5">
+      {/* Quem mais precisa da faixa é o jogador: ele acompanha pelo celular e
+          não tem o painel do DM para consultar. */}
+      <PartyBar combatentes={ordenados} atualId={atual?.id} />
+
       {/* Turno */}
       <div className="card flex flex-wrap items-center justify-between gap-3 p-4">
         <div className="flex items-center gap-3">
