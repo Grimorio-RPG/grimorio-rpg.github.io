@@ -87,9 +87,18 @@ function normalizeMonster(raw: Partial<Monster> & { revelado?: boolean }): Monst
   return { ...novoMonstro(), ...raw, id: raw.id ?? uid(), conhecimento }
 }
 
+/**
+ * Id fixo para as criaturas de exemplo.
+ *
+ * Com `uid()` cada aparelho semeava os mesmos três monstros com ids diferentes,
+ * e a sincronização entre os aparelhos do DM — que junta por id — via seis
+ * criaturas distintas. O id estável faz a junção reconhecê-las como a mesma.
+ */
+const idSemente = (nome: string) => `semente:${nome.toLowerCase()}`
+
 function seed(): Monster[] {
   const base = () => ({
-    id: uid(),
+    id: '',
     updatedAt: Date.now(),
     imagemUrl: '',
     imagemJogadorUrl: '',
@@ -149,7 +158,39 @@ function seed(): Monster[] {
       ],
       taticas: 'Obedece ordens simples sem medo nem autopreservação. Avança em linha reta.',
     },
-  ]
+  ].map((m) => ({ ...m, id: idSemente(m.nome) }))
+}
+
+/** Campos que definem o conteúdo — ignora id, carimbo e estado de mesa. */
+function assinatura(m: Monster): string {
+  return JSON.stringify([
+    m.nome, m.tipo, m.tamanho, m.nd, m.ca, m.pvMax, m.deslocamento,
+    m.atributos, m.tracos, m.taticas,
+    m.acoes.map((a) => [a.nome, a.descricao]),
+  ])
+}
+
+/**
+ * Devolve as sementes intocadas ao id estável.
+ *
+ * Quem já usava o app tem as três criaturas de exemplo com ids aleatórios, e
+ * possivelmente duplicadas pela sincronização. Só remapeia o que bate campo a
+ * campo com a semente original: se o DM mexeu em qualquer coisa, a criatura é
+ * dele e fica como está.
+ */
+export function religarSementes(lista: Monster[]): Monster[] {
+  const porAssinatura = new Map(seed().map((s) => [assinatura(s), s.id]))
+  const vistos = new Set<string>()
+  const saida: Monster[] = []
+
+  for (const m of lista) {
+    const idSem = porAssinatura.get(assinatura(m))
+    const item = idSem ? { ...m, id: idSem } : m
+    if (vistos.has(item.id)) continue // duplicata da mesma semente
+    vistos.add(item.id)
+    saida.push(item)
+  }
+  return saida
 }
 
 export function loadBestiary(): Monster[] {
@@ -157,7 +198,7 @@ export function loadBestiary(): Monster[] {
     const raw = readRaw(KEY)
     if (raw) {
       const parsed = JSON.parse(raw)
-      if (Array.isArray(parsed)) return parsed.map(normalizeMonster)
+      if (Array.isArray(parsed)) return religarSementes(parsed.map(normalizeMonster))
     }
     // primeira visita: semeia exemplos editáveis
     if (!readRaw(SEED_FLAG)) {

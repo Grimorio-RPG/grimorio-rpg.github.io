@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Monster } from '../types'
-import { loadBestiary, projetarBestiario, saveBestiary } from '../lib/bestiary'
+import { loadBestiary, projetarBestiario, religarSementes, saveBestiary } from '../lib/bestiary'
 import { publicarComAtraso } from '../lib/sync/estado'
 import { empurrarListaDoDm, puxarListaDoDm } from '../lib/sync/dmSync'
 import { CHAVES_MESA } from '../lib/sync/config'
@@ -34,8 +34,11 @@ export function useBestiary() {
     if (!mesaId) return
     let vivo = true
     carregando.current = true
-    void puxarListaDoDm(mesaId, CHAVES_MESA.bestiario, loadBestiary()).then((juntos) => {
+    void puxarListaDoDm(mesaId, CHAVES_MESA.bestiario, loadBestiary()).then((bruto) => {
       if (!vivo) return
+      // A lista da nuvem pode trazer sementes com o id antigo e aleatório, de
+      // antes do id estável. Religar aqui colapsa as duplicatas que já existem.
+      const juntos = religarSementes(bruto)
       saveBestiary(juntos)
       setMonstros(juntos)
       carregando.current = false

@@ -108,6 +108,51 @@ checar('nome ainda é lido', vazio.campos.nome, 'Só um nome solto')
 
 checar('a tela sabe o que foi preenchido', reconhecidos.includes('atributos'), true)
 
+// ---------------------------------------------------------------------------
+// Sementes duplicadas pela sincronização entre aparelhos do DM
+// ---------------------------------------------------------------------------
+const saidaBest = join(dir, 'bestiary.js')
+execSync(`npx esbuild src/lib/bestiary.ts --bundle --outfile=${saidaBest} --format=esm --log-level=error`)
+const { religarSementes, novoMonstro } = await import(pathToFileURL(saidaBest).href)
+
+console.log('Sementes do bestiário')
+
+// Reproduz o que aconteceu: dois aparelhos semearam os mesmos exemplos com ids
+// aleatórios, e a junção por id os viu como criaturas diferentes.
+const semente = (nome, extra) => ({
+  ...novoMonstro(),
+  nome,
+  ...extra,
+})
+
+// Duas cópias idênticas do Goblin de exemplo, com ids diferentes.
+const goblinPc = { ...novoMonstro(), id: 'aleatorio-1', nome: 'Goblin', tipo: 'Humanoide (goblinoide)',
+  tamanho: 'Pequeno', nd: '1/4', ca: 15, pvMax: 7, pvAtual: 7, deslocamento: '9 m',
+  atributos: { for: 8, des: 14, con: 10, int: 10, sab: 8, car: 8 },
+  tracos: 'Fuga Ágil. Pode Desengajar ou Esconder-se como ação bônus em cada turno.',
+  acoes: [
+    { id: 'x', nome: 'Cimitarra', descricao: '+4 para acertar, 1d6+2 de dano cortante.' },
+    { id: 'y', nome: 'Arco Curto', descricao: '+4 para acertar, alcance 24/96 m, 1d6+2 perfurante.' },
+  ],
+  taticas: 'Ataca em bando, foge para reposicionar e usa o terreno. Covarde se sozinho.' }
+const goblinCelular = { ...goblinPc, id: 'aleatorio-2' }
+
+checar('duas cópias da mesma semente viram uma', religarSementes([goblinPc, goblinCelular]).length, 1)
+checar(
+  'a que sobra recebe o id estável',
+  religarSementes([goblinPc, goblinCelular])[0].id,
+  'semente:goblin',
+)
+
+// Um monstro do DM não pode ser confundido com semente.
+const meuGoblin = { ...goblinPc, id: 'meu', nome: 'Goblin', pvMax: 9 }
+checar('monstro editado pelo DM sobrevive', religarSementes([goblinPc, meuGoblin]).length, 2)
+
+// Dois monstros diferentes do DM continuam dois.
+const a = { ...novoMonstro(), id: 'a', nome: 'Rukha' }
+const b = { ...novoMonstro(), id: 'b', nome: 'Belak' }
+checar('criaturas distintas não se fundem', religarSementes([a, b]).length, 2)
+
 console.log('')
 if (falhas > 0) {
   console.error(`✗ ${falhas} de ${testes} verificações de leitura falharam\n`)

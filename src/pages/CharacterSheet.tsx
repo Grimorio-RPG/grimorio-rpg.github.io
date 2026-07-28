@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { BotaoEnviarParaMesa } from '../components/mesa-ui'
 import { TracosDeClasse } from '../components/tracos-ui'
 import { useNavigate, useParams } from 'react-router-dom'
@@ -32,6 +32,7 @@ import {
 } from '../lib/calc'
 import { loadCharacters } from '../lib/storage'
 import { uid } from '../lib/character'
+import { imageToDataUrl } from '../lib/bestiary'
 import { useCharacters } from '../hooks/useCharacters'
 import CharacterSheetView from '../components/CharacterSheetView'
 import {
@@ -249,12 +250,91 @@ function IdentitySection({ char, update }: { char: Character; update: (p: Partia
               options={ALINHAMENTOS.map((a) => ({ value: a, label: a }))}
             />
           </Field>
-          <Field label="URL do avatar (opcional)" hint="Cole o link de uma imagem para ilustrar seu personagem.">
-            <TextField value={char.avatarUrl ?? ''} onChange={(v) => update({ avatarUrl: v })} placeholder="https://…" />
+          <Field
+            label="Imagem do personagem (opcional)"
+            hint="Envie um arquivo do seu aparelho ou cole o link de uma imagem."
+          >
+            <AvatarUpload url={char.avatarUrl ?? ''} onChange={(v) => update({ avatarUrl: v })} />
           </Field>
         </div>
       </div>
     </section>
+  )
+}
+
+/**
+ * Imagem do personagem: arquivo do aparelho ou link.
+ *
+ * Antes só aceitava URL, o que na prática exigia hospedar a imagem em algum
+ * lugar antes — barreira à toa para quem só quer usar uma foto do próprio
+ * celular. 512 px basta: ela aparece como avatar redondo, não como pôster.
+ */
+function AvatarUpload({ url, onChange }: { url: string; onChange: (v: string) => void }) {
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [carregando, setCarregando] = useState(false)
+  const [erro, setErro] = useState('')
+
+  async function enviar(file: File) {
+    setErro('')
+    setCarregando(true)
+    try {
+      onChange(await imageToDataUrl(file, 512, 0.8))
+    } catch {
+      setErro('Não consegui ler essa imagem. Tente um PNG ou JPG.')
+    } finally {
+      setCarregando(false)
+    }
+  }
+
+  return (
+    <div>
+      <div className="flex items-center gap-3">
+        <div className="h-14 w-14 shrink-0 overflow-hidden rounded-full border border-white/10 bg-ink-900/60">
+          {url ? (
+            <img src={url} alt="" className="h-full w-full object-cover" />
+          ) : (
+            <div className="grid h-full w-full place-items-center text-xl opacity-40">🧙</div>
+          )}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            className="btn-ghost py-1.5 text-xs"
+            onClick={() => fileRef.current?.click()}
+            disabled={carregando}
+          >
+            {carregando ? 'Processando…' : '📷 Enviar imagem'}
+          </button>
+          {url && (
+            <button type="button" className="btn-ghost py-1.5 text-xs" onClick={() => onChange('')}>
+              ✕ Remover
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-2">
+        <TextField value={url.startsWith('data:') ? '' : url} onChange={onChange} placeholder="…ou cole https://…" />
+      </div>
+      {url.startsWith('data:') && (
+        <p className="mt-1 text-xs text-parchment-200/50">
+          Imagem enviada do aparelho — vai junto com a ficha para a conta e para a mesa.
+        </p>
+      )}
+      {erro && <p className="mt-1 text-xs text-dragon-400">{erro}</p>}
+
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0]
+          if (f) void enviar(f)
+          e.target.value = ''
+        }}
+      />
+    </div>
   )
 }
 
