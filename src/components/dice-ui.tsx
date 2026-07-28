@@ -141,7 +141,13 @@ export function DiceTray() {
       {flash && !aberto && (
         <button
           onClick={() => setAberto(true)}
-          className="nao-imprimir gv-fade fixed bottom-20 right-4 z-40 max-w-[80vw] rounded-xl border border-white/10 bg-ink-800/95 px-3 py-2 text-left shadow-xl backdrop-blur sm:bottom-24 sm:right-6"
+          className={`nao-imprimir gv-fade fixed bottom-20 right-4 z-40 max-w-[80vw] rounded-xl border bg-ink-800/95 px-3 py-2 text-left shadow-xl backdrop-blur sm:bottom-24 sm:right-6 ${
+            flash.roll.critico
+              ? 'gv-ouro border-amber-400/60'
+              : flash.roll.falhaCritica
+                ? 'border-dragon-500/60'
+                : 'border-white/10'
+          }`}
         >
           {flash.autor && (
             <p className="mb-0.5 text-[10px] uppercase tracking-wide text-parchment-200/45">
@@ -150,6 +156,30 @@ export function DiceTray() {
           )}
           <ResultadoLinha r={flash.roll} compacto />
         </button>
+      )}
+
+      {/* O momento do crítico: a tela inteira reconhece, como em qualquer RPG */}
+      {flash && (flash.roll.critico || flash.roll.falhaCritica) && (
+        <div className="nao-imprimir pointer-events-none fixed inset-0 z-50 grid place-items-center">
+          <div
+            className={`gv-critico-aura absolute h-72 w-72 rounded-full blur-3xl ${
+              flash.roll.critico ? 'bg-amber-400/40' : 'bg-dragon-600/40'
+            }`}
+          />
+          <div className="gv-critico-texto relative text-center">
+            <p
+              className={`font-display text-5xl tracking-wide drop-shadow-[0_3px_6px_rgba(0,0,0,0.85)] sm:text-7xl ${
+                flash.roll.critico ? 'text-amber-300' : 'text-dragon-400'
+              }`}
+            >
+              {flash.roll.critico ? 'CRÍTICO!' : 'FALHA CRÍTICA'}
+            </p>
+            <p className="mt-1 text-sm text-parchment-100/90 drop-shadow">
+              {flash.autor ? `${flash.autor} — ` : ''}
+              {flash.roll.rotulo}
+            </p>
+          </div>
+        </div>
       )}
 
       {/* Botão flutuante */}
