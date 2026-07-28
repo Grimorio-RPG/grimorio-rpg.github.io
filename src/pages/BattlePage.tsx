@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { Battle, Combatant, Monster } from '../types'
 import { useBattle } from '../hooks/useBattle'
 import { useBestiary } from '../hooks/useBestiary'
@@ -11,6 +11,8 @@ import {
   statusPV,
 } from '../lib/battle'
 import { loadCharacters } from '../lib/storage'
+import type { FichaDaMesa } from '../lib/sync/personagens'
+import { assinarFichasDaMesa, listarFichasDaMesa } from '../lib/sync/personagens'
 import { CONDICOES } from '../data/rules'
 import { PageHeader, ViewToggle } from '../components/layout-ui'
 import { rolarComModo } from '../components/dice-ui'
@@ -130,10 +132,11 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
 
   const inimigos = ordenados.filter((c) => c.origem === 'inimigo')
   const aliados = ordenados.filter((c) => c.origem === 'aliado')
+  const { mesa, souDm } = useMesa()
 
   return (
     <div className="space-y-5">
-      <AddCombatentes battle={battle} update={update} />
+      <AddCombatentes battle={battle} update={update} mesaId={souDm && mesa ? mesa.id : null} />
 
       {battle.combatentes.length > 0 && (
         <>
@@ -275,11 +278,28 @@ function CondicoesEditor({ condicoes, onChange }: { condicoes: string[]; onChang
 }
 
 // ---------------------------------------------------------------------------
-function AddCombatentes({ battle, update }: { battle: Battle; update: UpdateFn }) {
+function AddCombatentes({ battle, update, mesaId }: { battle: Battle; update: UpdateFn; mesaId: string | null }) {
   const { monstros } = useBestiary()
   const [monstroId, setMonstroId] = useState('')
   const [qtd, setQtd] = useState(1)
-  const fichas = useMemo(() => loadCharacters(), [])
+  // As fichas locais são as do DM; as da mesa são as que o grupo enviou. Sem as
+  // segundas, o DM não conseguia pôr o personagem de ninguém na batalha.
+  const locais = useMemo(() => loadCharacters(), [])
+  const [doGrupo, setDoGrupo] = useState<FichaDaMesa[]>([])
+
+  useEffect(() => {
+    if (!mesaId) return
+    const recarregar = () => void listarFichasDaMesa(mesaId).then(setDoGrupo)
+    recarregar()
+    return assinarFichasDaMesa(mesaId, recarregar)
+  }, [mesaId])
+
+  // Uma ficha que o dono enviou vence a cópia local: é a versão viva dele.
+  const fichas = useMemo(() => {
+    const porId = new Map(locais.map((c) => [c.id, { ficha: c, dono: '' }]))
+    for (const f of doGrupo) porId.set(f.ficha.id, { ficha: f.ficha, dono: f.donoNome })
+    return [...porId.values()]
+  }, [locais, doGrupo])
 
   const naBatalha = new Set(battle.combatentes.map((c) => c.refId))
 
@@ -295,14 +315,17 @@ function AddCombatentes({ battle, update }: { battle: Battle; update: UpdateFn }
       <div className="grid gap-4 md:grid-cols-2">
         {/* Aliados (fichas) */}
         <div>
-          <p className="mb-2 panel-title">Grupo (suas fichas)</p>
+          <p className="mb-2 panel-title">Grupo</p>
           {fichas.length === 0 ? (
-            <p className="text-sm text-parchment-200/50">Crie personagens na aba Fichas para adicioná-los como aliados.</p>
+            <p className="text-sm text-parchment-200/50">
+              Crie personagens na aba Fichas, ou peça ao grupo para tocar em <b>☁️ Enviar para a
+              mesa</b> na ficha deles.
+            </p>
           ) : (
             <div className="flex flex-wrap gap-1.5">
-              {fichas.map((c) => (
-                <button key={c.id} className={`chip hover:border-emerald-400/60 ${naBatalha.has(c.id) ? 'opacity-40' : ''}`} onClick={() => update({ combatentes: [...battle.combatentes, combatenteDePersonagem(c)] })}>
-                  ＋ {c.nome || 'Aventureiro'}
+              {fichas.map(({ ficha: c, dono }) => (
+                <button key={c.id} className={`chip hover:border-emerald-400/60 ${naBatalha.has(c.id) ? 'opacity-40' : ''}`} onClick={() => update({ combatentes: [...battle.combatentes, combatenteDePersonagem(c)] })} title={dono ? `Ficha de ${dono}` : 'Ficha deste aparelho'}>
+                  ＋ {c.nome || 'Aventureiro'}{dono ? ` · ${dono}` : ''}
                 </button>
               ))}
             </div>

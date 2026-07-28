@@ -180,17 +180,39 @@ function assinatura(m: Monster): string {
  */
 export function religarSementes(lista: Monster[]): Monster[] {
   const porAssinatura = new Map(seed().map((s) => [assinatura(s), s.id]))
-  const vistos = new Set<string>()
-  const saida: Monster[] = []
+  const porId = new Map<string, Monster>()
+  const porConteudo = new Map<string, string>() // assinatura -> id mantido
 
   for (const m of lista) {
-    const idSem = porAssinatura.get(assinatura(m))
+    const assin = assinatura(m)
+    const idSem = porAssinatura.get(assin)
     const item = idSem ? { ...m, id: idSem } : m
-    if (vistos.has(item.id)) continue // duplicata da mesma semente
-    vistos.add(item.id)
-    saida.push(item)
+
+    // Duas criaturas com exatamente o mesmo conteúdo são a mesma criatura,
+    // venham de semente ou não: só a primeira versão desta limpeza colapsava
+    // sementes, e por isso as cópias que já tinham sido tocadas sobreviviam.
+    // Nada se perde — os campos comparados são todos iguais; fica a mais
+    // recente.
+    const jaVisto = porConteudo.get(assin)
+    if (jaVisto) {
+      const anterior = porId.get(jaVisto)
+      if (anterior && (m.updatedAt ?? 0) > (anterior.updatedAt ?? 0)) {
+        porId.set(jaVisto, { ...item, id: jaVisto })
+      }
+      continue
+    }
+
+    const existente = porId.get(item.id)
+    if (existente) {
+      if ((item.updatedAt ?? 0) > (existente.updatedAt ?? 0)) porId.set(item.id, item)
+      continue
+    }
+
+    porId.set(item.id, item)
+    porConteudo.set(assin, item.id)
   }
-  return saida
+
+  return [...porId.values()]
 }
 
 export function loadBestiary(): Monster[] {
@@ -198,7 +220,13 @@ export function loadBestiary(): Monster[] {
     const raw = readRaw(KEY)
     if (raw) {
       const parsed = JSON.parse(raw)
-      if (Array.isArray(parsed)) return religarSementes(parsed.map(normalizeMonster))
+      if (Array.isArray(parsed)) {
+        const limpo = religarSementes(parsed.map(normalizeMonster))
+        // Gravar de volta: a versão anterior limpava só na memória, então a
+        // duplicata continuava no disco e voltava na sincronização seguinte.
+        if (limpo.length !== parsed.length) writeJson(KEY, limpo)
+        return limpo
+      }
     }
     // primeira visita: semeia exemplos editáveis
     if (!readRaw(SEED_FLAG)) {

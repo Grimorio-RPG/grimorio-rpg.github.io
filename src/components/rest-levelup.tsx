@@ -153,6 +153,50 @@ export function LevelUpModal({
     setRolado(r.total)
   }
 
+  /**
+   * Descer de nível.
+   *
+   * Editar o campo "nível" na mão não desfazia nada: os PV ganhos e os espaços
+   * de magia ficavam, e a ficha virava uma mistura de dois níveis. Aqui a
+   * subida é revertida de verdade.
+   *
+   * Os PV são estimados pela média do dado, porque o valor rolado na subida não
+   * é guardado — daí o aviso antes de confirmar.
+   */
+  function descerDeNivel() {
+    const anterior = char.nivel - 1
+    if (anterior < 1) return
+    const perda = Math.max(1, media + conMod)
+    if (
+      !confirm(
+        `Descer para o nível ${anterior}?
+
+` +
+          `Vou tirar ${perda} PV (a média do d${faces} mais CON) e devolver os espaços de magia ` +
+          `do nível ${anterior}.
+
+Se você rolou os PV ao subir, o valor pode não bater exatamente — ` +
+          `confira o máximo depois.`,
+      )
+    ) {
+      return
+    }
+    const espacos = espacosPorNivel(char.classe, anterior).map((s, i) => ({
+      total: s.total,
+      usados: Math.min(char.espacosMagia[i]?.usados ?? 0, s.total),
+    }))
+    const novoMax = Math.max(1, char.pvMax - perda)
+    update({
+      nivel: anterior,
+      pvMax: novoMax,
+      pvAtual: Math.min(char.pvAtual, novoMax),
+      dadosDeVida: `${anterior}d${faces}`,
+      dadosDeVidaUsados: Math.min(char.dadosDeVidaUsados ?? 0, anterior),
+      espacosMagia: temEspacos(char.classe) ? espacos : char.espacosMagia,
+    })
+    onClose()
+  }
+
   function confirmar() {
     if (ganhoPv <= 0) return
     // preserva os espaços já gastos, sem passar do novo total
@@ -280,7 +324,8 @@ export function LevelUpModal({
             </ul>
             {temEscolha && (
               <p className="mt-2 text-xs text-amber-300/80">
-                As escolhas em amarelo ficam marcadas na ficha até você fazê-las.
+                Você faz estas escolhas na aba <b>Traços</b> da ficha, onde elas ficam marcadas até
+                serem feitas.
               </p>
             )}
           </div>
@@ -290,7 +335,16 @@ export function LevelUpModal({
           Bônus de proficiência: +{proficiencyBonus(char.nivel)} → <b className="text-parchment-100">+{proficiencyBonus(novoNivel)}</b>.
         </p>
 
-        <div className="flex justify-end gap-2">
+        <div className="flex flex-wrap justify-end gap-2">
+          {char.nivel > 1 && (
+            <button
+              className="btn-ghost mr-auto text-xs text-parchment-200/60"
+              title="Desfaz a última subida: devolve os PV e os espaços de magia do nível anterior"
+              onClick={descerDeNivel}
+            >
+              ↓ Descer para o nível {char.nivel - 1}
+            </button>
+          )}
           <button className="btn-ghost" onClick={onClose}>Cancelar</button>
           <button
             className="btn-primary"
