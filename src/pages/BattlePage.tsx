@@ -11,7 +11,7 @@ import {
   statusPV,
 } from '../lib/battle'
 import { PartyBar } from '../components/party-bar'
-import { xpDoNd, progressoDeXp } from '../data/progression'
+import { xpDoNd, progressoDeXp, avaliarEncontro, CORES_DIFICULDADE } from '../data/progression'
 import { useCharacters } from '../hooks/useCharacters'
 import { loadCharacters } from '../lib/storage'
 import type { FichaDaMesa } from '../lib/sync/personagens'
@@ -309,6 +309,8 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
       <PartyBar combatentes={ordenados} atualId={atual?.id} />
 
       <AddCombatentes battle={battle} update={update} mesaId={souDm && mesa ? mesa.id : null} />
+
+      <MedidorDeDificuldade combatentes={battle.combatentes} monstros={monstros} />
 
       {battle.combatentes.length > 0 && (
         <>
@@ -660,4 +662,60 @@ function AllyCard({ c, destaque }: { c: Combatant; destaque: boolean }) {
 function nomePublico(c: Combatant): string {
   if (c.origem === 'inimigo' && c.nomeOculto) return '???'
   return c.nome
+}
+
+/**
+ * Dificuldade do encontro, medida enquanto ele é montado.
+ *
+ * Serve para o DM saber antes da luta se aquilo é passeio ou matança — e é a
+ * pergunta que ele mais faz montando encontro. Usa o modelo de 2024: soma crua
+ * do XP dos inimigos contra o orçamento do grupo, sem o multiplicador que o 5e
+ * de 2014 aplicava.
+ */
+function MedidorDeDificuldade({
+  combatentes,
+  monstros,
+}: {
+  combatentes: Combatant[]
+  monstros: Monster[]
+}) {
+  const inimigos = combatentes.filter((c) => c.origem === 'inimigo')
+  const aliados = combatentes.filter((c) => c.origem === 'aliado')
+  if (inimigos.length === 0 || aliados.length === 0) return null
+
+  const xpInimigos = inimigos.reduce((soma, c) => {
+    const m = monstros.find((x) => x.id === c.refId)
+    return soma + (m ? xpDoNd(m.nd) : 0)
+  }, 0)
+
+  // O nível de cada aliado vem da ficha; sem ela, assume 1 para não inflar o
+  // orçamento e fazer o encontro parecer mais fácil do que é.
+  const fichas = loadCharacters()
+  const niveis = aliados.map((a) => fichas.find((f) => f.id === a.refId)?.nivel ?? 1)
+
+  const av = avaliarEncontro(xpInimigos, niveis)
+  const info = CORES_DIFICULDADE[av.dificuldade]
+
+  return (
+    <div className="card flex flex-wrap items-center justify-between gap-3 p-3">
+      <div className="flex items-center gap-2">
+        <span className="panel-title">Dificuldade</span>
+        <span className={`text-sm font-semibold ${info.cor}`}>
+          {info.icone} {info.label}
+        </span>
+      </div>
+      <div className="flex flex-wrap items-center gap-3 text-xs text-parchment-200/60">
+        <span>
+          Inimigos: <b className="text-parchment-100">{xpInimigos.toLocaleString('pt-BR')} XP</b>
+        </span>
+        <span className="hidden sm:inline">·</span>
+        <span>
+          Orçamento do grupo ({aliados.length}):{' '}
+          <span className="text-emerald-400">{av.orcamento.baixa.toLocaleString('pt-BR')}</span> /{' '}
+          <span className="text-amber-400">{av.orcamento.moderada.toLocaleString('pt-BR')}</span> /{' '}
+          <span className="text-orange-400">{av.orcamento.alta.toLocaleString('pt-BR')}</span>
+        </span>
+      </div>
+    </div>
+  )
 }

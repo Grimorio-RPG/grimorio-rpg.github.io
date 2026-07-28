@@ -182,3 +182,67 @@ const XP_POR_ND: Record<string, number> = {
 export function xpDoNd(nd: string): number {
   return XP_POR_ND[String(nd).trim()] ?? 0
 }
+
+// ---------------------------------------------------------------------------
+// Dificuldade do encontro — modelo de 2024
+//
+// O 5e de 2014 somava o XP dos monstros e aplicava um multiplicador conforme a
+// quantidade deles. O 2024 abandonou esse multiplicador: agora existe um
+// ORÇAMENTO de XP por personagem, por nível, em três faixas; soma-se o XP dos
+// monstros sem multiplicar e compara-se com o orçamento do grupo.
+//
+// Vale para MEDIR a dificuldade antes da luta. A recompensa continua sendo a
+// soma crua dividida pelo grupo — confundir os dois é o erro que faz um grupo
+// subir de nível rápido demais.
+//
+// ⚠️ Esta tabela veio do meu conhecimento do DMG 2024, não de conferência com o
+// livro. Se um número estiver errado, é aqui que se corrige — uma linha.
+// ---------------------------------------------------------------------------
+
+/** Orçamento por personagem: [baixa, moderada, alta] — índice 0 = nível 1. */
+const ORCAMENTO_XP: [number, number, number][] = [
+  [50, 75, 100], [100, 150, 200], [150, 225, 400], [250, 375, 500],
+  [500, 750, 1100], [600, 1000, 1400], [750, 1300, 1700], [1000, 1700, 2100],
+  [1300, 2000, 2600], [1600, 2300, 3100], [1900, 2900, 4100], [2200, 3700, 4700],
+  [2600, 4200, 5400], [2900, 4900, 6200], [3300, 5400, 7800], [3800, 6100, 9800],
+  [4500, 7200, 11700], [5000, 8700, 14200], [5500, 10700, 17200], [6400, 13200, 22000],
+]
+
+export type Dificuldade = 'trivial' | 'baixa' | 'moderada' | 'alta' | 'mortal'
+
+export interface AvaliacaoDeEncontro {
+  /** Soma crua do XP dos inimigos — sem multiplicador, como manda o 2024. */
+  xpInimigos: number
+  /** Orçamento do grupo em cada faixa. */
+  orcamento: { baixa: number; moderada: number; alta: number }
+  dificuldade: Dificuldade
+}
+
+/**
+ * Avalia um encontro contra o orçamento do grupo.
+ *
+ * `niveis` são os níveis dos personagens que vão lutar — grupo de níveis
+ * diferentes soma o orçamento de cada um, e não uma média.
+ */
+export function avaliarEncontro(xpInimigos: number, niveis: number[]): AvaliacaoDeEncontro {
+  const somar = (faixa: 0 | 1 | 2) =>
+    niveis.reduce((t, n) => t + ORCAMENTO_XP[Math.max(1, Math.min(20, n)) - 1][faixa], 0)
+
+  const orcamento = { baixa: somar(0), moderada: somar(1), alta: somar(2) }
+
+  let dificuldade: Dificuldade = 'trivial'
+  if (xpInimigos > orcamento.alta) dificuldade = 'mortal'
+  else if (xpInimigos > orcamento.moderada) dificuldade = 'alta'
+  else if (xpInimigos > orcamento.baixa) dificuldade = 'moderada'
+  else if (xpInimigos > 0) dificuldade = 'baixa'
+
+  return { xpInimigos, orcamento, dificuldade }
+}
+
+export const CORES_DIFICULDADE: Record<Dificuldade, { label: string; cor: string; icone: string }> = {
+  trivial: { label: 'Trivial', cor: 'text-parchment-200/50', icone: '·' },
+  baixa: { label: 'Baixa', cor: 'text-emerald-400', icone: '🟢' },
+  moderada: { label: 'Moderada', cor: 'text-amber-400', icone: '🟡' },
+  alta: { label: 'Alta', cor: 'text-orange-400', icone: '🟠' },
+  mortal: { label: 'Mortal', cor: 'text-dragon-400', icone: '🔴' },
+}
