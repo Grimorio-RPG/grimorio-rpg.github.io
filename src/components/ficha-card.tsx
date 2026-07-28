@@ -191,8 +191,25 @@ export function FichaCard({
           </div>
         )}
 
+        {/* A 0 PV a ficha vira outra coisa: o que importa são os testes. */}
+        {caido && char.pvMax > 0 && (
+          <div className="mt-3 rounded-lg border border-dragon-500/40 bg-dragon-500/10 p-2">
+            <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-dragon-300">
+              💀 Caído — testes de morte
+            </p>
+            <TestesDeMorte sucessos={char.testesMorte.sucessos} falhas={char.testesMorte.falhas} />
+          </div>
+        )}
+
         {pctVida <= 25 && !caido && char.pvMax > 0 && (
           <p className="mt-2 text-[11px] font-medium text-dragon-400">⚠️ Quase morrendo</p>
+        )}
+
+        {/* Inspiração é um recurso e some no meio da ficha — aqui é um token. */}
+        {char.inspiracaoHeroica && (
+          <p className="mt-2 inline-flex items-center gap-1 rounded-full border border-amber-400/40 bg-amber-500/15 px-2 py-0.5 text-[11px] text-amber-300">
+            ✨ Inspiração Heroica
+          </p>
         )}
       </button>
 
@@ -206,6 +223,52 @@ export function FichaCard({
           🗑
         </button>
       )}
+    </div>
+  )
+}
+
+/**
+ * Testes de morte.
+ *
+ * É o momento de maior tensão da mesa e ficava escondido num canto da ficha,
+ * em números. Aqui vira o que é: três marcas de vida contra três de morte, à
+ * vista de quem olhar o cartão.
+ */
+export function TestesDeMorte({
+  sucessos,
+  falhas,
+  compacto = false,
+}: {
+  sucessos: number
+  falhas: number
+  compacto?: boolean
+}) {
+  const marca = (preenchida: boolean, cor: string) => (
+    <span
+      className={`inline-block rounded-full ring-1 ${compacto ? 'h-2 w-2' : 'h-2.5 w-2.5'} ${
+        preenchida ? cor : 'bg-transparent ring-white/25'
+      }`}
+    />
+  )
+
+  return (
+    <div className="flex items-center gap-3">
+      <span className="flex items-center gap-1" title={`${sucessos} sucesso(s)`}>
+        <span className="text-[10px] uppercase tracking-wide text-emerald-400/80">Vida</span>
+        <span className="flex gap-0.5">
+          {[0, 1, 2].map((i) => (
+            <span key={i}>{marca(i < sucessos, 'bg-emerald-400 ring-emerald-300')}</span>
+          ))}
+        </span>
+      </span>
+      <span className="flex items-center gap-1" title={`${falhas} falha(s)`}>
+        <span className="text-[10px] uppercase tracking-wide text-dragon-400/80">Morte</span>
+        <span className="flex gap-0.5">
+          {[0, 1, 2].map((i) => (
+            <span key={i}>{marca(i < falhas, 'bg-dragon-500 ring-dragon-400')}</span>
+          ))}
+        </span>
+      </span>
     </div>
   )
 }
