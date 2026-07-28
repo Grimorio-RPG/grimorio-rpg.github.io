@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useCharacters } from '../hooks/useCharacters'
 import { novaFicha } from '../lib/character'
@@ -6,9 +6,17 @@ import { parseImportedCharacter } from '../lib/storage'
 import type { ImportResumo } from '../lib/ddbImport'
 import { abilityMod, armorClass, fmtMod } from '../lib/calc'
 import type { Character } from '../types'
+import { useMesa, useSessao } from '../hooks/useSync'
+import { idsCompartilhados } from '../components/mesa-ui'
+import type { FichaDaMesa } from '../lib/sync/personagens'
+import { assinarFichasDaMesa, listarFichasDaMesa } from '../lib/sync/personagens'
+import CharacterReadonly from '../components/CharacterReadonly'
+import { Modal } from '../components/layout-ui'
 
 export default function CharactersPage() {
   const { characters, save, remove, refresh } = useCharacters()
+  const { mesa } = useMesa()
+  const compartilhadas = idsCompartilhados()
   const navigate = useNavigate()
   const fileRef = useRef<HTMLInputElement>(null)
   const pdfRef = useRef<HTMLInputElement>(null)
@@ -114,20 +122,106 @@ export default function CharactersPage() {
       {characters.length === 0 ? (
         <EmptyState onCreate={() => navigate('/fichas/novo')} />
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {characters.map((c) => (
-            <CharacterCard
-              key={c.id}
-              char={c}
-              onOpen={() => navigate(`/fichas/${c.id}`)}
-              onDelete={() => {
-                if (confirm(`Apagar a ficha de ${c.nome || 'sem nome'}? Isso não pode ser desfeito.`)) remove(c.id)
-              }}
-            />
-          ))}
-        </div>
+        <>
+          {mesa && <h2 className="mb-3 panel-title">Minhas fichas</h2>}
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {characters.map((c) => (
+              <CharacterCard
+                key={c.id}
+                char={c}
+                naMesa={mesa ? compartilhadas.includes(c.id) : false}
+                onOpen={() => navigate(`/fichas/${c.id}`)}
+                onDelete={() => {
+                  if (confirm(`Apagar a ficha de ${c.nome || 'sem nome'}? Isso não pode ser desfeito.`)) remove(c.id)
+                }}
+              />
+            ))}
+          </div>
+        </>
       )}
+
+      <FichasDoGrupo />
     </div>
+  )
+}
+
+/**
+ * Fichas dos outros jogadores da mesa.
+ *
+ * Elas viviam escondidas dentro de Campanha → Grupo, que é um painel de DM —
+ * mas ficha é assunto da aba Fichas, e o jogador também quer ver o grupo dele.
+ * Aqui aparecem abaixo das suas, separadas por uma linha.
+ */
+function FichasDoGrupo() {
+  const { mesa } = useMesa()
+  const { conta } = useSessao()
+  const [fichas, setFichas] = useState<FichaDaMesa[]>([])
+  const [aberta, setAberta] = useState<FichaDaMesa | null>(null)
+
+  useEffect(() => {
+    if (!mesa) {
+      setFichas([])
+      return
+    }
+    const recarregar = () => void listarFichasDaMesa(mesa.id).then(setFichas)
+    recarregar()
+    return assinarFichasDaMesa(mesa.id, recarregar)
+  }, [mesa?.id])
+
+  // As minhas já aparecem em cima; aqui só o resto do grupo.
+  const dosOutros = fichas.filter((f) => f.donoId !== conta?.id)
+  if (!mesa || dosOutros.length === 0) return null
+
+  return (
+    <section className="mt-8 border-t border-white/10 pt-6">
+      <h2 className="mb-1 panel-title">Grupo de {mesa.nome}</h2>
+      <p className="mb-3 text-xs text-parchment-200/60">
+        Fichas que os outros jogadores enviaram. Atualizam sozinhas — você vê o PV e o nível mudarem.
+      </p>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {dosOutros.map((f) => (
+          <button
+            key={f.linhaId}
+            type="button"
+            onClick={() => setAberta(f)}
+            className="card p-4 text-left transition hover:ring-1 hover:ring-arcane-400/40"
+          >
+            <div className="flex items-center gap-3">
+              <div className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-full bg-arcane-600/30 text-xl">
+                {f.ficha.avatarUrl ? (
+                  <img src={f.ficha.avatarUrl} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  '🧙'
+                )}
+              </div>
+              <div className="min-w-0">
+                <p className="truncate font-display text-lg text-parchment-50">
+                  {f.ficha.nome || 'Sem nome'}
+                </p>
+                <p className="truncate text-xs text-parchment-200/60">por {f.donoNome}</p>
+              </div>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-1.5 text-xs">
+              <span className="chip">{f.ficha.classe || '—'} {f.ficha.nivel}</span>
+              <span className="chip">CA {armorClass(f.ficha)}</span>
+              <span className="chip">
+                PV {f.ficha.pvAtual}/{f.ficha.pvMax}
+              </span>
+            </div>
+          </button>
+        ))}
+      </div>
+
+      {aberta && (
+        <Modal
+          titulo={`${aberta.ficha.nome || 'Ficha'} — ${aberta.donoNome}`}
+          largura="max-w-4xl"
+          onClose={() => setAberta(null)}
+        >
+          <CharacterReadonly char={aberta.ficha} />
+        </Modal>
+      )}
+    </section>
   )
 }
 
@@ -135,13 +229,26 @@ function CharacterCard({
   char,
   onOpen,
   onDelete,
+  naMesa = false,
 }: {
   char: Character
   onOpen: () => void
   onDelete: () => void
+  naMesa?: boolean
 }) {
   return (
-    <div className="card group relative overflow-hidden p-5 transition hover:ring-1 hover:ring-dragon-500/40">
+    <div
+      className={`card group relative overflow-hidden p-5 transition hover:ring-1 hover:ring-dragon-500/40 ${
+        naMesa ? 'ring-1 ring-emerald-400/40' : ''
+      }`}
+    >
+      {/* Qual ficha está em jogo nesta mesa: quem tem várias precisa saber de
+          relance qual delas o grupo está vendo. */}
+      {naMesa && (
+        <span className="absolute right-3 top-3 z-10 rounded-full bg-emerald-500/20 px-2 py-0.5 text-[11px] text-emerald-300">
+          ✓ nesta mesa
+        </span>
+      )}
       <button className="block w-full text-left" onClick={onOpen}>
         <div className="flex items-center gap-3">
           <div className="grid h-12 w-12 place-items-center overflow-hidden rounded-full bg-arcane-600/30 text-lg">

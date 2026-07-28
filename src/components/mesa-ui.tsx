@@ -49,7 +49,7 @@ export function SelosDaMesa() {
 
 const CHAVE_COMPARTILHADAS = 'grimorio55e.fichasCompartilhadas.v1'
 
-function idsCompartilhados(): string[] {
+export function idsCompartilhados(): string[] {
   const v = readJson<string[]>(CHAVE_COMPARTILHADAS, [])
   return Array.isArray(v) ? v : []
 }

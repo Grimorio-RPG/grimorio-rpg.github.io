@@ -57,6 +57,12 @@ export function loadScene(): MapScene {
 }
 
 /** Salva a cena. Devolve ok=false se o dado não couber no armazenamento. */
+/** Grava sem recarimbar — ver `persistirCampanha` para o porquê. */
+export function persistirCena(c: MapScene): MapScene {
+  writeJson(KEY, c)
+  return c
+}
+
 export function saveScene(c: MapScene): { ok: boolean; scene: MapScene } {
   const updated = { ...c, updatedAt: Date.now() }
   return { ok: writeJson(KEY, updated), scene: updated }

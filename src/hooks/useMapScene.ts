@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { MapScene } from '../types'
-import { loadScene, projetarCena, saveScene } from '../lib/mapscene'
+import { loadScene, persistirCena, projetarCena, saveScene } from '../lib/mapscene'
+import { assinarDadoDoDm, empurrarDadoDoDm } from '../lib/sync/dmSync'
 import { publicarComAtraso } from '../lib/sync/estado'
 import { CHAVES_MESA } from '../lib/sync/config'
 import { useMesa } from './useSync'
@@ -15,8 +16,27 @@ export function useMapScene() {
     setScene(loadScene())
   }, [])
 
-  // O mapa é pesado (imagem em data URL); publicamos com mais folga.
   const mesaId = mesa && souDm ? mesa.id : null
+
+  // A cena completa entre os aparelhos do DM, com os tokens ocultos que a
+  // projeção pública remove.
+  useEffect(() => {
+    if (!mesaId) return
+    return assinarDadoDoDm<MapScene>(mesaId, CHAVES_MESA.mapa, (remota) => {
+      setScene((atual) => {
+        if (!remota?.updatedAt) return atual
+        if (atual && (atual.updatedAt ?? 0) >= remota.updatedAt) return atual
+        return persistirCena(remota)
+      })
+    })
+  }, [mesaId])
+
+  useEffect(() => {
+    if (!mesaId || !scene) return
+    empurrarDadoDoDm(mesaId, CHAVES_MESA.mapa, scene)
+  }, [mesaId, scene])
+
+  // O mapa é pesado (imagem em data URL); publicamos com mais folga.
   useEffect(() => {
     if (!mesaId || !scene) return
     publicarComAtraso(mesaId, CHAVES_MESA.mapaPub, projetarCena(scene), 1200)

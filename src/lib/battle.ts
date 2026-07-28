@@ -43,6 +43,12 @@ function normalizeCombatant(c: Partial<Combatant>): Combatant {
   } as Combatant
 }
 
+/** Grava sem recarimbar — ver `persistirCampanha` para o porquê. */
+export function persistirBatalha(b: Battle): Battle {
+  writeJson(KEY, b)
+  return b
+}
+
 export function saveBattle(b: Battle): Battle {
   const updated = { ...b, updatedAt: Date.now() }
   writeJson(KEY, updated)

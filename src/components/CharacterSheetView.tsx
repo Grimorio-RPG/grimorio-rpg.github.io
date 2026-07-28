@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { PainelDeAcoes } from './acoes-ui'
 import type { Character } from '../types'
 import { ABILITIES, CONDICOES, SKILLS, rotuloClasse } from '../data/rules'
 import { ACOES_GERAIS, ROTULO_TIPO, acoesDaClasse, type AcaoInfo } from '../data/actions'
@@ -178,6 +179,12 @@ export default function CharacterSheetView({
           )}
         </section>
       )}
+
+      {/* O turno da pessoa: tudo o que dá para fazer, com o dado a um clique */}
+      <section className="card p-5">
+        <h3 className="mb-3 panel-title">O que você pode fazer</h3>
+        <PainelDeAcoes char={char} />
+      </section>
 
       {/* Ataques */}
       {char.ataques.length > 0 && (
