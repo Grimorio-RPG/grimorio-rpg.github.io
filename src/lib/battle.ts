@@ -1,5 +1,5 @@
 import type { Battle, Combatant, Character, Monster } from '../types'
-import { abilityMod } from './calc'
+import { abilityMod, armorClass } from './calc'
 import { uid } from './character'
 import { CHAVES, readRaw, writeJson } from './store'
 
@@ -110,7 +110,11 @@ export function combatentesDeMonstro(m: Monster, qtd: number): Combatant[] {
 /** Cria um combatente aliado a partir de uma ficha de personagem. */
 export function combatenteDePersonagem(c: Character): Combatant {
   const mod = abilityMod(c.atributos.des) + (c.iniciativaBonus || 0)
-  const ca = c.classeArmaduraManual ?? 10 + abilityMod(c.atributos.des)
+  // `armorClass` e não uma conta à mão: a versão anterior fazia
+  // `10 + DES`, ignorando armadura, escudo, estilo de luta Defesa e Defesa sem
+  // Armadura — o combatente entrava na batalha com uma CA que não era a da
+  // ficha. Cálculo de regra tem um dono só.
+  const ca = armorClass(c)
   return {
     id: uid(),
     origem: 'aliado',

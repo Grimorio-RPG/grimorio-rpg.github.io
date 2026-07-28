@@ -78,23 +78,24 @@
   pointer-events: none;
 }
 
-/* Anel de quem está agindo */
-@keyframes gv-girar {
-  to { transform: rotate(360deg); }
+/* Quem está agindo.
+ *
+ * A primeira versão usava um `conic-gradient` girando na borda do elemento. Num
+ * cartão largo, a "fatia" do gradiente virava uma cunha amarela atravessando a
+ * tela — a forma de um cone só funciona em algo pequeno e quadrado. Aqui o
+ * destaque é um halo que respira, preso ao retrato, e uma seta que aponta. */
+@keyframes gv-halo {
+  0%, 100% { box-shadow: 0 0 0 2px rgb(251 191 36 / 0.9), 0 0 10px 2px rgb(251 191 36 / 0.35); }
+  50%      { box-shadow: 0 0 0 3px rgb(251 191 36 / 1), 0 0 18px 5px rgb(251 191 36 / 0.55); }
 }
-.gv-turno::before {
-  content: '';
-  position: absolute;
-  inset: -3px;
-  border-radius: inherit;
-  background: conic-gradient(from 0deg, transparent 0deg 250deg, rgb(251 191 36) 320deg, transparent 360deg);
-  animation: gv-girar 2.4s linear infinite;
-  z-index: -1;
+.gv-turno-halo { animation: gv-halo 1.8s ease-in-out infinite; }
+
+/* Seta apontando para quem age, com um leve vaivém */
+@keyframes gv-seta {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(3px); }
 }
-.gv-turno {
-  position: relative;
-  isolation: isolate;
-}
+.gv-seta { animation: gv-seta 1.4s ease-in-out infinite; }
 
 /* Tremor curto ao levar dano */
 @keyframes gv-tremer {

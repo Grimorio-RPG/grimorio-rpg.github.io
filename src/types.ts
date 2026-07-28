@@ -121,6 +121,18 @@ export interface Character {
    * a pessoa rolou. Opcional — fichas anteriores a isto não têm histórico.
    */
   historicoNiveis?: GanhoDeNivel[]
+  /**
+   * Experiência acumulada. Opcional de propósito: muitas mesas jogam por marco
+   * e nunca contam XP — quem não usa não vê barra nenhuma.
+   */
+  xp?: number
+  /**
+   * Magia em concentração, se houver.
+   *
+   * O 2024 depende disso e o app não rastreava: perder a concentração sem
+   * perceber é o erro de regra mais comum de mesa.
+   */
+  concentrando?: string
   iniciativaBonus: number
   deslocamento: number
   pvMax: number

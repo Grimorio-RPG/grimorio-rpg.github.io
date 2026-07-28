@@ -11,6 +11,7 @@ import {
   statusPV,
 } from '../lib/battle'
 import { PartyBar } from '../components/party-bar'
+import { useCharacters } from '../hooks/useCharacters'
 import { loadCharacters } from '../lib/storage'
 import type { FichaDaMesa } from '../lib/sync/personagens'
 import { assinarFichasDaMesa, listarFichasDaMesa } from '../lib/sync/personagens'
@@ -101,8 +102,24 @@ function BatalhaDaMesa({ mesaId }: { mesaId: string }) {
 function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateFn; ordenados: Combatant[] }) {
   const atual = battle.emAndamento ? ordenados[battle.turnoIndex] : null
 
+  /**
+   * Altera um combatente — e, quando ele é uma ficha sua, a ficha junto.
+   *
+   * A batalha guardava uma cópia do personagem: tirar PV aqui não chegava na
+   * aba Fichas, e a pessoa acabava a sessão com duas verdades diferentes sobre
+   * a própria vida. Agora o PV volta para a ficha de origem.
+   *
+   * Só vale para as SUAS fichas. A do Guilherme é dele: quem escreve é o dono,
+   * e o banco recusaria de qualquer forma (`dono_id = auth.uid()`).
+   */
   function patchC(id: string, p: Partial<Combatant>) {
+    const alvo = battle.combatentes.find((c) => c.id === id)
     update({ combatentes: battle.combatentes.map((c) => (c.id === id ? { ...c, ...p } : c)) })
+
+    if (alvo?.origem !== 'aliado' || p.pvAtual == null || !alvo.refId) return
+    const ficha = loadCharacters().find((f) => f.id === alvo.refId)
+    if (!ficha || ficha.pvAtual === p.pvAtual) return
+    salvarFicha({ ...ficha, pvAtual: p.pvAtual })
   }
   function removerC(id: string) {
     update({ combatentes: battle.combatentes.filter((c) => c.id !== id) })
@@ -134,6 +151,7 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
   const inimigos = ordenados.filter((c) => c.origem === 'inimigo')
   const aliados = ordenados.filter((c) => c.origem === 'aliado')
   const { mesa, souDm } = useMesa()
+  const { save: salvarFicha } = useCharacters()
 
   return (
     <div className="space-y-5">
@@ -199,8 +217,8 @@ function CombatantRow({
 
   return (
     <div
-      className={`card gv-fade p-3 transition ${
-        atual ? 'gv-turno ring-2 ring-amber-400/70' : ''
+      className={`card gv-fade relative p-3 transition ${
+        atual ? 'border-l-4 border-l-amber-400 ring-1 ring-amber-400/50' : ''
       } ${caido ? 'gv-caido' : ''}`}
     >
       <div className="flex flex-wrap items-center gap-3">

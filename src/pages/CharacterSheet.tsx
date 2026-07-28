@@ -503,6 +503,39 @@ function CombatSection({ char, update }: { char: Character; update: (p: Partial<
         </Stat>
       </div>
 
+      {/* Concentração e XP: dois recursos que a mesa perde de vista. */}
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <Field
+          label="Concentrando em"
+          hint="A magia que você mantém agora. Levar dano pede salvaguarda de Constituição."
+        >
+          <div className="flex gap-2">
+            <TextField
+              value={char.concentrando ?? ''}
+              onChange={(v) => update({ concentrando: v })}
+              placeholder="Nenhuma"
+            />
+            {char.concentrando && (
+              <button
+                type="button"
+                className="btn-ghost shrink-0 px-3 text-xs"
+                onClick={() => update({ concentrando: '' })}
+                title="Perdeu ou encerrou a concentração"
+              >
+                Encerrar
+              </button>
+            )}
+          </div>
+        </Field>
+        <Field label="Experiência (XP)" hint="Deixe em branco se a sua mesa joga por marco.">
+          <NumberField
+            value={char.xp ?? 0}
+            min={0}
+            onChange={(v) => update({ xp: Math.max(0, v) })}
+          />
+        </Field>
+      </div>
+
       <div className="mt-4 flex flex-wrap items-center gap-4">
         <label className="flex cursor-pointer items-center gap-2 text-sm">
           <input

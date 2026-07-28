@@ -1,6 +1,7 @@
 import type { Character } from '../types'
 import { abilityMod, armorClass, fmtMod } from '../lib/calc'
 import { classInfo } from '../lib/calc'
+import { progressoDeXp } from '../data/progression'
 
 /**
  * Ícone e cor de cada condição.
@@ -203,6 +204,43 @@ export function FichaCard({
 
         {pctVida <= 25 && !caido && char.pvMax > 0 && (
           <p className="mt-2 text-[11px] font-medium text-dragon-400">⚠️ Quase morrendo</p>
+        )}
+
+        {/* Progresso até o próximo nível.
+            Só aparece para quem usa XP: mesa de marco não vê barra nenhuma. */}
+        {typeof char.xp === 'number' && char.xp > 0 && char.nivel < 20 && (
+          <div className="mt-3">
+            {(() => {
+              const p = progressoDeXp(char.xp!, char.nivel)
+              return (
+                <>
+                  <div className="mb-0.5 flex items-baseline justify-between text-[10px]">
+                    <span className="uppercase tracking-wide text-parchment-200/50">
+                      {p.podeSubir ? 'Pronto para subir!' : `Nível ${char.nivel + 1}`}
+                    </span>
+                    <span className="text-parchment-200/60">
+                      {p.podeSubir ? `${char.xp} XP` : `faltam ${p.faltam.toLocaleString('pt-BR')}`}
+                    </span>
+                  </div>
+                  <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
+                    <div
+                      className={`h-full rounded-full transition-all duration-700 ${
+                        p.podeSubir ? 'bg-amber-400 animate-pulse' : 'bg-arcane-400'
+                      }`}
+                      style={{ width: `${p.podeSubir ? 100 : p.pct}%` }}
+                    />
+                  </div>
+                </>
+              )
+            })()}
+          </div>
+        )}
+
+        {/* Concentração: perder sem perceber é o erro de regra mais comum. */}
+        {char.concentrando && (
+          <p className="mt-2 inline-flex items-center gap-1 rounded-full border border-sky-400/40 bg-sky-500/15 px-2 py-0.5 text-[11px] text-sky-300">
+            🌀 Concentrando: {char.concentrando}
+          </p>
         )}
 
         {/* Inspiração é um recurso e some no meio da ficha — aqui é um token. */}

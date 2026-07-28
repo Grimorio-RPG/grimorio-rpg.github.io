@@ -118,3 +118,47 @@ export function marcosDoNivel(classe: string, nivel: number): string[] {
 export function mediaDoDado(faces: number): number {
   return Math.floor(faces / 2) + 1
 }
+
+// ---------------------------------------------------------------------------
+// Experiência
+//
+// Tabela padrão do PHB. Existe para a ficha poder mostrar o quanto falta para o
+// próximo nível — progresso visível é o que transforma "somei 300 XP" em uma
+// barra que anda.
+// ---------------------------------------------------------------------------
+const XP_POR_NIVEL = [
+  0, 300, 900, 2700, 6500, 14000, 23000, 34000, 48000, 64000,
+  85000, 100000, 120000, 140000, 165000, 195000, 225000, 265000, 305000, 355000,
+]
+
+export function xpDoNivel(nivel: number): number {
+  return XP_POR_NIVEL[Math.max(1, Math.min(20, nivel)) - 1]
+}
+
+export interface ProgressoDeXp {
+  /** Quanto já andou dentro do nível atual. */
+  atual: number
+  /** Quanto o nível inteiro vale. */
+  total: number
+  pct: number
+  faltam: number
+  /** O XP já dá para subir de nível? */
+  podeSubir: boolean
+}
+
+export function progressoDeXp(xp: number, nivel: number): ProgressoDeXp {
+  if (nivel >= 20) {
+    return { atual: 0, total: 0, pct: 100, faltam: 0, podeSubir: false }
+  }
+  const base = xpDoNivel(nivel)
+  const proximo = xpDoNivel(nivel + 1)
+  const total = proximo - base
+  const atual = Math.max(0, Math.min(total, xp - base))
+  return {
+    atual,
+    total,
+    pct: total > 0 ? (atual / total) * 100 : 0,
+    faltam: Math.max(0, proximo - xp),
+    podeSubir: xp >= proximo,
+  }
+}

@@ -35,11 +35,20 @@ function RetratoDeCombatente({ c, ativo }: { c: Combatant; ativo: boolean }) {
   return (
     <div
       className={`relative w-24 shrink-0 rounded-lg border p-1.5 transition ${
-        ativo ? 'gv-turno border-amber-400/60 bg-amber-500/10' : 'border-white/10 bg-ink-900/60'
+        ativo ? 'border-amber-400/60 bg-amber-500/10' : 'border-white/10 bg-ink-900/60'
       } ${flash && flash.delta < 0 ? 'gv-tremer' : ''}`}
       title={`${c.nome} — ${c.pvAtual}/${c.pvMax} PV`}
     >
-      <div className={`relative mx-auto h-14 w-14 overflow-hidden rounded-md bg-arcane-600/25 ${caido ? 'gv-caido' : ''}`}>
+      {ativo && (
+        <span className="gv-seta pointer-events-none absolute -top-1 left-1/2 -translate-x-1/2 text-sm text-amber-400 drop-shadow">
+          ▼
+        </span>
+      )}
+      <div
+        className={`relative mx-auto h-14 w-14 overflow-hidden rounded-md bg-arcane-600/25 ${
+          caido ? 'gv-caido' : ''
+        } ${ativo ? 'gv-turno-halo' : ''}`}
+      >
         {c.imagemUrl ? (
           <img src={c.imagemUrl} alt="" className="h-full w-full object-cover" />
         ) : (
