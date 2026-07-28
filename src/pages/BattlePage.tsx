@@ -315,7 +315,14 @@ function AddCombatentes({ battle, update, mesaId }: { battle: Battle; update: Up
       <div className="grid gap-4 md:grid-cols-2">
         {/* Aliados (fichas) */}
         <div>
-          <p className="mb-2 panel-title">Grupo</p>
+          <p className="mb-2 panel-title">
+            Grupo
+            {doGrupo.length > 0 && (
+              <span className="ml-2 font-normal normal-case text-parchment-200/50">
+                — as fichas completas ficam em Campanha → Grupo
+              </span>
+            )}
+          </p>
           {fichas.length === 0 ? (
             <p className="text-sm text-parchment-200/50">
               Crie personagens na aba Fichas, ou peça ao grupo para tocar em <b>☁️ Enviar para a

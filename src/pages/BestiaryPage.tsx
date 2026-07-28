@@ -289,10 +289,14 @@ function DmMonsterCard({
 
         {/* Categoria e marco de derrota */}
         <div className="mb-3 flex flex-wrap items-center gap-2">
+          <span className="panel-title shrink-0">Peso</span>
+          {/* Sem `appearance-none`: a seta do select é o que diz que dá para
+              clicar. Sem ela, o campo parecia um rótulo fixo e ninguém
+              descobria que a categoria era editável. */}
           <select
             value={m.categoria ?? 'comum'}
             onChange={(e) => onCategoria(e.target.value as NonNullable<Monster['categoria']>)}
-            className="stat-input flex-1 appearance-none py-1.5 text-sm"
+            className="stat-input flex-1 py-1.5 text-sm"
           >
             {CATEGORIAS_MONSTRO.map((c) => (
               <option key={c.valor} value={c.valor}>{c.icone} {c.label}</option>
@@ -582,6 +586,7 @@ function MonsterEditor({
                 Selecione o bloco no PDF ou site, copie e cole aqui. O que eu não reconhecer fica
                 como está — não invento campo.
               </p>
+              <PromptParaIa />
               <TextArea
                 value={texto}
                 onChange={setTexto}
@@ -810,6 +815,87 @@ function ImageSlot({
   )
 }
 
+
+/**
+ * Prompt pronto para pedir a ficha a uma IA no formato que o leitor entende.
+ *
+ * Fica guardado aqui, e não num documento à parte, porque ele precisa andar
+ * junto com o leitor: se `statblock.ts` mudar o que reconhece, isto muda na
+ * mesma alteração.
+ */
+const PROMPT_IA = `Escreva a ficha de um monstro de D&D 5.5e (regras de 2024) em TEXTO PURO, no formato exato abaixo. Sem markdown, sem negrito, sem tabelas, sem asteriscos.
+
+Nome da Criatura
+Humanoide Médio (orc), leal e mau
+CA 15
+PV 52
+Deslocamento 9 m
+FOR DES CON INT SAB CAR
+14 (+2) 12 (+1) 14 (+2) 16 (+3) 15 (+2) 11 (+0)
+Perícias: Arcana +5, Percepção +4
+Sentidos: visão no escuro 18 m, percepção passiva 14
+Idiomas: Comum, Orc
+ND 4
+
+CARACTERÍSTICAS
+Nome do Traço. Descrição do traço em uma ou duas frases.
+Outro Traço. Descrição.
+
+AÇÕES
+Nome da Ação. Ataque corpo a corpo com arma: +5 para atingir, alcance 1,5 m, um alvo. Dano: 7 (1d8 + 3) perfurante.
+Outra Ação. Descrição completa.
+
+REAÇÃO
+Nome da Reação. Descrição.
+
+Regras do formato, todas obrigatórias:
+- A primeira linha é só o nome.
+- A segunda linha tem o tamanho (Miúdo, Pequeno, Médio, Grande, Enorme ou Colossal) e o tipo.
+- Os seis atributos vêm em duas linhas: os rótulos numa, os valores na outra, com o modificador entre parênteses.
+- CARACTERÍSTICAS, AÇÕES e REAÇÃO são cabeçalhos sozinhos numa linha, em maiúsculas.
+- Cada traço e cada ação começa com o nome seguido de ponto final, e depois a descrição.
+
+Agora crie: [DESCREVA AQUI A CRIATURA QUE VOCÊ QUER]`
+
+function PromptParaIa() {
+  const [aberto, setAberto] = useState(false)
+  const [copiado, setCopiado] = useState(false)
+
+  async function copiar() {
+    try {
+      await navigator.clipboard.writeText(PROMPT_IA)
+      setCopiado(true)
+      setTimeout(() => setCopiado(false), 2000)
+    } catch {
+      setAberto(true)
+    }
+  }
+
+  return (
+    <div className="mb-2 rounded-lg border border-arcane-400/25 bg-arcane-500/5 p-2.5">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs text-parchment-200/80">
+          Não tem o bloco pronto? Peça a uma IA no formato certo.
+        </span>
+        <button type="button" className="btn-ghost py-1 text-xs" onClick={copiar}>
+          {copiado ? '✓ Copiado' : '📋 Copiar prompt'}
+        </button>
+        <button
+          type="button"
+          className="text-xs text-parchment-200/50 underline hover:text-parchment-100"
+          onClick={() => setAberto((v) => !v)}
+        >
+          {aberto ? 'esconder' : 'ver o prompt'}
+        </button>
+      </div>
+      {aberto && (
+        <pre className="mt-2 max-h-60 overflow-auto whitespace-pre-wrap rounded bg-ink-900/60 p-2 text-[11px] leading-relaxed text-parchment-200/80">
+          {PROMPT_IA}
+        </pre>
+      )}
+    </div>
+  )
+}
 
 // ---------------------------------------------------------------------------
 // Imagem em tamanho real
