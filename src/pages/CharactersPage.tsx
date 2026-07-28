@@ -1,10 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useCharacters } from '../hooks/useCharacters'
 import { novaFicha } from '../lib/character'
 import { parseImportedCharacter } from '../lib/storage'
 import type { ImportResumo } from '../lib/ddbImport'
-import { abilityMod, armorClass, fmtMod } from '../lib/calc'
 import type { Character } from '../types'
 import { useMesa, useSessao } from '../hooks/useSync'
 import { idsCompartilhados } from '../components/mesa-ui'
@@ -12,11 +11,18 @@ import type { FichaDaMesa } from '../lib/sync/personagens'
 import { assinarFichasDaMesa, listarFichasDaMesa } from '../lib/sync/personagens'
 import CharacterReadonly from '../components/CharacterReadonly'
 import { Modal } from '../components/layout-ui'
+import { FichaCard } from '../components/ficha-card'
 
 export default function CharactersPage() {
   const { characters, save, remove, refresh } = useCharacters()
   const { mesa } = useMesa()
   const compartilhadas = idsCompartilhados()
+  // A ficha em jogo vem primeiro: numa lista de cinco personagens, o que
+  // importa agora é o que está na mesa de hoje.
+  const minhas = useMemo(() => {
+    const emJogo = (c: Character) => (mesa && compartilhadas.includes(c.id) ? 0 : 1)
+    return [...characters].sort((a, b) => emJogo(a) - emJogo(b) || b.updatedAt - a.updatedAt)
+  }, [characters, mesa, compartilhadas.join(',')])
   const navigate = useNavigate()
   const fileRef = useRef<HTMLInputElement>(null)
   const pdfRef = useRef<HTMLInputElement>(null)
@@ -125,11 +131,11 @@ export default function CharactersPage() {
         <>
           {mesa && <h2 className="mb-3 panel-title">Minhas fichas</h2>}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {characters.map((c) => (
-              <CharacterCard
+            {minhas.map((c) => (
+              <FichaCard
                 key={c.id}
                 char={c}
-                naMesa={mesa ? compartilhadas.includes(c.id) : false}
+                emJogo={!!mesa && compartilhadas.includes(c.id)}
                 onOpen={() => navigate(`/fichas/${c.id}`)}
                 onDelete={() => {
                   if (confirm(`Apagar a ficha de ${c.nome || 'sem nome'}? Isso não pode ser desfeito.`)) remove(c.id)
@@ -180,35 +186,12 @@ function FichasDoGrupo() {
       </p>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {dosOutros.map((f) => (
-          <button
+          <FichaCard
             key={f.linhaId}
-            type="button"
-            onClick={() => setAberta(f)}
-            className="card p-4 text-left transition hover:ring-1 hover:ring-arcane-400/40"
-          >
-            <div className="flex items-center gap-3">
-              <div className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-full bg-arcane-600/30 text-xl">
-                {f.ficha.avatarUrl ? (
-                  <img src={f.ficha.avatarUrl} alt="" className="h-full w-full object-cover" />
-                ) : (
-                  '🧙'
-                )}
-              </div>
-              <div className="min-w-0">
-                <p className="truncate font-display text-lg text-parchment-50">
-                  {f.ficha.nome || 'Sem nome'}
-                </p>
-                <p className="truncate text-xs text-parchment-200/60">por {f.donoNome}</p>
-              </div>
-            </div>
-            <div className="mt-3 flex flex-wrap gap-1.5 text-xs">
-              <span className="chip">{f.ficha.classe || '—'} {f.ficha.nivel}</span>
-              <span className="chip">CA {armorClass(f.ficha)}</span>
-              <span className="chip">
-                PV {f.ficha.pvAtual}/{f.ficha.pvMax}
-              </span>
-            </div>
-          </button>
+            char={f.ficha}
+            autor={f.donoNome}
+            onOpen={() => setAberta(f)}
+          />
         ))}
       </div>
 
@@ -222,64 +205,6 @@ function FichasDoGrupo() {
         </Modal>
       )}
     </section>
-  )
-}
-
-function CharacterCard({
-  char,
-  onOpen,
-  onDelete,
-  naMesa = false,
-}: {
-  char: Character
-  onOpen: () => void
-  onDelete: () => void
-  naMesa?: boolean
-}) {
-  return (
-    <div
-      className={`card group relative overflow-hidden p-5 transition hover:ring-1 hover:ring-dragon-500/40 ${
-        naMesa ? 'ring-1 ring-emerald-400/40' : ''
-      }`}
-    >
-      {/* Qual ficha está em jogo nesta mesa: quem tem várias precisa saber de
-          relance qual delas o grupo está vendo. */}
-      {naMesa && (
-        <span className="absolute right-3 top-3 z-10 rounded-full bg-emerald-500/20 px-2 py-0.5 text-[11px] text-emerald-300">
-          ✓ nesta mesa
-        </span>
-      )}
-      <button className="block w-full text-left" onClick={onOpen}>
-        <div className="flex items-center gap-3">
-          <div className="grid h-12 w-12 place-items-center overflow-hidden rounded-full bg-arcane-600/30 text-lg">
-            {char.avatarUrl ? (
-              <img src={char.avatarUrl} alt="" className="h-full w-full object-cover" />
-            ) : (
-              <span>🧙</span>
-            )}
-          </div>
-          <div className="min-w-0">
-            <p className="truncate font-display text-lg text-parchment-50">{char.nome || 'Sem nome'}</p>
-            <p className="truncate text-xs text-parchment-200/60">
-              {[char.especie, char.classe].filter(Boolean).join(' · ') || 'Personagem em branco'}
-            </p>
-          </div>
-        </div>
-        <div className="mt-4 flex gap-2 text-xs">
-          <span className="chip">Nível {char.nivel}</span>
-          <span className="chip">CA {armorClass(char)}</span>
-          <span className="chip">PV {char.pvMax}</span>
-          <span className="chip">FOR {fmtMod(abilityMod(char.atributos.for))}</span>
-        </div>
-      </button>
-      <button
-        onClick={onDelete}
-        className="absolute right-3 top-3 rounded-md px-2 py-1 text-xs text-parchment-200/40 opacity-0 transition hover:bg-dragon-500/20 hover:text-dragon-400 group-hover:opacity-100"
-        aria-label="Apagar ficha"
-      >
-        ✕
-      </button>
-    </div>
   )
 }
 

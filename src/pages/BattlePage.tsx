@@ -243,7 +243,11 @@ function CombatantRow({
           <button className="btn-ghost px-2 py-1 text-xs" onClick={() => ajusta(-1)}>−1</button>
           <div className="w-16 text-center">
             <input type="number" value={c.pvAtual} onChange={(e) => { const n = parseInt(e.target.value, 10); onPatch({ pvAtual: Math.max(0, Math.min(c.pvMax, Number.isNaN(n) ? 0 : n)) }) }} className="w-16 rounded-md border border-white/10 bg-ink-900/70 px-1 py-0.5 text-center text-sm outline-none focus:border-arcane-400" />
-            <div className="mt-0.5 h-1.5 overflow-hidden rounded-full bg-black/40"><div className={`hpbar ${st.cor}`} style={{ width: `${st.pct}%` }} /></div>
+            {/* O que falta aparece em vermelho por baixo: ver o quanto já se
+                perdeu é a informação que importa numa fila de iniciativa. */}
+            <div className="mt-0.5 h-2 overflow-hidden rounded-full bg-dragon-900/70 ring-1 ring-inset ring-black/40">
+              <div className={`hpbar ${st.cor} ${st.pct <= 25 && st.pct > 0 ? 'animate-pulse' : ''}`} style={{ width: `${st.pct}%` }} />
+            </div>
             <div className="text-[10px] text-parchment-200/40">/ {c.pvMax}</div>
           </div>
           <button className="btn-ghost px-2 py-1 text-xs" onClick={() => ajusta(1)}>+1</button>
