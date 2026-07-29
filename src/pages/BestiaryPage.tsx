@@ -99,6 +99,7 @@ function BestiarioDoMestre() {
   const [filtros, setFiltros] = useState<FiltrosBestiario>(FILTROS_VAZIOS)
   const [editando, setEditando] = useState<Monster | null>(null)
   const [ampliada, setAmpliada] = useState('')
+  const [avisoFase, setAvisoFase] = useState('')
 
   // As fases seguintes vivem dentro do cartão da primeira — a lista mostrava
   // três Belaks soltos e nenhuma relação entre eles.
@@ -138,7 +139,23 @@ function BestiarioDoMestre() {
       updatedAt: Date.now(),
     }
     salvar(nova)
+    // Abrir o editor é o passo seguinte óbvio, mas sem aviso o salto parece
+    // que o botão não fez nada além de trocar de tela.
+    setAvisoFase(`Criei a ${rotuloFase(nova)} como cópia. Ajuste nome, arte e estatísticas.`)
     setEditando(nova)
+  }
+
+  /**
+   * Apaga uma fase.
+   *
+   * Se sobrar só a forma inicial, ela deixa de ser um chefe em fases — carregar
+   * um grupo de um membro só faria a tela mostrar abas para nada.
+   */
+  function apagarFase(f: Monster) {
+    if (!confirm(`Apagar "${f.nome || rotuloFase(f)}"? Isso não pode ser desfeito.`)) return
+    remover(f.id)
+    const restantes = fasesDoChefe(monstros, f.chefeId).filter((x) => x.id !== f.id)
+    if (restantes.length === 1) salvar({ ...restantes[0], chefeId: undefined, fase: undefined })
   }
 
   function duplicar(m: Monster) {
@@ -199,6 +216,7 @@ function BestiarioDoMestre() {
                   fases={fasesDoChefe(monstros, m.chefeId)}
                   onNovaFase={() => criarFase(m)}
                   onAbrirFase={(f) => setEditando(f)}
+                  onApagarFase={(f) => apagarFase(f)}
                 />
               ))}
             </div>
@@ -211,7 +229,11 @@ function BestiarioDoMestre() {
       {editando && (
         <MonsterEditor
           inicial={editando}
-          onClose={() => setEditando(null)}
+          aviso={avisoFase}
+          onClose={() => {
+            setEditando(null)
+            setAvisoFase('')
+          }}
           onSave={(m) => {
             salvar(m)
             setEditando(null)
@@ -240,6 +262,7 @@ function DmMonsterCard({
   fases = [],
   onNovaFase,
   onAbrirFase,
+  onApagarFase,
 }: {
   m: Monster
   onEdit: () => void
@@ -254,27 +277,32 @@ function DmMonsterCard({
   fases?: Monster[]
   onNovaFase?: () => void
   onAbrirFase?: (f: Monster) => void
+  onApagarFase?: (f: Monster) => void
 }) {
   const pct = m.pvMax > 0 ? Math.max(0, Math.min(100, (m.pvAtual / m.pvMax) * 100)) : 0
   const cor = pct > 50 ? 'bg-emerald-500' : pct > 25 ? 'bg-amber-500' : 'bg-dragon-500'
   const ajusta = (d: number) => onHp(Math.max(0, Math.min(m.pvMax, m.pvAtual + d)))
   const nivel = nivelInfo(m.conhecimento)
-  const cat = categoriaInfo(m.categoria)
-  const ferido = m.pvAtual < m.pvMax
+  // Qual fase o cartão mostra. Clicar numa aba troca a visualização — editar é
+  // o botão de baixo, que abre a fase visível.
+  const [faseVisivel, setFaseVisivel] = useState<string | null>(null)
+  const exibido = fases.find((f) => f.id === faseVisivel) ?? m
+  const cat = categoriaInfo(exibido.categoria)
+  const ferido = exibido.pvAtual < exibido.pvMax
 
   return (
     <div className="card gv-fade group relative overflow-hidden transition hover:ring-1 hover:ring-dragon-500/40">
       <div className="relative h-48 w-full overflow-hidden bg-ink-900/60">
-        {m.imagemUrl ? (
+        {exibido.imagemUrl ? (
           // Um stat block inteiro colado como imagem é ilegível cortado em 144
           // px de altura. Clicar abre em tamanho real.
           <button
             type="button"
             className="block h-full w-full cursor-zoom-in"
-            onClick={() => setAmpliada(m.imagemUrl)}
+            onClick={() => setAmpliada(exibido.imagemUrl)}
             title="Ver imagem inteira"
           >
-            <img src={m.imagemUrl} alt={m.nome} className="h-full w-full object-cover object-top transition duration-500 group-hover:scale-105" />
+            <img src={exibido.imagemUrl} alt={exibido.nome} className="h-full w-full object-cover object-top transition duration-500 group-hover:scale-105" />
           </button>
         ) : (
           <div className="grid h-full w-full place-items-center text-5xl opacity-40">🐾</div>
@@ -292,18 +320,18 @@ function DmMonsterCard({
                 m.derrotado ? 'line-through decoration-dragon-500 decoration-2' : ''
               }`}
             >
-              {m.nome || 'Sem nome'}
+              {exibido.nome || 'Sem nome'}
             </p>
-            <p className="text-xs text-parchment-100/80">{[m.tamanho, m.tipo].filter(Boolean).join(' · ')}</p>
+            <p className="text-xs text-parchment-100/80">{[exibido.tamanho, exibido.tipo].filter(Boolean).join(' · ')}</p>
           </div>
         </div>
       </div>
 
       <div className="p-4">
         <div className="mb-3 flex flex-wrap gap-2 text-xs">
-          <span className="chip">ND {m.nd}</span>
-          <span className="chip">CA {m.ca}</span>
-          <span className="chip">Desl. {m.deslocamento}</span>
+          <span className="chip">ND {exibido.nd}</span>
+          <span className="chip">CA {exibido.ca}</span>
+          <span className="chip">Desl. {exibido.deslocamento}</span>
         </div>
 
         {/* Fases do chefe: as formas seguintes vivem aqui dentro. */}
@@ -318,22 +346,46 @@ function DmMonsterCard({
               )}
             </div>
             {fases.length > 1 ? (
-              <div className="flex flex-wrap gap-1">
-                {fases.map((f) => (
-                  <button
-                    key={f.id}
-                    type="button"
-                    onClick={() => onAbrirFase?.(f)}
-                    className={`chip text-[11px] ${f.id === m.id ? 'border-arcane-400/60 text-parchment-50' : ''}`}
-                    title={f.nome}
-                  >
-                    {f.conhecimento === 'desconhecido' ? '🙈' : '👁'} {rotuloFase(f)}
-                  </button>
-                ))}
-              </div>
+              <>
+                <div className="space-y-1">
+                  {fases.map((f) => (
+                    <div key={f.id} className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setFaseVisivel(f.id)}
+                        className={`min-w-0 flex-1 truncate rounded px-1.5 py-1 text-left text-[11px] transition hover:bg-white/5 ${
+                          f.id === exibido.id
+                            ? 'bg-white/10 text-parchment-50'
+                            : 'text-parchment-200/70'
+                        }`}
+                        title={`Ver ${f.nome}`}
+                      >
+                        {f.conhecimento === 'desconhecido' ? '🙈' : '👁'}{' '}
+                        <b>{rotuloFase(f)}</b> — {f.nome || 'sem nome'}
+                      </button>
+                      {/* Uma fase criada por engano precisava poder sumir: a
+                          primeira versão só sabia criar. */}
+                      {(f.fase ?? 1) > 1 && (
+                        <button
+                          type="button"
+                          className="shrink-0 px-1 text-xs text-parchment-200/30 hover:text-dragon-400"
+                          title={`Apagar ${rotuloFase(f)}`}
+                          onClick={() => onApagarFase?.(f)}
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <p className="mt-1.5 text-[10px] leading-relaxed text-parchment-200/45">
+                  Em combate, o chefe começa na Fase 1 e você avança as seguintes quando ele cai.
+                </p>
+              </>
             ) : (
-              <p className="text-[11px] text-parchment-200/50">
-                Uma forma só. Crie uma fase para o chefe se transformar em combate.
+              <p className="text-[11px] leading-relaxed text-parchment-200/50">
+                Uma forma só. <b>＋ nova fase</b> cria uma cópia desta criatura para você editar —
+                é nela que o chefe se transforma ao cair em combate.
               </p>
             )}
           </div>
@@ -417,7 +469,12 @@ function DmMonsterCard({
         </div>
 
         <div className="mt-3 flex gap-2">
-          <button className="btn-ghost flex-1 py-1.5 text-xs" onClick={onEdit}>Editar / ver ficha</button>
+          <button
+            className="btn-ghost flex-1 py-1.5 text-xs"
+            onClick={() => (exibido.id === m.id ? onEdit() : onAbrirFase?.(exibido))}
+          >
+            Editar / ver ficha{fases.length > 1 ? ` — ${rotuloFase(exibido)}` : ''}
+          </button>
           <button className="btn-ghost px-2 py-1.5 text-xs text-parchment-200/50 hover:text-parchment-50" onClick={onDuplicate} title="Duplicar criatura" aria-label="Duplicar">⧉</button>
           <button
             className="btn-ghost px-2 py-1.5 text-xs text-parchment-200/50 hover:text-dragon-400"
@@ -578,10 +635,12 @@ function MonsterEditor({
   inicial,
   onClose,
   onSave,
+  aviso = '',
 }: {
   inicial: Monster
   onClose: () => void
   onSave: (m: Monster) => void
+  aviso?: string
 }) {
   const [m, setM] = useState<Monster>(inicial)
   const [colando, setColando] = useState(false)
@@ -618,6 +677,12 @@ function MonsterEditor({
           <h2 className="text-xl text-parchment-50">{inicial.nome ? 'Editar criatura' : 'Nova criatura'}</h2>
           <button className="btn-ghost" onClick={onClose}>Cancelar</button>
         </div>
+
+        {aviso && (
+          <p className="mb-4 rounded-lg border border-arcane-400/40 bg-arcane-500/10 p-2.5 text-sm text-parchment-100">
+            ⚡ {aviso}
+          </p>
+        )}
 
         {/* Colar bloco de estatísticas */}
         <div className="mb-5">
