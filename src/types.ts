@@ -463,4 +463,17 @@ export interface Monster {
   categoria?: CategoriaMonstro
   /** O grupo já derrubou. Risca o card — só vale para Mini Boss e Boss. */
   derrotado?: boolean
+  /**
+   * Criaturas que compartilham este id são a MESMA criatura em momentos
+   * diferentes: fase 2, forma desperta, versão condicionada à lore.
+   *
+   * Cada fase continua uma ficha completa — arte, estatísticas e ações
+   * próprias. Guardar como grupo, e não como campos dentro de uma ficha só,
+   * é o que permite a transformação trocar tudo de uma vez.
+   */
+  chefeId?: string
+  /** Ordem dentro do grupo. 1 é a forma em que o chefe entra em combate. */
+  fase?: number
+  /** Rótulo da fase, quando o número não basta ("Forma Desperta"). */
+  nomeFase?: string
 }

@@ -313,3 +313,44 @@ export function projetarBestiario(list: Monster[]): Monster[] {
       return base
     })
 }
+
+// ---------------------------------------------------------------------------
+// Chefes com fases
+//
+// Um chefe que vira outra coisa a 0 PV é o clímax de um combate, e fazer isso
+// à mão — apagar um monstro e adicionar outro na frente do grupo — estraga o
+// efeito. Aqui as fases são criaturas completas que sabem umas das outras.
+// ---------------------------------------------------------------------------
+
+/** As fases de um chefe, em ordem. Lista vazia quando não é um chefe em fases. */
+export function fasesDoChefe(lista: Monster[], chefeId: string | undefined): Monster[] {
+  if (!chefeId) return []
+  return lista
+    .filter((m) => m.chefeId === chefeId)
+    .sort((a, b) => (a.fase ?? 1) - (b.fase ?? 1))
+}
+
+/** A fase seguinte, se existir. É o que a batalha oferece ao chegar a 0 PV. */
+export function proximaFase(lista: Monster[], atual: Monster): Monster | null {
+  const fases = fasesDoChefe(lista, atual.chefeId)
+  const i = fases.findIndex((m) => m.id === atual.id)
+  return i >= 0 && i < fases.length - 1 ? fases[i + 1] : null
+}
+
+/**
+ * Só as criaturas que abrem a lista.
+ *
+ * Fases seguintes não aparecem soltas no bestiário: elas vivem dentro do
+ * cartão da primeira, senão a lista mostra três Belaks e nenhuma relação
+ * entre eles.
+ */
+export function apenasPrimeirasFases(lista: Monster[]): Monster[] {
+  return lista.filter((m) => !m.chefeId || (m.fase ?? 1) <= 1)
+}
+
+/** Rótulo curto de uma fase, para abas e selos. */
+export function rotuloFase(m: Monster): string {
+  if (m.nomeFase) return m.nomeFase
+  const n = m.fase ?? 1
+  return `Fase ${n}`
+}

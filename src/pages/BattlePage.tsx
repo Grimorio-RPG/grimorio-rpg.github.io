@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { Battle, Combatant, Monster } from '../types'
 import { useBattle } from '../hooks/useBattle'
 import { useBestiary } from '../hooks/useBestiary'
+import { proximaFase, rotuloFase } from '../lib/bestiary'
 import {
   batalhaVazia,
   combatenteDePersonagem,
@@ -161,6 +162,45 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
     return c.origem === 'inimigo' && c.pvAtual <= 0
   }
 
+  /**
+   * Faz o chefe virar a próxima fase, no lugar.
+   *
+   * Trocar a criatura à mão — apagar uma e adicionar outra — perde a posição na
+   * iniciativa e estraga o efeito na frente do grupo. Aqui o combatente é o
+   * mesmo: mantém o id, a ordem e as condições; troca arte, PV e ficha de
+   * origem.
+   *
+   * A fase seguinte só é revelada ao grupo agora. Ela ficava oculta no
+   * bestiário justamente para a virada ser surpresa.
+   */
+  function virarFase(c: Combatant) {
+    const atual = monstros.find((m) => m.id === c.refId)
+    if (!atual) return
+    const seguinte = proximaFase(monstros, atual)
+    if (!seguinte) return
+
+    salvarMonstro({ ...seguinte, conhecimento: 'encontrado' })
+    update({
+      combatentes: battle.combatentes.map((x) =>
+        x.id === c.id
+          ? {
+              ...x,
+              refId: seguinte.id,
+              nome: seguinte.nome,
+              imagemUrl: seguinte.imagemJogadorUrl || '',
+              imagemJogadorUrl: seguinte.imagemJogadorUrl || '',
+              ca: seguinte.ca,
+              pvMax: seguinte.pvMax,
+              pvAtual: seguinte.pvMax,
+              conhecimento: 'encontrado',
+              nomeOculto: false,
+            }
+          : x,
+      ),
+    })
+    setTransformando({ nome: seguinte.nome, rotulo: rotuloFase(seguinte) })
+  }
+
   function proximoTurno() {
     const n = ordenados.length
     if (n === 0) return
@@ -235,7 +275,8 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
   const aliados = ordenados.filter((c) => c.origem === 'aliado')
   const { mesa, souDm } = useMesa()
   const { save: salvarFicha } = useCharacters()
-  const { monstros } = useBestiary()
+  const { monstros, salvar: salvarMonstro } = useBestiary()
+  const [transformando, setTransformando] = useState<{ nome: string; rotulo: string } | null>(null)
   const [recompensa, setRecompensa] = useState<{
     xpTotal: number
     porPersonagem: number
@@ -306,6 +347,23 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
         </Modal>
       )}
 
+      {transformando && (
+        <div
+          className="pointer-events-none fixed inset-0 z-50 grid place-items-center"
+          onAnimationEnd={() => setTransformando(null)}
+        >
+          <div className="gv-clarao absolute inset-0 bg-dragon-500/25" />
+          <div className="gv-transformar text-center">
+            <p className="font-display text-2xl text-dragon-300 drop-shadow sm:text-3xl">
+              {transformando.rotulo}
+            </p>
+            <p className="font-display text-4xl text-parchment-50 drop-shadow-[0_3px_6px_rgba(0,0,0,0.9)] sm:text-6xl">
+              {transformando.nome}
+            </p>
+          </div>
+        </div>
+      )}
+
       <PartyBar combatentes={ordenados} atualId={atual?.id} />
 
       <AddCombatentes battle={battle} update={update} mesaId={souDm && mesa ? mesa.id : null} />
@@ -334,8 +392,32 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
 
           {/* Lista */}
           <div className="space-y-4">
-            {aliados.length > 0 && <Grupo titulo="Grupo" cor="text-emerald-400">{aliados.map((c) => <CombatantRow key={c.id} c={c} atual={atual?.id === c.id} onPatch={(p) => patchC(c.id, p)} onRemove={() => removerC(c.id)} />)}</Grupo>}
-            {inimigos.length > 0 && <Grupo titulo="Inimigos" cor="text-dragon-400">{inimigos.map((c) => <CombatantRow key={c.id} c={c} atual={atual?.id === c.id} onPatch={(p) => patchC(c.id, p)} onRemove={() => removerC(c.id)} />)}</Grupo>}
+            {aliados.length > 0 && <Grupo titulo="Grupo" cor="text-emerald-400">{aliados.map((c) => <CombatantRow
+                  key={c.id}
+                  c={c}
+                  atual={atual?.id === c.id}
+                  onPatch={(p) => patchC(c.id, p)}
+                  onRemove={() => removerC(c.id)}
+                  temProximaFase={
+                    c.origem === 'inimigo' &&
+                    c.pvAtual <= 0 &&
+                    !!proximaFase(monstros, monstros.find((m) => m.id === c.refId) ?? ({} as Monster))
+                  }
+                  onVirarFase={() => virarFase(c)}
+                />)}</Grupo>}
+            {inimigos.length > 0 && <Grupo titulo="Inimigos" cor="text-dragon-400">{inimigos.map((c) => <CombatantRow
+                  key={c.id}
+                  c={c}
+                  atual={atual?.id === c.id}
+                  onPatch={(p) => patchC(c.id, p)}
+                  onRemove={() => removerC(c.id)}
+                  temProximaFase={
+                    c.origem === 'inimigo' &&
+                    c.pvAtual <= 0 &&
+                    !!proximaFase(monstros, monstros.find((m) => m.id === c.refId) ?? ({} as Monster))
+                  }
+                  onVirarFase={() => virarFase(c)}
+                />)}</Grupo>}
           </div>
         </>
       )}
@@ -357,11 +439,16 @@ function CombatantRow({
   atual,
   onPatch,
   onRemove,
+  temProximaFase = false,
+  onVirarFase,
 }: {
   c: Combatant
   atual: boolean
   onPatch: (p: Partial<Combatant>) => void
   onRemove: () => void
+  /** O chefe caiu, mas ainda tem forma seguinte. */
+  temProximaFase?: boolean
+  onVirarFase?: () => void
 }) {
   const st = statusPV(c.pvAtual, c.pvMax)
   const ajusta = (d: number) => onPatch({ pvAtual: Math.max(0, Math.min(c.pvMax, c.pvAtual + d)) })
@@ -433,6 +520,18 @@ function CombatantRow({
           <button className="btn-ghost px-2 py-1 text-xs" onClick={() => ajusta(5)}>+5</button>
         </div>
       </div>
+
+      {/* O chefe caiu, mas não acabou: a virada é uma decisão do DM, tomada na
+          hora em que o grupo comemora cedo demais. */}
+      {temProximaFase && (
+        <button
+          type="button"
+          className="btn-primary mt-2 w-full py-1.5 text-xs"
+          onClick={onVirarFase}
+        >
+          ⚡ Não acabou — avançar para a próxima fase
+        </button>
+      )}
 
       <CondicoesEditor condicoes={c.condicoes} onChange={(cond) => onPatch({ condicoes: cond })} />
     </div>

@@ -203,6 +203,17 @@ checar('chefe derrotado leva a marca', chefes.find((m) => m.id === 'b1').derrota
 checar('categoria chega ao grupo', chefes.find((m) => m.id === 'b1').categoria === 'miniboss')
 checar('chefe ainda desconhecido continua fora', !chefes.some((m) => m.id === 'b2'))
 semVazamento('bestiário chefes', chefes, ['SEGREDO-BOSS-FINAL'])
+
+// Fases de chefe: a forma seguinte só existe para o grupo depois da virada.
+// Publicá-la antes entrega a surpresa que a mecânica inteira existe para criar.
+const comFases = projetarBestiario([
+  { ...bestiario[2], id: 'f1', nome: 'Belak', chefeId: 'g1', fase: 1, conhecimento: 'completo' },
+  { ...bestiario[2], id: 'f2', nome: 'SEGREDO-FASE-2-ENXERTADO', chefeId: 'g1', fase: 2,
+    conhecimento: 'desconhecido' },
+])
+checar('fase seguinte não revelada fica fora', comFases.length === 1)
+checar('a fase em jogo passa', comFases[0].id === 'f1')
+semVazamento('fases de chefe', comFases, ['SEGREDO-FASE-2-ENXERTADO'])
 semVazamento('bestiário', pbst, [
   'SEGREDO-MONSTRO-OCULTO', 'SEGREDO-TRACOS-0', 'SEGREDO-TATICA-0', 'FOTO-DM-LOBO',
   'SEGREDO-TRACOS-1', 'SEGREDO-ACAO-1', 'SEGREDO-TATICA-1', 'SEGREDO-TATICA-2',

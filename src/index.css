@@ -179,6 +179,22 @@
 }
 .gv-encher { animation: gv-encher 1.1s ease-out forwards; }
 
+/* Transformação de chefe — a virada de fase */
+@keyframes gv-transformar {
+  0%   { opacity: 0; transform: scale(0.4); }
+  30%  { opacity: 1; transform: scale(1.1); }
+  60%  { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.6); }
+}
+.gv-transformar { animation: gv-transformar 2s ease-out forwards; }
+
+@keyframes gv-clarao {
+  0%   { opacity: 0; }
+  12%  { opacity: 0.9; }
+  100% { opacity: 0; }
+}
+.gv-clarao { animation: gv-clarao 2s ease-out forwards; }
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }

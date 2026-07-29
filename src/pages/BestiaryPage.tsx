@@ -7,8 +7,11 @@ import {
   NIVEIS_CONHECIMENTO,
   TAMANHOS,
   TIPOS,
+  apenasPrimeirasFases,
   categoriaInfo,
+  fasesDoChefe,
   imageToDataUrl,
+  rotuloFase,
   nivelInfo,
   novoMonstro,
 } from '../lib/bestiary'
@@ -97,12 +100,46 @@ function BestiarioDoMestre() {
   const [editando, setEditando] = useState<Monster | null>(null)
   const [ampliada, setAmpliada] = useState('')
 
-  const filtrados = useMemo(() => filtrarMonstros(monstros, filtros), [monstros, filtros])
+  // As fases seguintes vivem dentro do cartão da primeira — a lista mostrava
+  // três Belaks soltos e nenhuma relação entre eles.
+  const filtrados = useMemo(
+    () => apenasPrimeirasFases(filtrarMonstros(monstros, filtros)),
+    [monstros, filtros],
+  )
 
   const conhecidos = useMemo(
     () => filtrarMonstros(monstros.filter((m) => m.conhecimento !== 'desconhecido'), filtros),
     [monstros, filtros],
   )
+
+  /**
+   * Cria a próxima fase de um chefe.
+   *
+   * Parte de uma cópia porque a fase seguinte quase sempre herda tipo, tamanho
+   * e boa parte das ações — reescrever tudo do zero seria pior. Nasce oculta:
+   * a virada só funciona como surpresa.
+   */
+  function criarFase(base: Monster) {
+    const grupo = base.chefeId ?? uid()
+    const existentes = fasesDoChefe(monstros, grupo)
+    const numero = existentes.length > 0 ? (existentes[existentes.length - 1].fase ?? 1) + 1 : 2
+
+    // A primeira vez também carimba a criatura original como fase 1.
+    if (!base.chefeId) salvar({ ...base, chefeId: grupo, fase: 1 })
+
+    const nova: Monster = {
+      ...base,
+      id: uid(),
+      chefeId: grupo,
+      fase: numero,
+      nome: `${base.nome} — Fase ${numero}`,
+      conhecimento: 'desconhecido',
+      derrotado: false,
+      updatedAt: Date.now(),
+    }
+    salvar(nova)
+    setEditando(nova)
+  }
 
   function duplicar(m: Monster) {
     salvar({ ...m, id: uid(), nome: `${m.nome} (cópia)`, updatedAt: Date.now() })
@@ -159,6 +196,9 @@ function BestiarioDoMestre() {
                   onCategoria={(categoria) => salvar({ ...m, categoria })}
                   onDerrotado={(derrotado) => salvar({ ...m, derrotado })}
                   setAmpliada={setAmpliada}
+                  fases={fasesDoChefe(monstros, m.chefeId)}
+                  onNovaFase={() => criarFase(m)}
+                  onAbrirFase={(f) => setEditando(f)}
                 />
               ))}
             </div>
@@ -197,6 +237,9 @@ function DmMonsterCard({
   onCategoria,
   onDerrotado,
   setAmpliada,
+  fases = [],
+  onNovaFase,
+  onAbrirFase,
 }: {
   m: Monster
   onEdit: () => void
@@ -207,6 +250,10 @@ function DmMonsterCard({
   onCategoria: (c: NonNullable<Monster['categoria']>) => void
   onDerrotado: (v: boolean) => void
   setAmpliada: (url: string) => void
+  /** Todas as formas deste chefe, quando ele tiver mais de uma. */
+  fases?: Monster[]
+  onNovaFase?: () => void
+  onAbrirFase?: (f: Monster) => void
 }) {
   const pct = m.pvMax > 0 ? Math.max(0, Math.min(100, (m.pvAtual / m.pvMax) * 100)) : 0
   const cor = pct > 50 ? 'bg-emerald-500' : pct > 25 ? 'bg-amber-500' : 'bg-dragon-500'
@@ -258,6 +305,39 @@ function DmMonsterCard({
           <span className="chip">CA {m.ca}</span>
           <span className="chip">Desl. {m.deslocamento}</span>
         </div>
+
+        {/* Fases do chefe: as formas seguintes vivem aqui dentro. */}
+        {(fases.length > 1 || cat.marcavel) && (
+          <div className="mb-3 rounded-lg border border-white/10 bg-white/[0.03] p-2">
+            <div className="mb-1.5 flex items-center justify-between gap-2">
+              <span className="panel-title">Fases</span>
+              {onNovaFase && (
+                <button type="button" className="text-xs text-arcane-400 hover:underline" onClick={onNovaFase}>
+                  ＋ nova fase
+                </button>
+              )}
+            </div>
+            {fases.length > 1 ? (
+              <div className="flex flex-wrap gap-1">
+                {fases.map((f) => (
+                  <button
+                    key={f.id}
+                    type="button"
+                    onClick={() => onAbrirFase?.(f)}
+                    className={`chip text-[11px] ${f.id === m.id ? 'border-arcane-400/60 text-parchment-50' : ''}`}
+                    title={f.nome}
+                  >
+                    {f.conhecimento === 'desconhecido' ? '🙈' : '👁'} {rotuloFase(f)}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="text-[11px] text-parchment-200/50">
+                Uma forma só. Crie uma fase para o chefe se transformar em combate.
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Categoria e marco de derrota */}
         <div className="mb-3 flex flex-wrap items-center gap-2">
