@@ -234,10 +234,10 @@ function BestiarioDoMestre() {
                   onDelete={() => {
                     if (confirm(`Remover "${m.nome || 'monstro'}" do bestiário?`)) remover(m.id)
                   }}
-                  onHp={(pvAtual) => salvar({ ...m, pvAtual })}
                   onNivel={(conhecimento) => salvar({ ...m, conhecimento })}
                   onCategoria={(categoria) => salvar({ ...m, categoria })}
                   onDerrotado={(derrotado) => salvar({ ...m, derrotado })}
+                  onCategoriaAparente={(categoriaAparente) => salvar({ ...m, categoriaAparente })}
                   setAmpliada={setAmpliada}
                   fases={fasesDoChefe(monstros, m.chefeId)}
                   onNovaFase={() => criarFase(m)}
@@ -288,10 +288,10 @@ function DmMonsterCard({
   onEdit,
   onDuplicate,
   onDelete,
-  onHp,
   onNivel,
   onCategoria,
   onDerrotado,
+  onCategoriaAparente,
   setAmpliada,
   fases = [],
   onNovaFase,
@@ -304,10 +304,10 @@ function DmMonsterCard({
   onEdit: () => void
   onDuplicate: () => void
   onDelete: () => void
-  onHp: (pv: number) => void
   onNivel: (n: KnowledgeLevel) => void
   onCategoria: (c: NonNullable<Monster['categoria']>) => void
   onDerrotado: (v: boolean) => void
+  onCategoriaAparente?: (c: NonNullable<Monster['categoria']> | undefined) => void
   setAmpliada: (url: string) => void
   /** Todas as formas deste chefe, quando ele tiver mais de uma. */
   fases?: Monster[]
@@ -318,16 +318,12 @@ function DmMonsterCard({
   candidatos?: Monster[]
   onVincularFase?: (id: string) => void
 }) {
-  const pct = m.pvMax > 0 ? Math.max(0, Math.min(100, (m.pvAtual / m.pvMax) * 100)) : 0
-  const cor = pct > 50 ? 'bg-emerald-500' : pct > 25 ? 'bg-amber-500' : 'bg-dragon-500'
-  const ajusta = (d: number) => onHp(Math.max(0, Math.min(m.pvMax, m.pvAtual + d)))
   const nivel = nivelInfo(m.conhecimento)
   // Qual fase o cartão mostra. Clicar numa aba troca a visualização — editar é
   // o botão de baixo, que abre a fase visível.
   const [faseVisivel, setFaseVisivel] = useState<string | null>(null)
   const exibido = fases.find((f) => f.id === faseVisivel) ?? m
   const cat = categoriaInfo(exibido.categoria)
-  const ferido = exibido.pvAtual < exibido.pvMax
 
   return (
     <div className="card gv-fade group relative overflow-hidden transition hover:ring-1 hover:ring-dragon-500/40">
@@ -370,6 +366,11 @@ function DmMonsterCard({
         <div className="mb-3 flex flex-wrap gap-2 text-xs">
           <span className="chip">ND {exibido.nd}</span>
           <span className="chip">CA {exibido.ca}</span>
+          {/* PV como estatística da ficha, não como contador.
+              O bestiário é catálogo: um goblin usado seis vezes não tem "uma"
+              vida. Quem rastreia dano é a batalha, onde cada instância tem a
+              sua — aqui o número servia para nada e ocupava metade do cartão. */}
+          <span className="chip">PV {exibido.pvMax}</span>
           <span className="chip">Desl. {exibido.deslocamento}</span>
         </div>
 
@@ -463,6 +464,25 @@ function DmMonsterCard({
               <option key={c.valor} value={c.valor}>{c.icone} {c.label}</option>
             ))}
           </select>
+          {/* Rank aparente: o que o grupo vê, quando deve diferir do real. */}
+          <select
+            value={m.categoriaAparente ?? ''}
+            onChange={(e) =>
+              onCategoriaAparente?.(
+                (e.target.value || undefined) as NonNullable<Monster['categoria']> | undefined,
+              )
+            }
+            className="stat-input w-full py-1 text-[11px]"
+            title="O rank que o grupo enxerga. Use para esconder quem é o vilão de verdade."
+          >
+            <option value="">👁 O grupo vê o rank verdadeiro</option>
+            {CATEGORIAS_MONSTRO.filter((c) => c.valor !== (m.categoria ?? 'comum')).map((c) => (
+              <option key={c.valor} value={c.valor}>
+                🎭 O grupo vê como {c.label}
+              </option>
+            ))}
+          </select>
+
           {cat.marcavel && (
             <button
               type="button"
@@ -492,38 +512,7 @@ function DmMonsterCard({
           </div>
         </label>
 
-        {/* Rastreador de PV */}
-        <div className="rounded-lg border border-white/10 bg-ink-900/40 p-2.5">
-          <div className="mb-1.5 flex items-center justify-between text-xs">
-            <span className="panel-title">Pontos de Vida</span>
-            <span className="flex items-center gap-2">
-              {ferido && (
-                <button className="text-[10px] text-arcane-400 hover:underline" onClick={() => onHp(m.pvMax)} title="Restaurar vida cheia">
-                  restaurar
-                </button>
-              )}
-              <span className="tabular-nums text-parchment-100">{m.pvAtual} / {m.pvMax}</span>
-            </span>
-          </div>
-          <div className="mb-2 h-2 overflow-hidden rounded-full bg-black/40">
-            <div className={`hpbar ${cor}`} style={{ width: `${pct}%` }} />
-          </div>
-          <div className="flex items-center gap-1">
-            <button className="btn-ghost flex-1 px-1 py-1 text-xs" onClick={() => ajusta(-5)}>−5</button>
-            <button className="btn-ghost flex-1 px-1 py-1 text-xs" onClick={() => ajusta(-1)}>−1</button>
-            <input
-              type="number"
-              value={m.pvAtual}
-              onChange={(e) => {
-                const n = parseInt(e.target.value, 10)
-                onHp(Math.max(0, Math.min(m.pvMax, Number.isNaN(n) ? 0 : n)))
-              }}
-              className="w-12 shrink-0 rounded-md border border-white/10 bg-ink-800 px-1 py-1 text-center text-sm outline-none focus:border-arcane-400"
-            />
-            <button className="btn-ghost flex-1 px-1 py-1 text-xs" onClick={() => ajusta(1)}>+1</button>
-            <button className="btn-ghost flex-1 px-1 py-1 text-xs" onClick={() => ajusta(5)}>+5</button>
-          </div>
-        </div>
+
 
         <div className="mt-3 flex gap-2">
           <button

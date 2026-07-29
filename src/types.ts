@@ -461,6 +461,16 @@ export interface Monster {
   conhecimento: KnowledgeLevel // o que o grupo já sabe sobre a criatura
   /** Peso na campanha. Opcional: fichas antigas viram 'comum'. */
   categoria?: CategoriaMonstro
+  /**
+   * O rank que o GRUPO enxerga, quando ele deve diferir do real.
+   *
+   * Existe para o plot twist: o grupo passa a campanha achando que o vilão é
+   * outro. Sem isto, o rank respondia duas perguntas com um valor só — o que a
+   * criatura é, e o que o grupo pensa que ela é.
+   *
+   * Vazio significa "mostre o verdadeiro", que é o caso normal.
+   */
+  categoriaAparente?: CategoriaMonstro
   /** O grupo já derrubou. Risca o card — só vale para Mini Boss e Boss. */
   derrotado?: boolean
   /**

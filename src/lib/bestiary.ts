@@ -298,6 +298,10 @@ export function projetarBestiario(list: Monster[]): Monster[] {
         imagemUrl: img,
         imagemJogadorUrl: img,
         taticas: '',
+        // O grupo vê o rank aparente quando houver um. O verdadeiro nunca sai:
+        // é ele que entregaria o plot twist antes da hora.
+        categoria: m.categoriaAparente ?? m.categoria,
+        categoriaAparente: undefined,
       }
       // Só "encontrou": tem a foto e o nome, mais nada.
       if (m.conhecimento === 'encontrado') {

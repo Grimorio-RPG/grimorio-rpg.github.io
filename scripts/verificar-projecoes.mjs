@@ -201,6 +201,19 @@ const chefes = projetarBestiario([
 ])
 checar('chefe derrotado leva a marca', chefes.find((m) => m.id === 'b1').derrotado === true)
 checar('categoria chega ao grupo', chefes.find((m) => m.id === 'b1').categoria === 'miniboss')
+
+// Plot twist: o grupo passa a campanha achando que o vilão é outro. O rank
+// verdadeiro não pode sair, senão a revelação acontece no bestiário.
+const disfarcado = projetarBestiario([
+  { ...bestiario[2], id: 'd1', nome: 'Belak', categoria: 'bbeg', categoriaAparente: 'boss' },
+  { ...bestiario[2], id: 'd2', nome: 'Eco', categoria: 'bbeg' },
+])
+checar('o grupo vê o rank aparente', disfarcado.find((m) => m.id === 'd1').categoria === 'boss')
+checar('sem rank aparente, vê o verdadeiro', disfarcado.find((m) => m.id === 'd2').categoria === 'bbeg')
+checar(
+  'o rank verdadeiro não viaja junto',
+  disfarcado.every((m) => m.categoriaAparente === undefined),
+)
 checar('chefe ainda desconhecido continua fora', !chefes.some((m) => m.id === 'b2'))
 semVazamento('bestiário chefes', chefes, ['SEGREDO-BOSS-FINAL'])
 
