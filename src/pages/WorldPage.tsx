@@ -32,6 +32,8 @@ export default function WorldPage() {
 function MundoDoMestre() {
   const { mundo, update } = useMundo()
   const [marcando, setMarcando] = useState(false)
+  // Arrumar o mapa pede os nomes à vista; usar o mapa em jogo, não.
+  const [mostrarNomes, setMostrarNomes] = useState(false)
   const [editando, setEditando] = useState<PontoInteresse | null>(null)
   const [imagem, setImagem] = useState('')
   const [erro, setErro] = useState('')
@@ -213,6 +215,16 @@ function MundoDoMestre() {
                   {marcando ? '✓ Clique no mapa…' : '📍 Marcar ponto'}
                 </button>
               )}
+              {imagem && (
+                <label className="flex cursor-pointer items-center gap-1.5 text-xs text-parchment-200/70">
+                  <input
+                    type="checkbox"
+                    checked={mostrarNomes}
+                    onChange={(e) => setMostrarNomes(e.target.checked)}
+                  />
+                  Mostrar nomes no mapa
+                </label>
+              )}
             </div>
             {erro && <p className="mt-2 text-sm text-dragon-400">{erro}</p>}
             <p className="mt-2 text-xs text-parchment-200/60">
@@ -236,6 +248,7 @@ function MundoDoMestre() {
                 mudarMapa({ pontos: mapa.pontos.map((p) => (p.id === id ? { ...p, x, y } : p)) })
               }
               onAbrir={(p) => setEditando(p)}
+              mostrarNomes={mostrarNomes}
             />
           ) : (
             <EmptyState
@@ -311,6 +324,7 @@ function Tabuleiro({
   onMover,
   onAbrir,
   soLeitura = false,
+  mostrarNomes = false,
 }: {
   imagem: string
   pontos: PontoInteresse[]
@@ -319,6 +333,8 @@ function Tabuleiro({
   onMover?: (id: string, x: number, y: number) => void
   onAbrir?: (p: PontoInteresse) => void
   soLeitura?: boolean
+  /** Mostra o nome fixo sob cada símbolo — útil ao arrumar o mapa. */
+  mostrarNomes?: boolean
 }) {
   const ref = useRef<HTMLDivElement>(null)
   const [arrastando, setArrastando] = useState<string | null>(null)
@@ -362,7 +378,15 @@ function Tabuleiro({
           <button
             key={p.id}
             type="button"
-            className="absolute -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-full border border-white/25 bg-ink-900/85 px-2 py-1 text-xs text-parchment-50 shadow hover:border-arcane-400"
+            /* Só o símbolo por padrão.
+               O rótulo ao lado de cada ponto engolia o mapa no celular — num
+               mapa de região com dez lugares, o que se quer ver é o desenho.
+               O nome vem ao tocar, que é quando ele importa. */
+            className={`group/ponto absolute -translate-x-1/2 -translate-y-1/2 grid h-8 w-8 place-items-center rounded-full border text-base shadow-lg transition hover:scale-110 ${
+              p.revelado || soLeitura
+                ? 'border-white/40 bg-ink-900/85'
+                : 'border-amber-400/50 bg-ink-900/70'
+            }`}
             style={{ left: `${p.x * 100}%`, top: `${p.y * 100}%` }}
             onPointerDown={(e) => {
               if (soLeitura) return
@@ -373,10 +397,24 @@ function Tabuleiro({
               e.stopPropagation()
               onAbrir?.(p)
             }}
-            title={p.nome}
+            title={p.nome || 'Sem nome'}
           >
-            {tipoPontoInfo(p.tipo).icone} {p.nome || '—'}
-            {!soLeitura && !p.revelado && ' 🙈'}
+            {tipoPontoInfo(p.tipo).icone}
+            {!soLeitura && !p.revelado && (
+              <span className="absolute -right-0.5 -top-0.5 text-[9px]">🙈</span>
+            )}
+            {/* No computador o nome aparece ao passar o mouse; no celular, ao
+                tocar — onde não existe "passar o mouse". */}
+            {(mostrarNomes || false) && (
+              <span className="pointer-events-none absolute left-1/2 top-full mt-0.5 -translate-x-1/2 whitespace-nowrap rounded bg-ink-900/90 px-1.5 py-0.5 text-[10px] text-parchment-50">
+                {p.nome || '—'}
+              </span>
+            )}
+            {!mostrarNomes && (
+              <span className="pointer-events-none absolute left-1/2 top-full mt-0.5 hidden -translate-x-1/2 whitespace-nowrap rounded bg-ink-900/95 px-1.5 py-0.5 text-[10px] text-parchment-50 group-hover/ponto:block sm:group-hover/ponto:block">
+                {p.nome || '—'}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -515,7 +553,12 @@ function MundoDoJogador({ mesaId }: { mesaId: string }) {
           )}
 
           {img?.dataUrl ? (
-            <Tabuleiro imagem={img.dataUrl} pontos={mapa.pontos} soLeitura onAbrir={(p) => setLendo(p)} />
+            <>
+              <Tabuleiro imagem={img.dataUrl} pontos={mapa.pontos} soLeitura onAbrir={(p) => setLendo(p)} />
+              <p className="mt-1.5 text-center text-xs text-parchment-200/45">
+                Toque num símbolo para ver o lugar.
+              </p>
+            </>
           ) : (
             <div className="card p-10 text-center text-sm text-parchment-200/60">
               Carregando a imagem do mapa…
