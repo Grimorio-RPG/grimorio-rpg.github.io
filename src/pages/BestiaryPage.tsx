@@ -237,16 +237,9 @@ function BestiarioDoMestre() {
                   onNivel={(conhecimento) => salvar({ ...m, conhecimento })}
                   onCategoria={(categoria) => salvar({ ...m, categoria })}
                   onDerrotado={(derrotado) => salvar({ ...m, derrotado })}
-                  onCategoriaAparente={(categoriaAparente) => salvar({ ...m, categoriaAparente })}
                   setAmpliada={setAmpliada}
                   fases={fasesDoChefe(monstros, m.chefeId)}
-                  onNovaFase={() => criarFase(m)}
                   onAbrirFase={(f) => setEditando(f)}
-                  onApagarFase={(f) => apagarFase(f)}
-                  candidatos={monstros.filter(
-                    (x) => x.id !== m.id && !x.chefeId && categoriaInfo(x.categoria).marcavel,
-                  )}
-                  onVincularFase={(id) => vincularFase(m, id)}
                 />
               ))}
             </div>
@@ -265,6 +258,13 @@ function BestiarioDoMestre() {
             setAvisoFase('')
             setBaseParaCarimbar(null)
           }}
+          fases={fasesDoChefe(monstros, editando.chefeId)}
+          candidatos={monstros.filter(
+            (x) => x.id !== editando.id && !x.chefeId && categoriaInfo(x.categoria).marcavel,
+          )}
+          onNovaFase={() => criarFase(editando)}
+          onApagarFase={(f) => apagarFase(f)}
+          onVincularFase={(id) => vincularFase(editando, id)}
           onSave={(m) => {
             if (baseParaCarimbar) salvar(baseParaCarimbar)
             salvar(m)
@@ -291,14 +291,9 @@ function DmMonsterCard({
   onNivel,
   onCategoria,
   onDerrotado,
-  onCategoriaAparente,
   setAmpliada,
   fases = [],
-  onNovaFase,
   onAbrirFase,
-  onApagarFase,
-  candidatos = [],
-  onVincularFase,
 }: {
   m: Monster
   onEdit: () => void
@@ -307,21 +302,15 @@ function DmMonsterCard({
   onNivel: (n: KnowledgeLevel) => void
   onCategoria: (c: NonNullable<Monster['categoria']>) => void
   onDerrotado: (v: boolean) => void
-  onCategoriaAparente?: (c: NonNullable<Monster['categoria']> | undefined) => void
   setAmpliada: (url: string) => void
   /** Todas as formas deste chefe, quando ele tiver mais de uma. */
   fases?: Monster[]
-  onNovaFase?: () => void
   onAbrirFase?: (f: Monster) => void
-  onApagarFase?: (f: Monster) => void
-  /** Criaturas que já existem e podem virar fase deste chefe. */
-  candidatos?: Monster[]
-  onVincularFase?: (id: string) => void
 }) {
   const nivel = nivelInfo(m.conhecimento)
   // Qual fase o cartão mostra. Clicar numa aba troca a visualização — editar é
   // o botão de baixo, que abre a fase visível.
-  const [faseVisivel, setFaseVisivel] = useState<string | null>(null)
+  const [faseVisivel] = useState<string | null>(null)
   const exibido = fases.find((f) => f.id === faseVisivel) ?? m
   const cat = categoriaInfo(exibido.categoria)
 
@@ -371,83 +360,13 @@ function DmMonsterCard({
               vida. Quem rastreia dano é a batalha, onde cada instância tem a
               sua — aqui o número servia para nada e ocupava metade do cartão. */}
           <span className="chip">PV {exibido.pvMax}</span>
+          {fases.length > 1 && (
+            <span className="chip border-dragon-400/40 text-dragon-300">
+              ⚡ {fases.length} fases
+            </span>
+          )}
           <span className="chip">Desl. {exibido.deslocamento}</span>
         </div>
-
-        {/* Fases do chefe: as formas seguintes vivem aqui dentro. */}
-        {(fases.length > 1 || cat.marcavel) && (
-          <div className="mb-3 rounded-lg border border-white/10 bg-white/[0.03] p-2">
-            <div className="mb-1.5 flex items-center justify-between gap-2">
-              <span className="panel-title">Fases</span>
-              {onNovaFase && (
-                <button type="button" className="text-xs text-arcane-400 hover:underline" onClick={onNovaFase}>
-                  ＋ nova fase
-                </button>
-              )}
-            </div>
-
-            {/* Vincular o que já existe: quem cadastrou as duas formas antes de
-                saber que o app as relaciona não deve recadastrar nada. */}
-            {candidatos.length > 0 && onVincularFase && (
-              <select
-                className="stat-input mb-1.5 w-full py-1 text-[11px]"
-                value=""
-                onChange={(e) => {
-                  if (e.target.value) onVincularFase(e.target.value)
-                  e.target.value = ''
-                }}
-              >
-                <option value="">…ou use uma criatura que já existe</option>
-                {candidatos.map((c) => (
-                  <option key={c.id} value={c.id}>{c.nome || 'Sem nome'}</option>
-                ))}
-              </select>
-            )}
-            {fases.length > 1 ? (
-              <>
-                <div className="space-y-1">
-                  {fases.map((f) => (
-                    <div key={f.id} className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => setFaseVisivel(f.id)}
-                        className={`min-w-0 flex-1 truncate rounded px-1.5 py-1 text-left text-[11px] transition hover:bg-white/5 ${
-                          f.id === exibido.id
-                            ? 'bg-white/10 text-parchment-50'
-                            : 'text-parchment-200/70'
-                        }`}
-                        title={`Ver ${f.nome}`}
-                      >
-                        {f.conhecimento === 'desconhecido' ? '🙈' : '👁'}{' '}
-                        <b>{rotuloFase(f)}</b> — {f.nome || 'sem nome'}
-                      </button>
-                      {/* Uma fase criada por engano precisava poder sumir: a
-                          primeira versão só sabia criar. */}
-                      {(f.fase ?? 1) > 1 && (
-                        <button
-                          type="button"
-                          className="shrink-0 px-1 text-xs text-parchment-200/30 hover:text-dragon-400"
-                          title={`Apagar ${rotuloFase(f)}`}
-                          onClick={() => onApagarFase?.(f)}
-                        >
-                          ✕
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-                <p className="mt-1.5 text-[10px] leading-relaxed text-parchment-200/45">
-                  Em combate, o chefe começa na Fase 1 e você avança as seguintes quando ele cai.
-                </p>
-              </>
-            ) : (
-              <p className="text-[11px] leading-relaxed text-parchment-200/50">
-                Uma forma só. <b>＋ nova fase</b> cria uma cópia desta criatura para você editar —
-                é nela que o chefe se transforma ao cair em combate.
-              </p>
-            )}
-          </div>
-        )}
 
         {/* Categoria e marco de derrota */}
         <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -464,25 +383,6 @@ function DmMonsterCard({
               <option key={c.valor} value={c.valor}>{c.icone} {c.label}</option>
             ))}
           </select>
-          {/* Rank aparente: o que o grupo vê, quando deve diferir do real. */}
-          <select
-            value={m.categoriaAparente ?? ''}
-            onChange={(e) =>
-              onCategoriaAparente?.(
-                (e.target.value || undefined) as NonNullable<Monster['categoria']> | undefined,
-              )
-            }
-            className="stat-input w-full py-1 text-[11px]"
-            title="O rank que o grupo enxerga. Use para esconder quem é o vilão de verdade."
-          >
-            <option value="">👁 O grupo vê o rank verdadeiro</option>
-            {CATEGORIAS_MONSTRO.filter((c) => c.valor !== (m.categoria ?? 'comum')).map((c) => (
-              <option key={c.valor} value={c.valor}>
-                🎭 O grupo vê como {c.label}
-              </option>
-            ))}
-          </select>
-
           {cat.marcavel && (
             <button
               type="button"
@@ -688,11 +588,22 @@ function MonsterEditor({
   onClose,
   onSave,
   aviso = '',
+  fases = [],
+  candidatos = [],
+  onNovaFase,
+  onApagarFase,
+  onVincularFase,
 }: {
   inicial: Monster
   onClose: () => void
   onSave: (m: Monster) => void
   aviso?: string
+  /** Formas deste chefe, quando houver mais de uma. */
+  fases?: Monster[]
+  candidatos?: Monster[]
+  onNovaFase?: () => void
+  onApagarFase?: (f: Monster) => void
+  onVincularFase?: (id: string) => void
 }) {
   const [m, setM] = useState<Monster>(inicial)
   const [mexeu, setMexeu] = useState(false)
@@ -749,6 +660,93 @@ function MonsterEditor({
             ⚡ {aviso}
           </p>
         )}
+
+        {/*
+          Encenação: fases e disfarce de rank.
+
+          Ficavam no cartão da lista, que é onde se olha o bestiário inteiro —
+          configuração rara ocupando o lugar mais nobre da tela. A maioria das
+          campanhas não usa nada disto, e quem usa mexe uma vez por chefe. Aqui
+          dentro, recolhido, some de quem não precisa.
+        */}
+        <details className="mb-4 rounded-lg border border-white/10 bg-white/[0.02]">
+          <summary className="cursor-pointer px-3 py-2 text-sm text-parchment-200/80">
+            🎭 Encenação — fases e disfarce
+            {fases.length > 1 && <span className="ml-2 text-xs text-dragon-300">{fases.length} fases</span>}
+          </summary>
+          <div className="space-y-3 border-t border-white/10 p-3">
+            <div>
+              <div className="mb-1.5 flex items-center justify-between gap-2">
+                <span className="panel-title">Fases do chefe</span>
+                {onNovaFase && (
+                  <button type="button" className="text-xs text-arcane-400 hover:underline" onClick={onNovaFase}>
+                    ＋ nova fase
+                  </button>
+                )}
+              </div>
+              {fases.length > 1 ? (
+                <div className="space-y-1">
+                  {fases.map((f) => (
+                    <div key={f.id} className="flex items-center gap-1.5 text-[11px]">
+                      <span className="min-w-0 flex-1 truncate text-parchment-200/80">
+                        {f.conhecimento === 'desconhecido' ? '🙈' : '👁'} <b>{rotuloFase(f)}</b> —{' '}
+                        {f.nome || 'sem nome'}
+                      </span>
+                      {(f.fase ?? 1) > 1 && onApagarFase && (
+                        <button
+                          type="button"
+                          className="shrink-0 px-1 text-parchment-200/30 hover:text-dragon-400"
+                          onClick={() => onApagarFase(f)}
+                          title={`Apagar ${rotuloFase(f)}`}
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-[11px] leading-relaxed text-parchment-200/50">
+                  Uma forma só. Crie uma fase para o chefe se transformar ao cair em combate — a
+                  seguinte fica oculta do grupo até a virada.
+                </p>
+              )}
+              {candidatos.length > 0 && onVincularFase && (
+                <select
+                  className="stat-input mt-1.5 w-full py-1 text-[11px]"
+                  value=""
+                  onChange={(e) => {
+                    if (e.target.value) onVincularFase(e.target.value)
+                    e.target.value = ''
+                  }}
+                >
+                  <option value="">…ou use uma criatura que já existe</option>
+                  {candidatos.map((c) => (
+                    <option key={c.id} value={c.id}>{c.nome || 'Sem nome'}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            <Field
+              label="Rank aparente"
+              hint="O que o grupo enxerga. Use quando o vilão de verdade não é o que parece."
+            >
+              <select
+                value={m.categoriaAparente ?? ''}
+                onChange={(e) =>
+                  set({ categoriaAparente: (e.target.value || undefined) as Monster['categoria'] })
+                }
+                className="stat-input py-1.5 text-sm"
+              >
+                <option value="">👁 O grupo vê o rank verdadeiro</option>
+                {CATEGORIAS_MONSTRO.filter((c) => c.valor !== (m.categoria ?? 'comum')).map((c) => (
+                  <option key={c.valor} value={c.valor}>🎭 O grupo vê como {c.label}</option>
+                ))}
+              </select>
+            </Field>
+          </div>
+        </details>
 
         {/* Colar bloco de estatísticas */}
         <div className="mb-5">
