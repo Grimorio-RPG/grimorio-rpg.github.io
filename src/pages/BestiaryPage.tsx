@@ -163,6 +163,27 @@ function BestiarioDoMestre() {
     if (restantes.length === 1) salvar({ ...restantes[0], chefeId: undefined, fase: undefined })
   }
 
+  /**
+   * Vincula uma criatura que já existe como fase seguinte de um chefe.
+   *
+   * Sem isto, quem já tinha as duas formas cadastradas — o caso comum, porque a
+   * pessoa cria o chefe e a forma desperta antes de saber que o app relaciona
+   * as duas — precisaria recadastrar uma delas do zero.
+   *
+   * Ela vira oculta ao ser vinculada: é fase seguinte, e fase seguinte é
+   * surpresa. Se o grupo já a conhecia, o DM reverte na própria ficha.
+   */
+  function vincularFase(base: Monster, outroId: string) {
+    const outro = monstros.find((x) => x.id === outroId)
+    if (!outro) return
+    const grupo = base.chefeId ?? uid()
+    const existentes = fasesDoChefe(monstros, grupo)
+    const numero = existentes.length > 0 ? (existentes[existentes.length - 1].fase ?? 1) + 1 : 2
+
+    if (!base.chefeId) salvar({ ...base, chefeId: grupo, fase: 1 })
+    salvar({ ...outro, chefeId: grupo, fase: numero, conhecimento: 'desconhecido' })
+  }
+
   function duplicar(m: Monster) {
     salvar({ ...m, id: uid(), nome: `${m.nome} (cópia)`, updatedAt: Date.now() })
   }
@@ -222,6 +243,10 @@ function BestiarioDoMestre() {
                   onNovaFase={() => criarFase(m)}
                   onAbrirFase={(f) => setEditando(f)}
                   onApagarFase={(f) => apagarFase(f)}
+                  candidatos={monstros.filter(
+                    (x) => x.id !== m.id && !x.chefeId && categoriaInfo(x.categoria).marcavel,
+                  )}
+                  onVincularFase={(id) => vincularFase(m, id)}
                 />
               ))}
             </div>
@@ -272,6 +297,8 @@ function DmMonsterCard({
   onNovaFase,
   onAbrirFase,
   onApagarFase,
+  candidatos = [],
+  onVincularFase,
 }: {
   m: Monster
   onEdit: () => void
@@ -287,6 +314,9 @@ function DmMonsterCard({
   onNovaFase?: () => void
   onAbrirFase?: (f: Monster) => void
   onApagarFase?: (f: Monster) => void
+  /** Criaturas que já existem e podem virar fase deste chefe. */
+  candidatos?: Monster[]
+  onVincularFase?: (id: string) => void
 }) {
   const pct = m.pvMax > 0 ? Math.max(0, Math.min(100, (m.pvAtual / m.pvMax) * 100)) : 0
   const cor = pct > 50 ? 'bg-emerald-500' : pct > 25 ? 'bg-amber-500' : 'bg-dragon-500'
@@ -354,6 +384,24 @@ function DmMonsterCard({
                 </button>
               )}
             </div>
+
+            {/* Vincular o que já existe: quem cadastrou as duas formas antes de
+                saber que o app as relaciona não deve recadastrar nada. */}
+            {candidatos.length > 0 && onVincularFase && (
+              <select
+                className="stat-input mb-1.5 w-full py-1 text-[11px]"
+                value=""
+                onChange={(e) => {
+                  if (e.target.value) onVincularFase(e.target.value)
+                  e.target.value = ''
+                }}
+              >
+                <option value="">…ou use uma criatura que já existe</option>
+                {candidatos.map((c) => (
+                  <option key={c.id} value={c.id}>{c.nome || 'Sem nome'}</option>
+                ))}
+              </select>
+            )}
             {fases.length > 1 ? (
               <>
                 <div className="space-y-1">
