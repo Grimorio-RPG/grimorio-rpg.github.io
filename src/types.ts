@@ -378,7 +378,7 @@ export type KnowledgeLevel = 'desconhecido' | 'encontrado' | 'parcial' | 'comple
  * ganham o tratamento de "derrotado" na tela do grupo — riscar um goblin
  * qualquer não conta história nenhuma.
  */
-export type CategoriaMonstro = 'comum' | 'elite' | 'miniboss' | 'boss'
+export type CategoriaMonstro = 'comum' | 'elite' | 'miniboss' | 'boss' | 'bbeg'
 
 // ---------------------------------------------------------------------------
 // Batalhas (rastreador de combate)

@@ -100,6 +100,8 @@ function BestiarioDoMestre() {
   const [editando, setEditando] = useState<Monster | null>(null)
   const [ampliada, setAmpliada] = useState('')
   const [avisoFase, setAvisoFase] = useState('')
+  // A criatura original só vira "fase 1" quando a fase nova for confirmada.
+  const [baseParaCarimbar, setBaseParaCarimbar] = useState<Monster | null>(null)
 
   // As fases seguintes vivem dentro do cartão da primeira — a lista mostrava
   // três Belaks soltos e nenhuma relação entre eles.
@@ -125,9 +127,6 @@ function BestiarioDoMestre() {
     const existentes = fasesDoChefe(monstros, grupo)
     const numero = existentes.length > 0 ? (existentes[existentes.length - 1].fase ?? 1) + 1 : 2
 
-    // A primeira vez também carimba a criatura original como fase 1.
-    if (!base.chefeId) salvar({ ...base, chefeId: grupo, fase: 1 })
-
     const nova: Monster = {
       ...base,
       id: uid(),
@@ -138,10 +137,16 @@ function BestiarioDoMestre() {
       derrotado: false,
       updatedAt: Date.now(),
     }
-    salvar(nova)
-    // Abrir o editor é o passo seguinte óbvio, mas sem aviso o salto parece
-    // que o botão não fez nada além de trocar de tela.
-    setAvisoFase(`Criei a ${rotuloFase(nova)} como cópia. Ajuste nome, arte e estatísticas.`)
+    // Nada é gravado aqui. A fase só passa a existir quando você confirmar no
+    // editor — antes, criá-la e fechar clicando fora já deixava a criatura
+    // salva, e não havia como saber disso.
+    //
+    // O carimbo de fase 1 na criatura original fica pendente pelo mesmo motivo:
+    // desistir não pode transformar um monstro comum em chefe em fases.
+    setBaseParaCarimbar(base.chefeId ? null : { ...base, chefeId: grupo, fase: 1 })
+    setAvisoFase(
+      `Esta é uma cópia de "${base.nome}". Ajuste o que mudar na ${rotuloFase(nova)} e confirme lá embaixo — nada é salvo antes disso.`,
+    )
     setEditando(nova)
   }
 
@@ -233,10 +238,14 @@ function BestiarioDoMestre() {
           onClose={() => {
             setEditando(null)
             setAvisoFase('')
+            setBaseParaCarimbar(null)
           }}
           onSave={(m) => {
+            if (baseParaCarimbar) salvar(baseParaCarimbar)
             salvar(m)
             setEditando(null)
+            setAvisoFase('')
+            setBaseParaCarimbar(null)
           }}
         />
       )}
@@ -560,7 +569,13 @@ function PlayerMonsterCard({ m, setAmpliada }: { m: Monster; setAmpliada?: (url:
           {nivel.icone} {nivel.curto}
         </span>
         {cat.marcavel && (
-          <span className="absolute left-2 top-2 rounded-full bg-black/50 px-2 py-0.5 text-xs text-parchment-100 backdrop-blur">
+          <span
+            className={`absolute left-2 top-2 rounded-full px-2 py-0.5 text-xs backdrop-blur ${
+              m.categoria === 'bbeg'
+                ? 'border border-dragon-400/60 bg-dragon-600/60 font-semibold text-parchment-50'
+                : 'bg-black/50 text-parchment-100'
+            }`}
+          >
             {cat.icone} {cat.label}
           </span>
         )}
@@ -643,12 +658,26 @@ function MonsterEditor({
   aviso?: string
 }) {
   const [m, setM] = useState<Monster>(inicial)
+  const [mexeu, setMexeu] = useState(false)
   const [colando, setColando] = useState(false)
   const [texto, setTexto] = useState('')
   const [lido, setLido] = useState<string[]>([])
 
   function set(patch: Partial<Monster>) {
+    setMexeu(true)
     setM((prev) => ({ ...prev, ...patch }))
+  }
+
+  /**
+   * Fechar sem salvar.
+   *
+   * Clicar fora precisa descartar — salvar sozinho era o defeito anterior. Mas
+   * descartar em silêncio troca um problema por outro, então quem já digitou
+   * algo é avisado antes.
+   */
+  function fechar() {
+    if (mexeu && !confirm('Descartar as alterações? Nada foi salvo ainda.')) return
+    onClose()
   }
 
   function aplicarTextoColado() {
@@ -671,11 +700,11 @@ function MonsterEditor({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 backdrop-blur-sm" onClick={fechar}>
       <div className="card my-8 w-full max-w-3xl p-6" onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-xl text-parchment-50">{inicial.nome ? 'Editar criatura' : 'Nova criatura'}</h2>
-          <button className="btn-ghost" onClick={onClose}>Cancelar</button>
+          <button className="btn-ghost" onClick={fechar}>Cancelar</button>
         </div>
 
         {aviso && (
@@ -854,7 +883,7 @@ function MonsterEditor({
         </div>
 
         <div className="mt-6 flex justify-end gap-2">
-          <button className="btn-ghost" onClick={onClose}>Cancelar</button>
+          <button className="btn-ghost" onClick={fechar}>Cancelar</button>
           <button className="btn-primary" onClick={() => onSave(m)}>Salvar criatura</button>
         </div>
       </div>

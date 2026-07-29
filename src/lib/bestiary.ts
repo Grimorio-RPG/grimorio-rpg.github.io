@@ -69,6 +69,8 @@ export const CATEGORIAS_MONSTRO: {
   { valor: 'elite', label: 'Elite', icone: '⭐', marcavel: false },
   { valor: 'miniboss', label: 'Mini Boss', icone: '💀', marcavel: true },
   { valor: 'boss', label: 'Boss', icone: '👑', marcavel: true },
+  // BBEG é por campanha, não por arco: existe um só, e é isso que lhe dá peso.
+  { valor: 'bbeg', label: 'BBEG', icone: '☠️👑', marcavel: true },
 ]
 
 export function categoriaInfo(c: Monster['categoria']) {
