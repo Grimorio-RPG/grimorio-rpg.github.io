@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Campaign, Character } from '../types'
 import { useCampaign } from '../hooks/useCampaign'
-import { useEstadoMesa, useMesa } from '../hooks/useSync'
+import { useEstadoMesa, useMesa, useSessao } from '../hooks/useSync'
+import { ResumoDaSessao } from '../components/resumo-sessao'
 import { CHAVES_MESA } from '../lib/sync/config'
 import { SelosDaMesa } from '../components/mesa-ui'
 import type { FichaDaMesa } from '../lib/sync/personagens'
@@ -364,6 +365,7 @@ function MuralTab({
 // Grupo
 // ---------------------------------------------------------------------------
 function GrupoTab({ campaign, update }: { campaign: Campaign; update: UpdateFn }) {
+  const { conta } = useSessao()
   const fileRef = useRef<HTMLInputElement>(null)
   const [aberto, setAberto] = useState<string | null>(null)
   const [mostrarLocais, setMostrarLocais] = useState(false)
@@ -397,6 +399,13 @@ function GrupoTab({ campaign, update }: { campaign: Campaign; update: UpdateFn }
 
   return (
     <div className="space-y-4">
+      <SectionCard
+        title="📊 Resumo da sessão"
+        hint="O que a mesa rolou até agora — a anedota que vocês vão lembrar depois."
+      >
+        <ResumoDaSessao meuNome={conta?.nome ?? 'Você'} />
+      </SectionCard>
+
       <FichasDaMesa />
 
       <div className="flex flex-wrap gap-3">

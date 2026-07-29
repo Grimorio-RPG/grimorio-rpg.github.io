@@ -170,3 +170,28 @@ export async function ajustarFichaDaMesa(
   }
   return true
 }
+
+/**
+ * Quais das MINHAS fichas estão enviadas para esta mesa.
+ *
+ * A verdade sobre isso é a existência da linha em `personagens` com `mesa_id`
+ * preenchido — não uma lista guardada no navegador. A versão anterior usava uma
+ * chave local que não sincronizava nem entrava no backup: em outro aparelho o
+ * app não sabia qual ficha estava em jogo, o selo saía errado e a ficha
+ * compartilhada parava de se atualizar sozinha.
+ */
+export async function idsCompartilhadosNaMesa(mesaId: string): Promise<string[]> {
+  const sb = await getSupabase()
+  const conta = getConta()
+  if (!sb || !conta) return []
+  const { data, error } = await sb
+    .from('personagens')
+    .select('dados')
+    .eq('mesa_id', mesaId)
+    .eq('dono_id', conta.id)
+  if (error || !data) return []
+  return data.flatMap((l) => {
+    const id = (l.dados as { id?: string } | null)?.id
+    return id ? [id] : []
+  })
+}

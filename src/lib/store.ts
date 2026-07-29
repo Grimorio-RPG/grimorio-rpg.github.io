@@ -24,6 +24,10 @@ export const CHAVES = {
   // megabytes de imagem.
   mundoImagens: 'grimorio55e.mundo.imagens.v1',
   rolagens: 'grimorio55e.rolls.v1',
+  // Quais fichas foram enviadas à mesa. A verdade fica na nuvem; isto é cache
+  // para a tela responder antes da rede — mas entra no backup, senão um export
+  // restaurado voltaria sem saber o que já estava compartilhado.
+  fichasCompartilhadas: 'grimorio55e.fichasCompartilhadas.v1',
 } as const
 
 export const TODAS_AS_CHAVES: string[] = Object.values(CHAVES)

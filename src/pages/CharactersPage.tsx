@@ -8,7 +8,7 @@ import type { Character } from '../types'
 import { useMesa, useSessao } from '../hooks/useSync'
 import { idsCompartilhados } from '../components/mesa-ui'
 import type { FichaDaMesa } from '../lib/sync/personagens'
-import { assinarFichasDaMesa, listarFichasDaMesa } from '../lib/sync/personagens'
+import { assinarFichasDaMesa, idsCompartilhadosNaMesa, listarFichasDaMesa } from '../lib/sync/personagens'
 import CharacterReadonly from '../components/CharacterReadonly'
 import { Modal } from '../components/layout-ui'
 import { FichaCard } from '../components/ficha-card'
@@ -16,7 +16,13 @@ import { FichaCard } from '../components/ficha-card'
 export default function CharactersPage() {
   const { characters, save, remove, refresh } = useCharacters()
   const { mesa } = useMesa()
-  const compartilhadas = idsCompartilhados()
+  // Cache local primeiro para a tela não piscar, e a verdade da nuvem em
+  // seguida — é ela que vale noutro aparelho.
+  const [compartilhadas, setCompartilhadas] = useState<string[]>(() => idsCompartilhados())
+  useEffect(() => {
+    if (!mesa) return
+    void idsCompartilhadosNaMesa(mesa.id).then(setCompartilhadas)
+  }, [mesa?.id])
   // A ficha em jogo vem primeiro: numa lista de cinco personagens, o que
   // importa agora é o que está na mesa de hoje.
   const minhas = useMemo(() => {
