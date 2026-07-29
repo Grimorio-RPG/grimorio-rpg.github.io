@@ -339,6 +339,52 @@ function Tabuleiro({
   const ref = useRef<HTMLDivElement>(null)
   const [arrastando, setArrastando] = useState<string | null>(null)
 
+  /**
+   * Zoom e arrasto no lugar da rolagem.
+   *
+   * O contêiner rolava para os lados quando o mapa não cabia, e no celular isso
+   * brigava com a rolagem da própria página — a pessoa tentava descer a tela e
+   * arrastava o mapa. Agora o mapa cabe inteiro sempre, e quem quiser detalhe
+   * aproxima: pinça no toque, roda no computador.
+   */
+  const [zoom, setZoom] = useState(1)
+  const [pan, setPan] = useState({ x: 0, y: 0 })
+  const gesto = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null)
+  const pinca = useRef<{ dist: number; zoom: number } | null>(null)
+  const toques = useRef(new Map<number, { x: number; y: number }>())
+
+  function limitarZoom(z: number) {
+    return Math.max(1, Math.min(6, z))
+  }
+
+  function aoTocar(e: React.PointerEvent) {
+    toques.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    if (toques.current.size === 2) {
+      const [a, b] = [...toques.current.values()]
+      pinca.current = { dist: Math.hypot(a.x - b.x, a.y - b.y), zoom }
+      gesto.current = null
+    }
+  }
+
+  function aoSoltar(e: React.PointerEvent) {
+    toques.current.delete(e.pointerId)
+    if (toques.current.size < 2) pinca.current = null
+    if (toques.current.size === 0) gesto.current = null
+    setArrastando(null)
+  }
+
+  function aoRolar(e: React.WheelEvent) {
+    if (soLeitura || zoom > 1 || e.ctrlKey) {
+      e.preventDefault()
+      setZoom((z) => limitarZoom(z - e.deltaY * 0.002))
+    }
+  }
+
+  function reiniciar() {
+    setZoom(1)
+    setPan({ x: 0, y: 0 })
+  }
+
   // Mesma convenção do mapa tático: fração 0..1, então o ponto fica no lugar
   // certo do celular ao monitor.
   function fracDoEvento(e: React.PointerEvent) {
@@ -350,23 +396,61 @@ function Tabuleiro({
   }
 
   return (
-    <div className="card overflow-auto p-2">
+    <div className="card relative overflow-hidden p-2" onWheel={aoRolar}>
+      {zoom > 1 && (
+        <button
+          type="button"
+          className="absolute right-3 top-3 z-20 rounded-full bg-ink-900/85 px-2.5 py-1 text-xs text-parchment-100 backdrop-blur"
+          onClick={reiniciar}
+        >
+          {Math.round(zoom * 100)}% · encaixar
+        </button>
+      )}
       <div
         ref={ref}
-        className={`relative mx-auto select-none ${marcando ? 'cursor-crosshair' : ''}`}
-        style={{ touchAction: 'none' }}
+        className={`relative mx-auto origin-center select-none ${marcando ? 'cursor-crosshair' : ''}`}
+        style={{
+          touchAction: 'none',
+          transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+        }}
         onPointerDown={(e) => {
-          if (!marcando || !onMarcar) return
-          const p = fracDoEvento(e)
-          onMarcar(p.x, p.y)
+          aoTocar(e)
+          if (marcando && onMarcar) {
+            const p = fracDoEvento(e)
+            onMarcar(p.x, p.y)
+            return
+          }
+          // Arrastar o mapa só faz sentido aproximado; encaixado não há para
+          // onde ir, e o gesto roubaria a rolagem da página.
+          if (zoom > 1 && toques.current.size === 1) {
+            gesto.current = { x: e.clientX, y: e.clientY, panX: pan.x, panY: pan.y }
+          }
         }}
         onPointerMove={(e) => {
-          if (!arrastando || !onMover) return
-          const p = fracDoEvento(e)
-          onMover(arrastando, p.x, p.y)
+          if (toques.current.has(e.pointerId)) {
+            toques.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+          }
+          if (pinca.current && toques.current.size === 2) {
+            const [a, b] = [...toques.current.values()]
+            const d = Math.hypot(a.x - b.x, a.y - b.y)
+            setZoom(limitarZoom(pinca.current.zoom * (d / pinca.current.dist)))
+            return
+          }
+          if (arrastando && onMover) {
+            const p = fracDoEvento(e)
+            onMover(arrastando, p.x, p.y)
+            return
+          }
+          if (gesto.current) {
+            setPan({
+              x: gesto.current.panX + (e.clientX - gesto.current.x),
+              y: gesto.current.panY + (e.clientY - gesto.current.y),
+            })
+          }
         }}
-        onPointerUp={() => setArrastando(null)}
-        onPointerLeave={() => setArrastando(null)}
+        onPointerUp={aoSoltar}
+        onPointerCancel={aoSoltar}
+        onPointerLeave={aoSoltar}
       >
         <img
           src={imagem}
@@ -556,7 +640,7 @@ function MundoDoJogador({ mesaId }: { mesaId: string }) {
             <>
               <Tabuleiro imagem={img.dataUrl} pontos={mapa.pontos} soLeitura onAbrir={(p) => setLendo(p)} />
               <p className="mt-1.5 text-center text-xs text-parchment-200/45">
-                Toque num símbolo para ver o lugar.
+                Toque num símbolo para ver o lugar · use pinça para aproximar
               </p>
             </>
           ) : (
