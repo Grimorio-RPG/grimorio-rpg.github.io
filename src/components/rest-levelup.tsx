@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { Character } from '../types'
 import { rotuloClasse } from '../data/rules'
 import { espacosPorNivel, marcosDoNivel, mediaDoDado, temEspacos } from '../data/progression'
@@ -33,6 +33,13 @@ export function RestPanel({ char, update }: { char: Character; update: Update })
   const conMod = abilityMod(char.atributos.con)
   const [qtd, setQtd] = useState(1)
   const [ultimo, setUltimo] = useState<string | null>(null)
+  const [confirmando, setConfirmando] = useState(false)
+  const [amanheceu, setAmanheceu] = useState<{
+    pvRecuperado: number
+    dadosDevolvidos: number
+    espacosDevolvidos: number
+    exaustaoReduzida: number
+  } | null>(null)
 
   const podeDescansar = disponiveis > 0 && char.pvAtual < char.pvMax
 
@@ -50,9 +57,22 @@ export function RestPanel({ char, update }: { char: Character; update: Update })
     setUltimo(`Recuperou ${novo - char.pvAtual} PV (${r.dados.join(' + ')} + ${conMod * usar}).`)
   }
 
+  /**
+   * Descanso longo.
+   *
+   * Abre a confirmação em tela própria, e não num `confirm()` do navegador: é o
+   * momento em que a mesa fecha o dia, e virava um diálogo de sistema. Depois
+   * de confirmar, mostra o amanhecer com o que voltou — pousada de JRPG, onde a
+   * recuperação é vista e não deduzida.
+   */
   function descansoLongo() {
-    if (!confirm('Descanso longo: restaura PV, zera espaços de magia e testes de morte, devolve metade dos dados de vida e reduz 1 nível de exaustão. Continuar?')) return
     const recupera = Math.max(1, Math.floor(total / 2))
+    const antes = {
+      pv: char.pvAtual,
+      dados: disponiveis,
+      espacos: char.espacosMagia.reduce((t, s) => t + s.usados, 0),
+      exaustao: char.exaustao,
+    }
     update({
       pvAtual: char.pvMax,
       pvTemporario: 0,
@@ -60,6 +80,13 @@ export function RestPanel({ char, update }: { char: Character; update: Update })
       exaustao: Math.max(0, char.exaustao - 1),
       espacosMagia: char.espacosMagia.map((s) => ({ ...s, usados: 0 })),
       dadosDeVidaUsados: Math.max(0, (char.dadosDeVidaUsados ?? 0) - recupera),
+    })
+    setConfirmando(false)
+    setAmanheceu({
+      pvRecuperado: char.pvMax - antes.pv,
+      dadosDevolvidos: Math.min(recupera, total - antes.dados),
+      espacosDevolvidos: antes.espacos,
+      exaustaoReduzida: antes.exaustao > 0 ? 1 : 0,
     })
     setUltimo('Descanso longo concluído: vida cheia e recursos recarregados.')
   }
@@ -102,12 +129,78 @@ export function RestPanel({ char, update }: { char: Character; update: Update })
           <p className="mt-0.5 text-xs text-parchment-200/60">
             8 horas. Vida cheia, espaços de magia e testes de morte zerados, metade dos dados de vida de volta e −1 exaustão.
           </p>
-          <button className="btn-ghost mt-2 w-full py-1.5 text-xs" onClick={descansoLongo}>Fazer descanso longo</button>
+          <button className="btn-ghost mt-2 w-full py-1.5 text-xs" onClick={() => setConfirmando(true)}>Fazer descanso longo</button>
         </div>
       </div>
 
       {ultimo && <p className="mt-3 text-xs text-emerald-400">{ultimo}</p>}
+
+      {confirmando && (
+        <Modal titulo="🌙 Fechar o dia" onClose={() => setConfirmando(false)}>
+          <p className="text-sm text-parchment-200/80">
+            Oito horas de descanso. Ao acordar, {char.nome || 'seu personagem'} recupera:
+          </p>
+          <ul className="mt-3 space-y-1.5 text-sm text-parchment-100">
+            <li>❤️ Vida cheia — {char.pvAtual} → <b>{char.pvMax}</b></li>
+            <li>🎲 Metade dos dados de vida ({Math.max(1, Math.floor(total / 2))} de {total})</li>
+            {temEspacos(char.classe) && <li>✨ Todos os espaços de magia</li>}
+            <li>💀 Testes de morte zerados</li>
+            {char.exaustao > 0 && <li>😮‍💨 Um nível de exaustão ({char.exaustao} → {char.exaustao - 1})</li>}
+          </ul>
+          <div className="mt-4 flex justify-end gap-2">
+            <button className="btn-ghost" onClick={() => setConfirmando(false)}>Ainda não</button>
+            <button className="btn-primary" onClick={descansoLongo}>🌙 Dormir</button>
+          </div>
+        </Modal>
+      )}
+
+      {amanheceu && <Amanhecer dados={amanheceu} onFim={() => setAmanheceu(null)} />}
     </section>
+  )
+}
+
+/**
+ * O amanhecer.
+ *
+ * A pousada de JRPG não informa a recuperação, ela mostra: a tela escurece, o
+ * sol nasce, e o grupo está de pé. Aqui o mesmo — some sozinho, porque o
+ * momento é a recompensa e não uma caixa para fechar.
+ */
+function Amanhecer({
+  dados,
+  onFim,
+}: {
+  dados: { pvRecuperado: number; dadosDevolvidos: number; espacosDevolvidos: number; exaustaoReduzida: number }
+  onFim: () => void
+}) {
+  useEffect(() => {
+    const t = setTimeout(onFim, 2600)
+    return () => clearTimeout(t)
+  }, [onFim])
+
+  const ganhos = [
+    dados.pvRecuperado > 0 && `+${dados.pvRecuperado} PV`,
+    dados.espacosDevolvidos > 0 && `${dados.espacosDevolvidos} espaço(s) de magia`,
+    dados.dadosDevolvidos > 0 && `${dados.dadosDevolvidos} dado(s) de vida`,
+    dados.exaustaoReduzida > 0 && '−1 exaustão',
+  ].filter(Boolean) as string[]
+
+  return (
+    <div
+      className="gv-amanhecer fixed inset-0 z-50 grid place-items-center bg-gradient-to-b from-ink-900 via-amber-950/40 to-amber-900/30"
+      onClick={onFim}
+      role="presentation"
+    >
+      <div className="gv-sol text-center">
+        <div className="mx-auto mb-3 h-20 w-20 rounded-full bg-amber-300 shadow-[0_0_80px_30px_rgba(251,191,36,0.55)]" />
+        <p className="font-display text-4xl text-amber-100 drop-shadow sm:text-5xl">Amanheceu</p>
+        {ganhos.length > 0 ? (
+          <p className="mt-2 text-sm text-amber-100/90">{ganhos.join(' · ')}</p>
+        ) : (
+          <p className="mt-2 text-sm text-amber-100/70">O grupo já estava inteiro.</p>
+        )}
+      </div>
+    </div>
   )
 }
 
