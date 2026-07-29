@@ -23,13 +23,18 @@ import {
   TextArea,
   TextField,
 } from '../components/ui'
-import { EmptyState, FilterChip, PageHeader, Toolbar, ViewToggle } from '../components/layout-ui'
+import { EmptyState, PageHeader, Toolbar, ViewToggle } from '../components/layout-ui'
 import { useEstadoMesa, useMesa } from '../hooks/useSync'
 import { CHAVES_MESA } from '../lib/sync/config'
 import { SelosDaMesa } from '../components/mesa-ui'
+import {
+  BarraDeFiltros,
+  FILTROS_VAZIOS,
+  filtrarMonstros,
+  type FiltrosBestiario,
+} from '../components/bestiario-filtros'
 
 type Modo = 'dm' | 'jogadores'
-type FiltroNivel = KnowledgeLevel | 'todos'
 
 export default function BestiaryPage() {
   const { mesa, souJogador } = useMesa()
@@ -41,13 +46,11 @@ export default function BestiaryPage() {
 /** Bestiário publicado pelo DM, só leitura. */
 function BestiarioDoJogador({ mesaId }: { mesaId: string }) {
   const remoto = useEstadoMesa<Monster[]>(mesaId, CHAVES_MESA.bestiarioPub)
-  const [busca, setBusca] = useState('')
+  const [filtros, setFiltros] = useState<FiltrosBestiario>(FILTROS_VAZIOS)
   const [ampliada, setAmpliada] = useState('')
 
   const lista = Array.isArray(remoto) ? remoto : []
-  const filtrados = lista
-    .filter((m) => !busca.trim() || `${m.nome} ${m.tipo}`.toLowerCase().includes(busca.trim().toLowerCase()))
-    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+  const filtrados = filtrarMonstros(lista, filtros)
 
   return (
     <div>
@@ -61,14 +64,12 @@ function BestiarioDoJogador({ mesaId }: { mesaId: string }) {
         <div className="card p-10 text-center text-sm text-parchment-200/60">Carregando…</div>
       ) : (
         <>
-          <div className="mb-6">
-            <input
-              className="stat-input max-w-xs"
-              value={busca}
-              placeholder="Buscar…"
-              onChange={(e) => setBusca(e.target.value)}
-            />
-          </div>
+          <BarraDeFiltros
+            lista={lista}
+            filtros={filtros}
+            onChange={setFiltros}
+            mostrarConhecimento={false}
+          />
           {filtrados.length === 0 ? (
             <EmptyState
               icon="🔍"
@@ -92,27 +93,15 @@ function BestiarioDoJogador({ mesaId }: { mesaId: string }) {
 function BestiarioDoMestre() {
   const { monstros, salvar, remover } = useBestiary()
   const [modo, setModo] = useState<Modo>('dm')
-  const [busca, setBusca] = useState('')
-  const [filtro, setFiltro] = useState<FiltroNivel>('todos')
+  const [filtros, setFiltros] = useState<FiltrosBestiario>(FILTROS_VAZIOS)
   const [editando, setEditando] = useState<Monster | null>(null)
   const [ampliada, setAmpliada] = useState('')
 
-  const filtrados = useMemo(() => {
-    const q = busca.trim().toLowerCase()
-    const arr = monstros.filter((m) => {
-      if (filtro !== 'todos' && m.conhecimento !== filtro) return false
-      if (!q) return true
-      return `${m.nome} ${m.tipo}`.toLowerCase().includes(q)
-    })
-    return [...arr].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
-  }, [monstros, busca, filtro])
+  const filtrados = useMemo(() => filtrarMonstros(monstros, filtros), [monstros, filtros])
 
   const conhecidos = useMemo(
-    () => monstros
-      .filter((m) => m.conhecimento !== 'desconhecido')
-      .filter((m) => !busca.trim() || `${m.nome} ${m.tipo}`.toLowerCase().includes(busca.trim().toLowerCase()))
-      .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')),
-    [monstros, busca],
+    () => filtrarMonstros(monstros.filter((m) => m.conhecimento !== 'desconhecido'), filtros),
+    [monstros, filtros],
   )
 
   function duplicar(m: Monster) {
@@ -143,26 +132,9 @@ function BestiarioDoMestre() {
         <>
           <Toolbar>
             <button className="btn-primary" onClick={() => setEditando(novoMonstro())}>＋ Novo monstro</button>
-            <input
-              className="stat-input w-full max-w-xs"
-              value={busca}
-              placeholder="Buscar por nome ou tipo…"
-              onChange={(e) => setBusca(e.target.value)}
-            />
-            <div className="flex flex-wrap items-center gap-1">
-              <FilterChip ativo={filtro === 'todos'} onClick={() => setFiltro('todos')}>
-                Todas ({monstros.length})
-              </FilterChip>
-              {NIVEIS_CONHECIMENTO.map((n) => {
-                const qtd = monstros.filter((m) => m.conhecimento === n.valor).length
-                return (
-                  <FilterChip key={n.valor} ativo={filtro === n.valor} onClick={() => setFiltro(n.valor)}>
-                    {n.icone} {n.curto} ({qtd})
-                  </FilterChip>
-                )
-              })}
-            </div>
           </Toolbar>
+
+          <BarraDeFiltros lista={monstros} filtros={filtros} onChange={setFiltros} />
 
           {filtrados.length === 0 ? (
             <EmptyState
@@ -193,7 +165,7 @@ function BestiarioDoMestre() {
           )}
         </>
       ) : (
-        <PlayerView monstros={conhecidos} busca={busca} setBusca={setBusca} setAmpliada={setAmpliada} />
+        <PlayerView monstros={conhecidos} filtros={filtros} setFiltros={setFiltros} todos={monstros} setAmpliada={setAmpliada} />
       )}
 
       {editando && (
@@ -245,7 +217,7 @@ function DmMonsterCard({
 
   return (
     <div className="card gv-fade group relative overflow-hidden transition hover:ring-1 hover:ring-dragon-500/40">
-      <div className="relative h-36 w-full overflow-hidden bg-ink-900/60">
+      <div className="relative h-48 w-full overflow-hidden bg-ink-900/60">
         {m.imagemUrl ? (
           // Um stat block inteiro colado como imagem é ilegível cortado em 144
           // px de altura. Clicar abre em tamanho real.
@@ -255,7 +227,7 @@ function DmMonsterCard({
             onClick={() => setAmpliada(m.imagemUrl)}
             title="Ver imagem inteira"
           >
-            <img src={m.imagemUrl} alt={m.nome} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+            <img src={m.imagemUrl} alt={m.nome} className="h-full w-full object-cover object-top transition duration-500 group-hover:scale-105" />
           </button>
         ) : (
           <div className="grid h-full w-full place-items-center text-5xl opacity-40">🐾</div>
@@ -289,7 +261,7 @@ function DmMonsterCard({
 
         {/* Categoria e marco de derrota */}
         <div className="mb-3 flex flex-wrap items-center gap-2">
-          <span className="panel-title shrink-0">Peso</span>
+          <span className="panel-title shrink-0">Rank</span>
           {/* Sem `appearance-none`: a seta do select é o que diz que dá para
               clicar. Sem ela, o campo parecia um rótulo fixo e ninguém
               descobria que a categoria era editável. */}
@@ -385,13 +357,15 @@ function DmMonsterCard({
 // ---------------------------------------------------------------------------
 function PlayerView({
   monstros,
-  busca,
-  setBusca,
+  filtros,
+  setFiltros,
+  todos,
   setAmpliada,
 }: {
   monstros: Monster[]
-  busca: string
-  setBusca: (v: string) => void
+  filtros: FiltrosBestiario
+  setFiltros: (f: FiltrosBestiario) => void
+  todos: Monster[]
   setAmpliada: (url: string) => void
 }) {
   return (
@@ -400,14 +374,12 @@ function PlayerView({
         👥 Esta é a tela que você mostra aos jogadores. Aparecem só as criaturas que
         o grupo já <b>encontrou</b> ou <b>estudou</b> — no nível de detalhe que você liberou.
       </div>
-      <div className="mb-6">
-        <input
-          className="stat-input max-w-xs"
-          value={busca}
-          placeholder="Buscar…"
-          onChange={(e) => setBusca(e.target.value)}
-        />
-      </div>
+      <BarraDeFiltros
+        lista={todos.filter((m) => m.conhecimento !== 'desconhecido')}
+        filtros={filtros}
+        onChange={setFiltros}
+        mostrarConhecimento={false}
+      />
       {monstros.length === 0 ? (
         <EmptyState
           icon="🔍"
@@ -434,7 +406,7 @@ function PlayerMonsterCard({ m, setAmpliada }: { m: Monster; setAmpliada?: (url:
 
   return (
     <div className={`card overflow-hidden ${m.derrotado ? 'opacity-75' : ''}`}>
-      <div className="relative h-40 w-full overflow-hidden bg-ink-900/60">
+      <div className="relative h-52 w-full overflow-hidden bg-ink-900/60">
         {img ? (
           <button
             type="button"
@@ -442,7 +414,7 @@ function PlayerMonsterCard({ m, setAmpliada }: { m: Monster; setAmpliada?: (url:
             onClick={() => setAmpliada?.(img)}
             title="Ver imagem inteira"
           >
-            <img src={img} alt={m.nome} className={`h-full w-full object-cover ${m.derrotado ? 'grayscale' : ''}`} />
+            <img src={img} alt={m.nome} className={`h-full w-full object-cover object-top ${m.derrotado ? 'grayscale' : ''}`} />
           </button>
         ) : (
           <div className="grid h-full w-full place-items-center text-5xl opacity-40">🐾</div>
