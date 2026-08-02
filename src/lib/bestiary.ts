@@ -388,6 +388,10 @@ export function projetarBestiario(list: Monster[]): Monster[] {
         imagemUrl: img,
         imagemJogadorUrl: img,
         taticas: '',
+        // O tesouro é prep, e prep não sai. Saber que o chefe larga uma espada
+        // +1 antes de derrubá-lo estraga o achado — e a lista de itens também
+        // conta o que o DM planejou para depois.
+        tesouro: undefined,
         // O grupo vê o rank aparente quando houver um. O verdadeiro nunca sai:
         // é ele que entregaria o plot twist antes da hora.
         categoria: m.categoriaAparente ?? m.categoria,

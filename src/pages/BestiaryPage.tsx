@@ -1,5 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { KnowledgeLevel, Monster, MonsterAction, TipoAcaoMonstro } from '../types'
+import type {
+  ItemDeTesouro,
+  KnowledgeLevel,
+  Moedas,
+  Monster,
+  MonsterAction,
+  Tesouro,
+  TipoAcaoMonstro,
+} from '../types'
 import { useBestiary } from '../hooks/useBestiary'
 import {
   CATEGORIAS_MONSTRO,
@@ -18,6 +26,7 @@ import {
   novoMonstro,
 } from '../lib/bestiary'
 import { uid } from '../lib/character'
+import { MOEDAS, novoItemDeTesouro, temTesouro, tesouroVazio } from '../lib/tesouro'
 import { lerStatBlock } from '../lib/statblock'
 import { abilityMod, fmtMod } from '../lib/calc'
 import { ABILITIES } from '../data/rules'
@@ -956,6 +965,9 @@ function MonsterEditor({
           )}
         </div>
 
+        {/* Tesouro */}
+        <TesouroEditor tesouro={m.tesouro} onChange={(t) => set({ tesouro: t })} />
+
         {/* Táticas do DM */}
         <div className="mt-5">
           <Field label="Táticas do DM (sempre privadas)" hint="Como jogar essa criatura em combate. Nunca aparece para os jogadores.">
@@ -1218,5 +1230,130 @@ function Lightbox({ url, onClose }: { url: string; onClose: () => void }) {
         </p>
       )}
     </div>
+  )
+}
+
+
+/**
+ * O que a criatura deixa cair.
+ *
+ * Fica recolhido: a maior parte das criaturas não tem tesouro nenhum, e um
+ * bloco sempre aberto só empurraria o resto da ficha para baixo.
+ *
+ * As moedas são em notação de dado de propósito. Um número fixo faria o
+ * terceiro bando de goblins ter exatamente o mesmo bolso do primeiro.
+ */
+function TesouroEditor({
+  tesouro,
+  onChange,
+}: {
+  tesouro?: Tesouro
+  onChange: (t: Tesouro) => void
+}) {
+  const t = tesouro ?? tesouroVazio()
+
+  function setMoeda(chave: keyof Moedas, dado: string) {
+    const outras = t.moedas.filter((m) => m.moeda !== chave)
+    onChange({
+      ...t,
+      moedas: dado.trim() ? [...outras, { moeda: chave, dado }] : outras,
+    })
+  }
+  const dadoDe = (chave: keyof Moedas) => t.moedas.find((m) => m.moeda === chave)?.dado ?? ''
+
+  function patchItem(id: string, p: Partial<ItemDeTesouro>) {
+    onChange({ ...t, itens: t.itens.map((i) => (i.id === id ? { ...i, ...p } : i)) })
+  }
+
+  return (
+    <details className="mt-5 rounded-lg border border-amber-400/20 bg-amber-500/5 p-3">
+      <summary className="cursor-pointer text-sm font-semibold text-parchment-100">
+        💰 Tesouro
+        {temTesouro(t) && <span className="ml-2 text-xs font-normal text-amber-300">definido</span>}
+      </summary>
+
+      <p className="mt-2 text-xs text-parchment-200/60">
+        Sorteado quando o encontro termina. Cada criatura derrubada rola o próprio — seis
+        goblins são seis bolsos.
+      </p>
+
+      <div className="mt-3">
+        <p className="panel-title mb-1.5">Moedas</p>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+          {MOEDAS.map(({ chave, sigla }) => (
+            <label key={chave} className="text-xs text-parchment-200/70">
+              {sigla}
+              <input
+                className="stat-input mt-0.5 w-full"
+                value={dadoDe(chave)}
+                onChange={(e) => setMoeda(chave, e.target.value)}
+                placeholder="2d6"
+              />
+            </label>
+          ))}
+        </div>
+        <p className="mt-1 text-[11px] text-parchment-200/40">
+          Notação de dado (2d6, 1d4+2) ou um número fixo.
+        </p>
+      </div>
+
+      <div className="mt-3">
+        <div className="mb-1.5 flex items-center justify-between">
+          <p className="panel-title">Itens</p>
+          <button
+            type="button"
+            className="btn-ghost py-0.5 text-xs"
+            onClick={() => onChange({ ...t, itens: [...t.itens, novoItemDeTesouro()] })}
+          >
+            ＋ item
+          </button>
+        </div>
+        {t.itens.length === 0 ? (
+          <p className="text-xs text-parchment-200/40">Nenhum item.</p>
+        ) : (
+          <div className="space-y-1.5">
+            {t.itens.map((i) => (
+              <div key={i.id} className="flex items-center gap-2">
+                <input
+                  className="stat-input min-w-0 flex-1"
+                  value={i.nome}
+                  onChange={(e) => patchItem(i.id, { nome: e.target.value })}
+                  placeholder="Espada longa +1"
+                />
+                <label className="flex shrink-0 items-center gap-1 text-[11px] text-parchment-200/50">
+                  <input
+                    type="number"
+                    min={1}
+                    max={100}
+                    className="stat-input w-16"
+                    value={i.chance ?? ''}
+                    onChange={(e) =>
+                      patchItem(i.id, {
+                        chance: e.target.value ? Math.max(1, Math.min(100, Number(e.target.value))) : undefined,
+                      })
+                    }
+                    placeholder="100"
+                    title="Chance de cair, em %. Vazio = sempre."
+                  />
+                  %
+                </label>
+                <button
+                  type="button"
+                  onClick={() => onChange({ ...t, itens: t.itens.filter((x) => x.id !== i.id) })}
+                  className="px-1 text-parchment-200/40 hover:text-dragon-400"
+                  aria-label="Remover item"
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+            <p className="text-[11px] text-parchment-200/40">
+              A chance é testada item a item — é o que faz a espada do capitão ser um achado,
+              e não uma certeza.
+            </p>
+          </div>
+        )}
+      </div>
+    </details>
   )
 }

@@ -215,6 +215,20 @@ checar('só "encontrado": CA zerada', lobo.ca === 0)
 checar('só "encontrado": PV zerado', lobo.pvMax === 0)
 checar('só "encontrado": atributos zerados', Object.values(lobo.atributos).every((v) => v === 0))
 checar('só "encontrado": sem ações', lobo.acoes.length === 0)
+// Tesouro é prep do DM. Saber o que o chefe larga antes de derrubá-lo estraga
+// o achado, e a lista conta o que ele planejou para depois.
+const comTesouro = projetarBestiario([
+  {
+    ...bestiario[2],
+    tesouro: {
+      moedas: [{ moeda: 'po', dado: '4d10' }],
+      itens: [{ id: 't1', nome: 'SEGREDO-ESPADA-SOLAR', chance: 50 }],
+    },
+  },
+])[0]
+checar('nem "estudado" revela o tesouro', comTesouro.tesouro === undefined)
+semVazamento('bestiário com tesouro', comTesouro, ['SEGREDO-ESPADA-SOLAR', '4d10'])
+
 // Um chefe que o grupo só cruzou no corredor não pode entregar que é chefe.
 const soCruzado = projetarBestiario([{ ...bestiario[1], acoesLendarias: 3 }])[0]
 checar('só "encontrado": o orçamento lendário não sai', soCruzado.acoesLendarias === undefined)

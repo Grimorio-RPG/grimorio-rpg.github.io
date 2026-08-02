@@ -17,6 +17,14 @@ import {
   statusPV,
 } from '../lib/battle'
 import { PartyBar } from '../components/party-bar'
+import type { Saque } from '../lib/tesouro'
+import {
+  MOEDAS,
+  descreveMoedas,
+  dividirMoedas,
+  saqueTemAlgo,
+  sortearDoEncontro,
+} from '../lib/tesouro'
 import { descreveRolagem } from '../lib/dice'
 import {
   destaquesDoCombate,
@@ -296,7 +304,12 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
       return soma + (m ? xpDoNd(m.nd) : 0)
     }, 0)
 
-    if (xpTotal <= 0 || aliados.length === 0) {
+    const saqueDoEncontro = sortearDoEncontro(
+      derrotados.flatMap((c) => monstros.find((m) => m.id === c.refId) ?? []),
+    )
+
+    // Sem XP e sem saque não há tela de recompensa para mostrar.
+    if ((xpTotal <= 0 && !saqueTemAlgo(saqueDoEncontro)) || aliados.length === 0) {
       update({ emAndamento: false })
       return
     }
@@ -306,6 +319,10 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
       derrotados: derrotados.length,
       aliados,
       destaques: destaquesDoCombate(battle),
+      // O saque é sorteado UMA vez, aqui, e guardado no estado. Sortear na
+      // hora de desenhar faria a lista mudar a cada repintura, na frente
+      // do grupo.
+      saque: saqueDoEncontro,
     })
   }
 
@@ -342,6 +359,7 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
     derrotados: number
     aliados: Combatant[]
     destaques: string[]
+    saque: Saque
   } | null>(null)
 
   return (
@@ -364,6 +382,10 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
                 </li>
               ))}
             </ul>
+          )}
+
+          {saqueTemAlgo(recompensa.saque) && (
+            <SaqueDoEncontro saque={recompensa.saque} quantos={recompensa.aliados.length} />
           )}
 
           <div className="mt-4 space-y-2">
@@ -1396,6 +1418,66 @@ function RegistroDeCombate({ registro }: { registro: EventoCombate[] }) {
           )
         })}
       </ol>
+    </div>
+  )
+}
+
+
+/**
+ * O que caiu, e quanto cabe a cada um.
+ *
+ * Começa virado: é o momento em que a mesa mais presta atenção, e revelar de
+ * uma vez desperdiça a única pausa dramática que o fim de combate tem.
+ */
+function SaqueDoEncontro({ saque, quantos }: { saque: Saque; quantos: number }) {
+  const [revelado, setRevelado] = useState(false)
+  const { cada, sobra } = dividirMoedas(saque.moedas, quantos)
+  const temSobra = MOEDAS.some(({ chave }) => sobra[chave] > 0)
+
+  if (!revelado) {
+    return (
+      <button
+        type="button"
+        onClick={() => setRevelado(true)}
+        className="mt-3 w-full rounded-lg border border-amber-400/40 bg-amber-500/10 p-4 text-center transition hover:bg-amber-500/20"
+      >
+        <p className="text-2xl">🧳</p>
+        <p className="mt-1 text-sm font-semibold text-amber-200">Revelar o saque</p>
+      </button>
+    )
+  }
+
+  return (
+    <div className="mt-3 rounded-lg border border-amber-400/30 bg-amber-500/10 p-3">
+      <p className="panel-title mb-2">💰 Saque</p>
+
+      {descreveMoedas(saque.moedas) ? (
+        <>
+          <p className="text-sm text-parchment-50">{descreveMoedas(saque.moedas)}</p>
+          {quantos > 1 && (
+            <p className="mt-0.5 text-xs text-parchment-200/60">
+              {descreveMoedas(cada)} para cada um
+              {temSobra && ` · sobra ${descreveMoedas(sobra)}`}
+            </p>
+          )}
+        </>
+      ) : (
+        <p className="text-sm text-parchment-200/50">Nenhuma moeda.</p>
+      )}
+
+      {saque.itens.length > 0 && (
+        <ul className="mt-2 space-y-0.5">
+          {saque.itens.map((item, i) => (
+            <li key={`${item}-${i}`} className="text-sm text-amber-200">
+              ✦ {item}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <p className="mt-2 text-[11px] text-parchment-200/40">
+        Anote nas fichas — o app não mexe no inventário de ninguém sozinho.
+      </p>
     </div>
   )
 }

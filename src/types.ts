@@ -363,6 +363,31 @@ export interface Campaign {
  */
 export type TipoAcaoMonstro = 'acao' | 'bonus' | 'reacao' | 'lendaria' | 'covil'
 
+/**
+ * Moeda em notação de dado, para o tesouro variar entre encontros.
+ *
+ * Um número fixo faria o terceiro bando de goblins ter exatamente o mesmo
+ * bolso do primeiro.
+ */
+export interface MoedaDeTesouro {
+  moeda: keyof Moedas
+  /** Notação: "2d6", "1d4+2". */
+  dado: string
+}
+
+export interface ItemDeTesouro {
+  id: string
+  nome: string
+  /** Chance de cair, de 1 a 100. Ausente = cai sempre. */
+  chance?: number
+}
+
+/** O que uma criatura deixa para trás. */
+export interface Tesouro {
+  moedas: MoedaDeTesouro[]
+  itens: ItemDeTesouro[]
+}
+
 export interface MonsterAction {
   id: string
   nome: string
@@ -544,6 +569,8 @@ export interface Monster {
   atributos: Abilities
   tracos: string // habilidades passivas (texto livre)
   acoes: MonsterAction[]
+  /** O que cai quando ela morre. Ausente = nada, que é o caso da maioria. */
+  tesouro?: Tesouro
   /**
    * Quantas ações lendárias por rodada. 0 ou ausente = a criatura não tem.
    *
