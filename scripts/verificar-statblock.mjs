@@ -75,14 +75,23 @@ checar('INT', campos.atributos.int, 16)
 checar('SAB', campos.atributos.sab, 15)
 checar('CAR', campos.atributos.car, 11)
 
-// Ações: só as de baixo do cabeçalho AÇÕES, sem invadir a REAÇÃO.
-checar('quantidade de ações', campos.acoes.length, 4)
-checar('primeira ação', campos.acoes[0].nome, 'Lança-Cajado')
-checar('ação com parênteses no nome', campos.acoes[2].nome, 'Gás Entorpecente (Recarga 5–6)')
+// Ações, agora com a seção de cada uma marcada.
+//
+// Este teste dizia "a reação não virou ação" e conferia que Diagnóstico ficava
+// de FORA da lista — encodava a versão antiga do leitor, que descartava tudo
+// depois do cabeçalho AÇÕES. Descartar não era o certo: era o defeito. Agora a
+// reação entra na lista marcada como reação, que é a informação que o DM
+// precisa em combate.
+const doTipo = (t) => campos.acoes.filter((a) => (a.tipo ?? 'acao') === t)
+
+checar('quantidade de ações da seção AÇÕES', doTipo('acao').length, 4)
+checar('primeira ação', doTipo('acao')[0].nome, 'Lança-Cajado')
+checar('ação com parênteses no nome', doTipo('acao')[2].nome, 'Gás Entorpecente (Recarga 5–6)')
+checar('a reação é lida', doTipo('reacao').length, 1)
 checar(
-  'a reação não virou ação',
-  campos.acoes.some((a) => a.nome.includes('Diagnóstico')),
-  false,
+  'e fica marcada como reação, não como ação',
+  doTipo('reacao')[0].nome.includes('Diagnóstico'),
+  true,
 )
 checar(
   'característica não virou ação',

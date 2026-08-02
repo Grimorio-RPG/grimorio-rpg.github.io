@@ -98,6 +98,15 @@ checar('sem foto de jogador, o combate não entrega a do DM', semFotoPublica.ima
 checar('sem foto de jogador, nem no campo espelhado', !semFotoPublica.imagemJogadorUrl)
 semVazamento('batalha sem foto de jogador', semFotoPublica, ['FOTO-SECRETA-DO-DM'])
 
+// O contador lendário responderia "isto é um chefe" sobre uma criatura que o
+// grupo ainda vê como "???" — a mesma entrega que o rank aparente evita.
+const lendario = projetarBatalha({
+  ...batalha,
+  combatentes: [{ ...batalha.combatentes[0], lendariasMax: 3, lendariasRestantes: 2 }],
+}).combatentes[0]
+checar('o teto de ações lendárias não sai', lendario.lendariasMax === undefined)
+checar('nem quantas restam', lendario.lendariasRestantes === undefined)
+
 checar('aliado mantém PV real', aliado.pvAtual === 22 && aliado.pvMax === 40)
 checar('aliado mantém o nome', aliado.nome === 'Arch Rios')
 semVazamento('batalha', pb, ['SEGREDO-DRAGAO-ANCIAO', 'FOTO-SECRETA-DO-DM'])
@@ -200,6 +209,12 @@ checar('só "encontrado": CA zerada', lobo.ca === 0)
 checar('só "encontrado": PV zerado', lobo.pvMax === 0)
 checar('só "encontrado": atributos zerados', Object.values(lobo.atributos).every((v) => v === 0))
 checar('só "encontrado": sem ações', lobo.acoes.length === 0)
+// Um chefe que o grupo só cruzou no corredor não pode entregar que é chefe.
+const soCruzado = projetarBestiario([{ ...bestiario[1], acoesLendarias: 3 }])[0]
+checar('só "encontrado": o orçamento lendário não sai', soCruzado.acoesLendarias === undefined)
+// Estudado por inteiro, aí sim: é o nível em que a ficha toda é liberada.
+const estudado = projetarBestiario([{ ...bestiario[2], acoesLendarias: 3 }])[0]
+checar('"estudado": o orçamento lendário aparece', estudado.acoesLendarias === 3)
 checar('só "encontrado": mantém nome e foto de jogador', lobo.nome === 'Lobo' && lobo.imagemUrl === 'foto-jogador')
 // Sem foto de jogador, o grupo NÃO herda a do DM: muita gente cola ali o stat
 // block inteiro, e o fallback antigo o entregava ao virar "encontrado".

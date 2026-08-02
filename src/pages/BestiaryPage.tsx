@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { KnowledgeLevel, Monster, MonsterAction } from '../types'
+import type { KnowledgeLevel, Monster, MonsterAction, TipoAcaoMonstro } from '../types'
 import { useBestiary } from '../hooks/useBestiary'
 import {
   CATEGORIAS_MONSTRO,
@@ -10,6 +10,7 @@ import {
   apenasPrimeirasFases,
   categoriaInfo,
   fasesDoChefe,
+  TIPOS_ACAO,
   imageToDataUrl,
   projetarBestiario,
   rotuloFase,
@@ -906,12 +907,51 @@ function MonsterEditor({
           ) : (
             <div className="space-y-2">
               {m.acoes.map((a) => (
-                <div key={a.id} className="flex gap-2">
-                  <input className="stat-input w-40" value={a.nome} placeholder="Mordida" onChange={(e) => patchAcao(a.id, { nome: e.target.value })} />
-                  <input className="stat-input flex-1" value={a.descricao} placeholder="+5 para acertar, 2d6+3 perfurante." onChange={(e) => patchAcao(a.id, { descricao: e.target.value })} />
+                <div key={a.id} className="flex flex-wrap gap-2 sm:flex-nowrap">
+                  <select
+                    className="stat-input w-28 shrink-0"
+                    value={a.tipo ?? 'acao'}
+                    onChange={(e) => patchAcao(a.id, { tipo: e.target.value as TipoAcaoMonstro })}
+                    aria-label="Quando a criatura usa isto"
+                  >
+                    {TIPOS_ACAO.map((t) => (
+                      <option key={t.valor} value={t.valor}>{t.rotulo}</option>
+                    ))}
+                  </select>
+                  <input className="stat-input w-40 shrink-0" value={a.nome} placeholder="Mordida" onChange={(e) => patchAcao(a.id, { nome: e.target.value })} />
+                  <input className="stat-input min-w-0 flex-1" value={a.descricao} placeholder="+5 para acertar, 2d6+3 perfurante." onChange={(e) => patchAcao(a.id, { descricao: e.target.value })} />
+                  {a.tipo === 'lendaria' && (
+                    <input
+                      type="number"
+                      min={1}
+                      max={3}
+                      className="stat-input w-14 shrink-0"
+                      value={a.custoLendaria ?? 1}
+                      onChange={(e) => patchAcao(a.id, { custoLendaria: Math.max(1, Number(e.target.value) || 1) })}
+                      title="Quantas ações lendárias esta consome"
+                    />
+                  )}
                   <button onClick={() => removeAcao(a.id)} className="px-2 text-parchment-200/40 hover:text-dragon-400" aria-label="Remover ação">✕</button>
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* O orçamento é da criatura, não da ação: três lendárias listadas
+              não querem dizer três usos por rodada. */}
+          {m.acoes.some((a) => a.tipo === 'lendaria') && (
+            <div className="mt-3 rounded-lg border border-amber-400/25 bg-amber-500/5 p-3">
+              <Field
+                label="Ações lendárias por rodada"
+                hint="O orçamento gasto entre os turnos dela, no turno dos outros. Recarrega no início do turno da criatura."
+              >
+                <NumberField
+                  value={m.acoesLendarias ?? 3}
+                  min={0}
+                  max={10}
+                  onChange={(v) => set({ acoesLendarias: Math.max(0, Math.min(10, v)) })}
+                />
+              </Field>
             </div>
           )}
         </div>

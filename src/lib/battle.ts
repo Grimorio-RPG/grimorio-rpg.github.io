@@ -86,6 +86,11 @@ export function projetarBatalha(b: Battle): Battle {
         iniciativaMod: 0,
         pvMax: 100,
         pvAtual: c.pvAtual > 0 ? Math.max(1, pct) : 0,
+        // O contador lendário sai. Ele responderia "isto é um chefe" sobre uma
+        // criatura que ainda está como "???" — o mesmo tipo de entrega que o
+        // rank aparente existe para evitar.
+        lendariasMax: undefined,
+        lendariasRestantes: undefined,
       }
     }),
   }
@@ -109,7 +114,69 @@ export function combatentesDeMonstro(m: Monster, qtd: number): Combatant[] {
     iniciativaMod: mod,
     nomeOculto: false,
     condicoes: [],
+    ...(m.acoesLendarias
+      ? { lendariasMax: m.acoesLendarias, lendariasRestantes: m.acoesLendarias }
+      : {}),
   }))
+}
+
+/**
+ * Recarrega as ações lendárias de quem vai começar o turno.
+ *
+ * A regra é essa: o orçamento volta no início do turno da criatura, porque as
+ * lendárias são gastas ENTRE os turnos dela — no turno dos outros.
+ */
+export function recarregarLendarias(combatentes: Combatant[], id: string): Combatant[] {
+  return combatentes.map((c) =>
+    c.id === id && c.lendariasMax ? { ...c, lendariasRestantes: c.lendariasMax } : c,
+  )
+}
+
+/** Gasta ações lendárias de um combatente, sem deixar ficar negativo. */
+export function gastarLendarias(combatentes: Combatant[], id: string, custo: number): Combatant[] {
+  return combatentes.map((c) =>
+    c.id === id
+      ? { ...c, lendariasRestantes: Math.max(0, (c.lendariasRestantes ?? 0) - custo) }
+      : c,
+  )
+}
+
+/**
+ * É agora a hora das ações de covil?
+ *
+ * A regra marca "iniciativa 20, perdendo empates": elas acontecem depois de
+ * todo mundo que tirou 20 ou mais, e antes do primeiro que tirou menos. Então
+ * o momento é o turno de quem abre a faixa abaixo de 20.
+ *
+ * Sem esta conta o DM precisaria lembrar sozinho, todo turno, de uma coisa que
+ * a mesa inteira esquece — o motivo de ações de covil quase nunca serem usadas.
+ */
+export function momentoDoCovil(b: Battle): boolean {
+  if (!b.emAndamento) return false
+  const ordem = ordenar(b.combatentes)
+  const atual = ordem[b.turnoIndex]
+  if (!atual || (atual.iniciativa ?? 0) >= 20) return false
+  const anterior = ordem[b.turnoIndex - 1]
+  // Primeiro da ordem já vale: ninguém tirou 20 ou mais nesta rodada.
+  return !anterior || (anterior.iniciativa ?? 0) >= 20
+}
+
+/**
+ * Quem ainda pode agir fora do próprio turno.
+ *
+ * Serve para a tela oferecer as lendárias durante o turno dos jogadores, que é
+ * exatamente quando elas acontecem — e o motivo de o painel do inimigo da vez,
+ * sozinho, não dar conta delas.
+ */
+export function comLendariasDisponiveis(b: Battle): Combatant[] {
+  const daVez = ordenar(b.combatentes)[b.turnoIndex]
+  return b.combatentes.filter(
+    (c) =>
+      c.origem === 'inimigo' &&
+      c.pvAtual > 0 &&
+      (c.lendariasRestantes ?? 0) > 0 &&
+      c.id !== daVez?.id,
+  )
 }
 
 /** Cria um combatente aliado a partir de uma ficha de personagem. */

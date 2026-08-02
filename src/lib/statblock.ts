@@ -8,7 +8,7 @@
 // Nada aqui adivinha: o que não for reconhecido fica em branco para você
 // preencher. Um campo errado preenchido com confiança é pior que um vazio.
 
-import type { Monster, MonsterAction } from '../types'
+import type { Monster, MonsterAction, TipoAcaoMonstro } from '../types'
 import { uid } from './character'
 
 /** Rótulos aceitos em português e inglês — as fontes variam. */
@@ -76,30 +76,115 @@ function lerAtributos(texto: string): Partial<Record<(typeof ATRIBUTOS)[number],
 }
 
 /**
- * Ações: entradas no formato "Nome. Descrição".
+ * As seções que um bloco de estatísticas pode ter, e o que cada uma vira.
  *
- * Só olha depois do cabeçalho de ações — antes dele vêm traços, que também
- * usam "Nome. Descrição" e virariam ações falsas.
+ * A ordem importa: "AÇÕES LENDÁRIAS" precisa ser testada antes de "AÇÕES",
+ * senão o cabeçalho mais específico é engolido pelo mais geral.
  */
-function lerAcoes(texto: string): MonsterAction[] {
-  const inicio = texto.search(/^\s*(?:A[ÇC][ÕO]ES|ACTIONS)\s*$/im)
-  if (inicio < 0) return []
-  let trecho = texto.slice(inicio).replace(/^[^\n]*\n/, '')
+const SECOES: { tipo: TipoAcaoMonstro | 'lore'; re: RegExp }[] = [
+  { tipo: 'lendaria', re: /^[ \t]*(?:A[ÇC][ÕO]ES\s+LEND[ÁA]RIAS|LEND[ÁA]RIAS|LEGENDARY\s+ACTIONS?)[ \t]*:?[ \t]*$/im },
+  { tipo: 'covil', re: /^[ \t]*(?:A[ÇC][ÕO]ES\s+DE\s+COVIL|A[ÇC][ÕO]ES\s+DE\s+TOCA|LAIR\s+ACTIONS?)[ \t]*:?[ \t]*$/im },
+  { tipo: 'bonus', re: /^[ \t]*(?:A[ÇC][ÕO]ES\s+B[ÔO]NUS|A[ÇC][ÃA]O\s+B[ÔO]NUS|BONUS\s+ACTIONS?)[ \t]*:?[ \t]*$/im },
+  { tipo: 'reacao', re: /^[ \t]*(?:REA[ÇC][ÕO]ES|REA[ÇC][ÃA]O|REACTIONS?)[ \t]*:?[ \t]*$/im },
+  { tipo: 'acao', re: /^[ \t]*(?:A[ÇC][ÕO]ES|ACTIONS)[ \t]*:?[ \t]*$/im },
+  { tipo: 'lore', re: /^[ \t]*(?:LORE|DESCRI[ÇC][ÃA]O|DESCRIPTION)[ \t]*:?[ \t]*$/im },
+]
 
-  // Para no próximo cabeçalho de seção.
-  const fim = trecho.search(/^\s*(?:REA[ÇC][ÃA]O|REACTIONS?|A[ÇC][ÃA]O B[ÔO]NUS|BONUS ACTIONS?|LENDÁRIAS|LEGENDARY|LORE)\s*$/im)
-  if (fim >= 0) trecho = trecho.slice(0, fim)
+/** "Custa 2 Ações" / "Costs 2 Actions" no nome da entrada lendária. */
+const CUSTO_LENDARIA = /\(\s*custa\s+(\d+)\s+a[çc][õo]es?\s*\)|\(\s*costs?\s+(\d+)\s+actions?\s*\)/i
 
+/**
+ * Quantas ações lendárias por rodada, lidas do parágrafo de abertura da seção.
+ *
+ * "O dragão pode realizar 3 ações lendárias..." — é ali que o orçamento mora,
+ * nunca no número de entradas listadas.
+ */
+function lerOrcamentoLendarias(preambulo: string): number {
+  const m = preambulo.match(/(\d+)\s+a[çc][õo]es\s+lend[áa]rias|(\d+)\s+legendary\s+actions?/i)
+  const n = Number(m?.[1] ?? m?.[2] ?? 0)
+  return n > 0 && n <= 10 ? n : 0
+}
+
+/**
+ * Frases de abertura destas seções, que explicam a regra e não são uma ação.
+ *
+ * Precisam ser reconhecidas pelo que dizem, não pelo tamanho. Elas têm a mesma
+ * forma "Maiúscula … ponto" das entradas de verdade, e antes só escapavam de
+ * virar uma ação falsa por passarem de 60 caracteres — uma abertura curta
+ * ("O dragão tem 3 ações lendárias.") entrava na lista como se fosse um golpe.
+ */
+const PREAMBULOS = [
+  /a[çc][õo]es\s+lend[áa]rias|legendary\s+action/i,
+  /iniciativa\s+20|initiative\s+count\s+20|a[çc][ãa]o\s+de\s+covil|lair\s+action/i,
+]
+
+/** Separa a explicação inicial das entradas de verdade. */
+function tirarPreambulo(trecho: string): { preambulo: string; resto: string } {
+  const linhas = trecho.split('\n')
+  let i = 0
+  while (i < linhas.length) {
+    const linha = linhas[i].trim()
+    if (linha && !PREAMBULOS.some((re) => re.test(linha))) break
+    i++
+  }
+  return { preambulo: linhas.slice(0, i).join('\n'), resto: linhas.slice(i).join('\n') }
+}
+
+/** Quebra "Nome. Descrição" repetido em entradas. */
+function lerEntradas(trecho: string, tipo: TipoAcaoMonstro): MonsterAction[] {
   const acoes: MonsterAction[] = []
   // "Nome." no começo de uma linha, seguido do resto até a próxima entrada.
   const re = /^[ \t]*([A-ZÀ-Ú][^.\n]{1,60})\.\s*([\s\S]*?)(?=^[ \t]*[A-ZÀ-Ú][^.\n]{1,60}\.|$)/gm
   for (const m of trecho.matchAll(re)) {
-    const nome = m[1].trim()
+    let nome = m[1].trim()
     const descricao = m[2].replace(/\s+/g, ' ').trim()
     if (!descricao) continue
-    acoes.push({ id: uid(), nome, descricao })
+
+    const custo = nome.match(CUSTO_LENDARIA)
+    const custoLendaria = custo ? Number(custo[1] ?? custo[2]) : undefined
+    if (custo) nome = nome.replace(CUSTO_LENDARIA, '').trim()
+
+    acoes.push({ id: uid(), nome, descricao, tipo, ...(custoLendaria ? { custoLendaria } : {}) })
   }
   return acoes
+}
+
+/**
+ * Ações de todas as seções, cada uma marcada com o que é.
+ *
+ * Antes daqui só a seção "AÇÕES" era lida, e o leitor PARAVA ao encontrar
+ * "LENDÁRIAS" — quem colava um chefe do livro perdia exatamente o que fazia
+ * dele um chefe. Reações e ações bônus sumiam pelo mesmo motivo.
+ */
+function lerAcoes(texto: string): { acoes: MonsterAction[]; lendarias: number } {
+  // Onde cada seção começa. Uma seção termina onde a próxima começa, então
+  // precisamos das posições de todas antes de fatiar qualquer uma.
+  const marcos = SECOES.flatMap(({ tipo, re }) => {
+    const achado = texto.match(re)
+    return achado?.index == null ? [] : [{ tipo, inicio: achado.index, cabecalho: achado[0] }]
+  }).sort((a, b) => a.inicio - b.inicio)
+
+  const acoes: MonsterAction[] = []
+  let lendarias = 0
+
+  for (let i = 0; i < marcos.length; i++) {
+    const { tipo, inicio, cabecalho } = marcos[i]
+    const fim = i + 1 < marcos.length ? marcos[i + 1].inicio : texto.length
+    let trecho = texto.slice(inicio + cabecalho.length, fim)
+
+    if (tipo === 'lore') continue
+
+    // Lendárias e de covil abrem explicando a regra; essa frase não é uma ação.
+    if (tipo === 'lendaria' || tipo === 'covil') {
+      const { preambulo, resto } = tirarPreambulo(trecho)
+      if (tipo === 'lendaria') lendarias = lerOrcamentoLendarias(preambulo)
+      trecho = resto
+    }
+
+    acoes.push(...lerEntradas(trecho, tipo))
+  }
+
+  return { acoes, lendarias }
 }
 
 /** Traços: o que vem antes das ações, depois da linha de atributos. */
@@ -205,10 +290,20 @@ export function lerStatBlock(texto: string): ResultadoLeitura {
     anota('atributos')
   }
 
-  const acoes = lerAcoes(texto)
+  const { acoes, lendarias } = lerAcoes(texto)
   if (acoes.length > 0) {
     campos.acoes = acoes
     anota(`${acoes.length} ${acoes.length === 1 ? 'ação' : 'ações'}`)
+    // Vale a pena dizer separado: é o que antes se perdia calado.
+    const porTipo = (t: TipoAcaoMonstro) => acoes.filter((a) => a.tipo === t).length
+    if (porTipo('lendaria') > 0) anota(`${porTipo('lendaria')} lendárias`)
+    if (porTipo('covil') > 0) anota(`${porTipo('covil')} de covil`)
+    if (porTipo('reacao') > 0) anota(`${porTipo('reacao')} reações`)
+    if (porTipo('bonus') > 0) anota(`${porTipo('bonus')} ações bônus`)
+  }
+  if (lendarias > 0) {
+    campos.acoesLendarias = lendarias
+    anota(`${lendarias} usos lendários/rodada`)
   }
 
   // Perícias, sentidos e idiomas não têm campo próprio no monstro: juntam-se

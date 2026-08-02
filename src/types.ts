@@ -355,10 +355,25 @@ export interface Campaign {
 // Bestiário
 // ---------------------------------------------------------------------------
 
+/**
+ * Quando a criatura pode usar aquilo.
+ *
+ * Sem esta separação um chefe do livro virava uma lista chapada de ações, e a
+ * coisa que faz um chefe ser chefe — agir fora do próprio turno — sumia junto.
+ */
+export type TipoAcaoMonstro = 'acao' | 'bonus' | 'reacao' | 'lendaria' | 'covil'
+
 export interface MonsterAction {
   id: string
   nome: string
   descricao: string // ex: "Cimitarra. +4 para acertar, 1d6+2 de dano cortante."
+  /** Ausente em fichas antigas — vale como 'acao'. */
+  tipo?: TipoAcaoMonstro
+  /**
+   * Quantas das ações lendárias esta consome. O padrão é 1; algumas custam 2
+   * ou 3, e é justamente o custo que faz o chefe escolher.
+   */
+  custoLendaria?: number
 }
 
 /**
@@ -399,6 +414,15 @@ export interface Combatant {
   iniciativaMod: number // modificador para rolar iniciativa
   nomeOculto: boolean // se true, os jogadores veem "???" no lugar do nome (imagem continua)
   condicoes: string[] // condições ativas neste combate
+  /**
+   * Ações lendárias ainda disponíveis nesta rodada.
+   *
+   * Recarrega no início do turno da criatura, que é como a regra funciona: as
+   * lendárias são gastas ENTRE os turnos dela, no turno dos outros.
+   */
+  lendariasRestantes?: number
+  /** Teto de ações lendárias por rodada, copiado do bestiário. */
+  lendariasMax?: number
 }
 
 export interface Battle {
@@ -457,6 +481,13 @@ export interface Monster {
   atributos: Abilities
   tracos: string // habilidades passivas (texto livre)
   acoes: MonsterAction[]
+  /**
+   * Quantas ações lendárias por rodada. 0 ou ausente = a criatura não tem.
+   *
+   * Fica no monstro e não na ação porque o orçamento é da criatura: três ações
+   * lendárias listadas não significam três usos.
+   */
+  acoesLendarias?: number
   taticas: string // notas do DM (como usar em combate) — sempre privadas
   conhecimento: KnowledgeLevel // o que o grupo já sabe sobre a criatura
   /** Peso na campanha. Opcional: fichas antigas viram 'comum'. */

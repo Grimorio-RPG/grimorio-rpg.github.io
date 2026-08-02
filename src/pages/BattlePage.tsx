@@ -1,13 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { Battle, Combatant, Monster } from '../types'
+import type { Battle, Combatant, Monster, MonsterAction } from '../types'
 import { useBattle } from '../hooks/useBattle'
 import { useBestiary } from '../hooks/useBestiary'
-import { proximaFase, rotuloFase } from '../lib/bestiary'
+import { proximaFase, rotuloFase, tipoAcaoInfo } from '../lib/bestiary'
 import {
   batalhaVazia,
   combatenteDePersonagem,
   combatentesDeMonstro,
+  comLendariasDisponiveis,
+  gastarLendarias,
+  momentoDoCovil,
   ordenar,
+  recarregarLendarias,
   rolarIniciativa,
   statusPV,
 } from '../lib/battle'
@@ -218,7 +222,13 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
       }
       if (!pulaTurno(ordenados[i])) break
     }
-    update({ turnoIndex: i, rodada })
+    // O orçamento lendário volta no início do turno da criatura — é entre os
+    // turnos dela que ele é gasto.
+    update({
+      turnoIndex: i,
+      rodada,
+      combatentes: recarregarLendarias(battle.combatentes, ordenados[i]?.id ?? ''),
+    })
   }
   /**
    * Encerra o encontro e paga o XP.
@@ -371,6 +381,23 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
         <TurnoDoInimigo
           combatente={atual}
           monstro={monstros.find((m) => m.id === atual.refId)}
+        />
+      )}
+
+      {momentoDoCovil(battle) && (
+        <AcoesDeCovil
+          chefes={battle.combatentes.filter((c) => c.origem === 'inimigo' && c.pvAtual > 0)}
+          monstros={monstros}
+        />
+      )}
+
+      {battle.emAndamento && (
+        <AcoesLendarias
+          chefes={comLendariasDisponiveis(battle)}
+          monstros={monstros}
+          aoGastar={(id, custo) =>
+            update({ combatentes: gastarLendarias(battle.combatentes, id, custo) })
+          }
         />
       )}
 
@@ -846,25 +873,12 @@ function TurnoDoInimigo({ combatente, monstro }: { combatente: Combatant; monstr
     )
   }
 
-  /** Extrai a primeira notação de dado de um texto livre ("2d6+3 cortante"). */
-  const notacao = (texto: string) =>
-    texto.match(/(\d+)d(\d+)(\s*[+-]\s*\d+)?/i)
-
-  function rolar(texto: string, rotulo: string) {
-    const m = notacao(texto)
-    if (!m) return
-    const mod = m[3] ? parseInt(m[3].replace(/\s+/g, ''), 10) : 0
-    const r = rolarComModo(Number(m[1]), Number(m[2]), mod, `${monstro!.nome} · ${rotulo}`)
-    setUltima(descreveRolagem(r))
-  }
-
-  /** Bônus de acerto, quando a descrição traz "+5 para acertar". */
-  const acerto = (texto: string) => texto.match(/([+-]\d+)\s*para\s*(?:acertar|atingir)/i)?.[1]
-
-  function rolarAtaque(bonus: string, rotulo: string) {
-    const r = rolarComModo(1, 20, parseInt(bonus, 10) || 0, `${monstro!.nome} · ${rotulo} (ataque)`)
-    setUltima(descreveRolagem(r))
-  }
+  // No próprio turno a criatura usa ação, bônus e reação. As lendárias NÃO
+  // entram aqui de propósito: elas acontecem ENTRE os turnos dela, e por isso
+  // ganham painel próprio, visível durante a vez dos outros.
+  const doTurno = monstro.acoes.filter(
+    (a) => (a.tipo ?? 'acao') !== 'lendaria' && a.tipo !== 'covil',
+  )
 
   return (
     <div className="card border-l-4 border-l-dragon-500 p-3">
@@ -876,6 +890,11 @@ function TurnoDoInimigo({ combatente, monstro }: { combatente: Combatant; monstr
           PV {combatente.pvAtual}/{combatente.pvMax}
         </span>
         {monstro.deslocamento && <span className="chip text-xs">{monstro.deslocamento}</span>}
+        {combatente.lendariasMax ? (
+          <span className="chip border-amber-400/40 text-xs text-amber-200">
+            👑 {combatente.lendariasRestantes ?? 0}/{combatente.lendariasMax} lendárias
+          </span>
+        ) : null}
       </div>
 
       {ultima && (
@@ -884,41 +903,11 @@ function TurnoDoInimigo({ combatente, monstro }: { combatente: Combatant; monstr
         </p>
       )}
 
-      {monstro.acoes.length > 0 ? (
+      {doTurno.length > 0 ? (
         <div className="space-y-1.5">
-          {monstro.acoes.map((a) => {
-            const bonus = acerto(a.descricao)
-            const dano = notacao(a.descricao)?.[0]
-            return (
-              <div
-                key={a.id}
-                className="flex flex-wrap items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] p-2"
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-parchment-50">{a.nome}</p>
-                  <p className="text-xs leading-relaxed text-parchment-200/70">{a.descricao}</p>
-                </div>
-                {bonus && (
-                  <button
-                    type="button"
-                    className="chip shrink-0 hover:border-emerald-400/60"
-                    onClick={() => rolarAtaque(bonus, a.nome)}
-                  >
-                    🎯 {bonus}
-                  </button>
-                )}
-                {dano && (
-                  <button
-                    type="button"
-                    className="chip shrink-0 hover:border-dragon-400/60"
-                    onClick={() => rolar(a.descricao, a.nome)}
-                  >
-                    🎲 {dano}
-                  </button>
-                )}
-              </div>
-            )
-          })}
+          {doTurno.map((a) => (
+            <LinhaDeAcao key={a.id} acao={a} nomeDaCriatura={monstro.nome} aoRolar={setUltima} />
+          ))}
         </div>
       ) : (
         <p className="text-sm text-parchment-200/50">
@@ -934,6 +923,231 @@ function TurnoDoInimigo({ combatente, monstro }: { combatente: Combatant; monstr
           <p className="mt-1 whitespace-pre-wrap text-xs text-parchment-200/70">{monstro.taticas}</p>
         </details>
       )}
+    </div>
+  )
+}
+
+/** Extrai a primeira notação de dado de um texto livre ("2d6+3 cortante"). */
+function notacaoDeDado(texto: string) {
+  return texto.match(/(\d+)d(\d+)(\s*[+-]\s*\d+)?/i)
+}
+
+/** Bônus de acerto, quando a descrição traz "+5 para acertar". */
+function bonusDeAcerto(texto: string) {
+  return texto.match(/([+-]\d+)\s*para\s*(?:acertar|atingir)/i)?.[1]
+}
+
+/**
+ * Uma ação da criatura, com os dados que dá para rolar dali.
+ *
+ * Os botões saem da descrição em texto: o "+5 para acertar" vira um d20 e a
+ * notação de dano vira o outro. Ação escrita sem dado nenhum aparece só como
+ * texto — melhor do que não aparecer.
+ */
+function LinhaDeAcao({
+  acao,
+  nomeDaCriatura,
+  aoRolar,
+  aoUsar,
+}: {
+  acao: MonsterAction
+  nomeDaCriatura: string
+  aoRolar: (texto: string) => void
+  /** Quando existe, um botão de gastar aparece — é o caso das lendárias. */
+  aoUsar?: () => void
+}) {
+  const bonus = bonusDeAcerto(acao.descricao)
+  const dano = notacaoDeDado(acao.descricao)?.[0]
+  const info = tipoAcaoInfo(acao.tipo)
+
+  function rolarDano() {
+    const m = notacaoDeDado(acao.descricao)
+    if (!m) return
+    const mod = m[3] ? parseInt(m[3].replace(/\s+/g, ''), 10) : 0
+    aoRolar(
+      descreveRolagem(
+        rolarComModo(Number(m[1]), Number(m[2]), mod, `${nomeDaCriatura} · ${acao.nome}`),
+      ),
+    )
+  }
+
+  function rolarAtaque() {
+    aoRolar(
+      descreveRolagem(
+        rolarComModo(
+          1,
+          20,
+          parseInt(bonus ?? '0', 10) || 0,
+          `${nomeDaCriatura} · ${acao.nome} (ataque)`,
+        ),
+      ),
+    )
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] p-2">
+      <div className="min-w-0 flex-1">
+        <p className="flex flex-wrap items-center gap-1.5 text-sm font-medium text-parchment-50">
+          {/* O ícone só aparece quando não é uma ação comum: marcar toda linha
+              com espada seria ruído. */}
+          {acao.tipo && acao.tipo !== 'acao' && (
+            <span title={info.explicacao} aria-label={info.rotulo}>
+              {info.icone}
+            </span>
+          )}
+          {acao.nome}
+          {acao.custoLendaria && acao.custoLendaria > 1 && (
+            <span className="text-xs font-normal text-amber-300/80">
+              custa {acao.custoLendaria}
+            </span>
+          )}
+        </p>
+        <p className="text-xs leading-relaxed text-parchment-200/70">{acao.descricao}</p>
+      </div>
+      {bonus && (
+        <button
+          type="button"
+          className="chip shrink-0 hover:border-emerald-400/60"
+          onClick={rolarAtaque}
+        >
+          🎯 {bonus}
+        </button>
+      )}
+      {dano && (
+        <button
+          type="button"
+          className="chip shrink-0 hover:border-dragon-400/60"
+          onClick={rolarDano}
+        >
+          🎲 {dano}
+        </button>
+      )}
+      {aoUsar && (
+        <button
+          type="button"
+          className="chip shrink-0 border-amber-400/40 text-amber-200 hover:border-amber-300"
+          onClick={aoUsar}
+        >
+          Gastar
+        </button>
+      )}
+    </div>
+  )
+}
+
+/**
+ * As ações lendárias dos chefes, durante o turno dos OUTROS.
+ *
+ * É onde elas acontecem: a regra diz que a criatura as gasta entre os próprios
+ * turnos. Um painel que só aparecesse na vez dela mostraria as lendárias
+ * exatamente no único momento em que não podem ser usadas — e foi por isso que
+ * o painel do inimigo da vez, sozinho, não bastava.
+ */
+function AcoesLendarias({
+  chefes,
+  monstros,
+  aoGastar,
+}: {
+  chefes: Combatant[]
+  monstros: Monster[]
+  aoGastar: (id: string, custo: number) => void
+}) {
+  const [ultima, setUltima] = useState('')
+  if (chefes.length === 0) return null
+
+  return (
+    <div className="card border-l-4 border-l-amber-400/70 p-3">
+      <p className="panel-title mb-2">👑 Ações lendárias disponíveis</p>
+
+      {ultima && (
+        <p className="mb-2 rounded-lg border border-amber-400/30 bg-amber-500/10 p-2 text-sm text-parchment-100">
+          🎲 {ultima}
+        </p>
+      )}
+
+      <div className="space-y-3">
+        {chefes.map((c) => {
+          const monstro = monstros.find((m) => m.id === c.refId)
+          const lendarias = (monstro?.acoes ?? []).filter((a) => a.tipo === 'lendaria')
+          const restam = c.lendariasRestantes ?? 0
+          if (lendarias.length === 0) return null
+
+          return (
+            <div key={c.id}>
+              <div className="mb-1.5 flex flex-wrap items-center gap-2">
+                <b className="text-sm text-parchment-50">{c.nome}</b>
+                <span className="chip border-amber-400/40 text-xs text-amber-200">
+                  {restam}/{c.lendariasMax} nesta rodada
+                </span>
+              </div>
+              <div className="space-y-1.5">
+                {lendarias.map((a) => {
+                  const custo = a.custoLendaria ?? 1
+                  const podeUsar = custo <= restam
+                  return (
+                    <div key={a.id} className={podeUsar ? '' : 'opacity-40'}>
+                      <LinhaDeAcao
+                        acao={a}
+                        nomeDaCriatura={c.nome}
+                        aoRolar={setUltima}
+                        aoUsar={podeUsar ? () => aoGastar(c.id, custo) : undefined}
+                      />
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * O aviso de ação de covil, no turno em que ela acontece.
+ *
+ * Aparece uma vez por rodada, quando a ordem cruza a iniciativa 20. Ficar
+ * visível o combate inteiro seria ruído; ficar escondido devolveria o problema
+ * que ela tem na mesa de verdade — todo mundo esquece que existe.
+ */
+function AcoesDeCovil({ chefes, monstros }: { chefes: Combatant[]; monstros: Monster[] }) {
+  const [ultima, setUltima] = useState('')
+
+  const comCovil = chefes.flatMap((c) => {
+    const monstro = monstros.find((m) => m.id === c.refId)
+    const acoes = (monstro?.acoes ?? []).filter((a) => a.tipo === 'covil')
+    return acoes.length > 0 ? [{ combatente: c, acoes }] : []
+  })
+  if (comCovil.length === 0) return null
+
+  return (
+    <div className="card border-l-4 border-l-violet-400/70 p-3">
+      <p className="panel-title mb-2">🕺 Iniciativa 20 — ação de covil</p>
+
+      {ultima && (
+        <p className="mb-2 rounded-lg border border-violet-400/30 bg-violet-500/10 p-2 text-sm text-parchment-100">
+          🎲 {ultima}
+        </p>
+      )}
+
+      <div className="space-y-3">
+        {comCovil.map(({ combatente, acoes }) => (
+          <div key={combatente.id}>
+            <b className="mb-1.5 block text-sm text-parchment-50">{combatente.nome}</b>
+            <div className="space-y-1.5">
+              {acoes.map((a) => (
+                <LinhaDeAcao
+                  key={a.id}
+                  acao={a}
+                  nomeDaCriatura={combatente.nome}
+                  aoRolar={setUltima}
+                />
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

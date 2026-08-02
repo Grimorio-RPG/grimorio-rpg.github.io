@@ -1,9 +1,49 @@
-import type { Abilities, KnowledgeLevel, Monster } from '../types'
+import type { Abilities, KnowledgeLevel, Monster, TipoAcaoMonstro } from '../types'
 import { uid } from './character'
 import { CHAVES, readRaw, writeJson, writeRaw } from './store'
 
 const KEY = CHAVES.bestiario
 const SEED_FLAG = CHAVES.bestiarioSeed
+
+/**
+ * Quando a criatura usa cada coisa.
+ *
+ * O rótulo curto é o que cabe no seletor do editor; a explicação existe porque
+ * lendária e covil são justamente as duas que a maior parte das mesas nunca
+ * usou e não sabe o que fazem.
+ */
+export const TIPOS_ACAO: {
+  valor: TipoAcaoMonstro
+  rotulo: string
+  icone: string
+  explicacao: string
+}[] = [
+  { valor: 'acao', rotulo: 'Ação', icone: '⚔️', explicacao: 'No turno dela, a ação principal.' },
+  { valor: 'bonus', rotulo: 'Bônus', icone: '⚡', explicacao: 'No turno dela, além da ação.' },
+  {
+    valor: 'reacao',
+    rotulo: 'Reação',
+    icone: '↩️',
+    explicacao: 'Fora do turno dela, uma vez por rodada, quando o gatilho acontece.',
+  },
+  {
+    valor: 'lendaria',
+    rotulo: 'Lendária',
+    icone: '👑',
+    explicacao: 'Entre os turnos dela, gastando do orçamento da rodada.',
+  },
+  {
+    valor: 'covil',
+    rotulo: 'Covil',
+    icone: '🕳️',
+    explicacao: 'Na iniciativa 20, só enquanto a luta acontece no covil dela.',
+  },
+]
+
+/** O rótulo de um tipo, com o padrão para fichas antigas, que não têm tipo. */
+export function tipoAcaoInfo(tipo?: TipoAcaoMonstro) {
+  return TIPOS_ACAO.find((t) => t.valor === (tipo ?? 'acao')) ?? TIPOS_ACAO[0]
+}
 
 export const NIVEIS_CONHECIMENTO: {
   valor: KnowledgeLevel
@@ -363,6 +403,9 @@ export function projetarBestiario(list: Monster[]): Monster[] {
           deslocamento: '',
           tracos: '',
           acoes: [],
+          // O orçamento lendário entregaria "é um chefe" de uma criatura que o
+          // grupo só cruzou no corredor.
+          acoesLendarias: undefined,
           atributos: { for: 0, des: 0, con: 0, int: 0, sab: 0, car: 0 },
         }
       }
