@@ -95,6 +95,13 @@ export function projetarBatalha(b: Battle): Battle {
         // rank aparente existe para evitar.
         lendariasMax: undefined,
         lendariasRestantes: undefined,
+        // O nome da magia que o inimigo concentra é informação sua. Que ele
+        // está concentrando, a mesa descobre olhando; o QUE ele conjurou, não.
+        //
+        // As rodadas restantes de condição ficam: a condição já aparece para o
+        // grupo, e saber que o ogro fica atordoado por mais uma rodada é o tipo
+        // de coisa que faz o jogador planejar em vez de perguntar.
+        concentracao: undefined,
       }
     }),
   }
@@ -143,6 +150,48 @@ export function gastarLendarias(combatentes: Combatant[], id: string, custo: num
       ? { ...c, lendariasRestantes: Math.max(0, (c.lendariasRestantes ?? 0) - custo) }
       : c,
   )
+}
+
+/**
+ * Faz as condições de quem começa o turno andarem uma rodada.
+ *
+ * O contador cai no início do turno da criatura, que é onde a maior parte das
+ * durações de 5.5e termina ("até o fim do seu próximo turno" é o caso comum, e
+ * fica um turno inteiro de folga).
+ *
+ * Devolve também o que expirou, para o registro poder contar.
+ */
+export function correrCondicoes(
+  combatentes: Combatant[],
+  id: string,
+): { combatentes: Combatant[]; expiradas: { alvo: string; condicao: string; deInimigo: boolean }[] } {
+  const expiradas: { alvo: string; condicao: string; deInimigo: boolean }[] = []
+
+  const novos = combatentes.map((c) => {
+    if (c.id !== id || !c.rodadasDeCondicao) return c
+
+    const restantes: Record<string, number> = {}
+    const nomes: string[] = []
+
+    for (const nome of c.condicoes) {
+      const quantas = c.rodadasDeCondicao[nome]
+      // Sem contador é "até alguém tirar": não expira sozinha.
+      if (quantas == null) {
+        nomes.push(nome)
+        continue
+      }
+      if (quantas <= 1) {
+        expiradas.push({ alvo: c.nome, condicao: nome, deInimigo: c.origem === 'inimigo' })
+        continue
+      }
+      restantes[nome] = quantas - 1
+      nomes.push(nome)
+    }
+
+    return { ...c, condicoes: nomes, rodadasDeCondicao: restantes }
+  })
+
+  return { combatentes: novos, expiradas }
 }
 
 /**
@@ -206,6 +255,9 @@ export function combatenteDePersonagem(c: Character): Combatant {
     iniciativaMod: mod,
     nomeOculto: false,
     condicoes: [],
+    // A ficha já sabia disto (`concentrando`) e a batalha ignorava — o mago
+    // entrava em combate e a concentração sumia da tela do DM.
+    ...(c.concentrando ? { concentracao: c.concentrando } : {}),
   }
 }
 

@@ -8,6 +8,7 @@ import {
   combatenteDePersonagem,
   combatentesDeMonstro,
   comLendariasDisponiveis,
+  correrCondicoes,
   gastarLendarias,
   momentoDoCovil,
   ordenar,
@@ -17,7 +18,13 @@ import {
 } from '../lib/battle'
 import { PartyBar } from '../components/party-bar'
 import { descreveRolagem } from '../lib/dice'
-import { destaquesDoCombate, eventosDeCondicao, eventosDeVida, registrar } from '../lib/registro'
+import {
+  destaquesDoCombate,
+  eventoDeExpiracao,
+  eventosDeCondicao,
+  eventosDeVida,
+  registrar,
+} from '../lib/registro'
 import { xpDoNd, progressoDeXp, avaliarEncontro, CORES_DIFICULDADE } from '../data/progression'
 import { useCharacters } from '../hooks/useCharacters'
 import { loadCharacters } from '../lib/storage'
@@ -249,14 +256,26 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
     }
     // O orçamento lendário volta no início do turno da criatura — é entre os
     // turnos dela que ele é gasto.
-    update({
-      turnoIndex: i,
-      rodada,
-      combatentes: recarregarLendarias(battle.combatentes, ordenados[i]?.id ?? ''),
-      ...(rodada !== battle.rodada
-        ? { registro: registrar({ ...battle, rodada }, { tipo: 'rodada', texto: `— Rodada ${rodada} —` }) }
-        : {}),
-    })
+    // As condições de quem vai começar andam uma rodada, e o que acabou é
+    // contado — senão o contador zeraria em silêncio e ninguém saberia.
+    const { combatentes, expiradas } = correrCondicoes(
+      recarregarLendarias(battle.combatentes, ordenados[i]?.id ?? ''),
+      ordenados[i]?.id ?? '',
+    )
+
+    let registro = battle.registro
+    const base = { ...battle, rodada, registro }
+    if (rodada !== battle.rodada) {
+      registro = registrar(base, { tipo: 'rodada', texto: `— Rodada ${rodada} —` })
+    }
+    for (const e of expiradas) {
+      registro = registrar(
+        { ...base, registro },
+        eventoDeExpiracao(e.alvo, e.condicao, e.deInimigo),
+      )
+    }
+
+    update({ turnoIndex: i, rodada, combatentes, ...(registro !== battle.registro ? { registro } : {}) })
   }
   /**
    * Encerra o encontro e paga o XP.
@@ -621,28 +640,127 @@ function CombatantRow({
         </button>
       )}
 
-      <CondicoesEditor condicoes={c.condicoes} onChange={(cond) => onPatch({ condicoes: cond })} />
+      <CondicoesEditor
+        c={c}
+        onChange={(cond, rodadas) => onPatch({ condicoes: cond, rodadasDeCondicao: rodadas })}
+        onConcentracao={(magia) => onPatch({ concentracao: magia })}
+      />
     </div>
   )
 }
 
-function CondicoesEditor({ condicoes, onChange }: { condicoes: string[]; onChange: (c: string[]) => void }) {
-  const disponiveis = CONDICOES.filter((c) => !condicoes.includes(c.nome))
+/**
+ * Condições ativas, com prazo e concentração.
+ *
+ * O prazo é opcional de propósito. Boa parte das condições de 5.5e dura "até
+ * alguém tirar" — obrigar um número faria o DM inventar um.
+ */
+function CondicoesEditor({
+  c,
+  onChange,
+  onConcentracao,
+}: {
+  c: Combatant
+  onChange: (condicoes: string[], rodadas: Record<string, number>) => void
+  onConcentracao: (magia: string) => void
+}) {
+  const [editando, setEditando] = useState('')
+  const rodadas = c.rodadasDeCondicao ?? {}
+  const disponiveis = CONDICOES.filter((x) => !c.condicoes.includes(x.nome))
+
+  function remover(nome: string) {
+    const { [nome]: _fora, ...resto } = rodadas
+    onChange(
+      c.condicoes.filter((x) => x !== nome),
+      resto,
+    )
+  }
+
+  function definirPrazo(nome: string, valor: string) {
+    const n = Number(valor)
+    if (!valor || !Number.isFinite(n) || n <= 0) {
+      const { [nome]: _fora, ...resto } = rodadas
+      onChange(c.condicoes, resto)
+      return
+    }
+    onChange(c.condicoes, { ...rodadas, [nome]: Math.min(99, Math.round(n)) })
+  }
+
   return (
-    <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-white/5 pt-2">
-      {condicoes.map((nome) => (
-        <button key={nome} onClick={() => onChange(condicoes.filter((x) => x !== nome))} title="Remover condição" className="chip border-dragon-400/40 bg-dragon-500/15 text-parchment-100 hover:bg-dragon-500/25">
-          {nome} ✕
-        </button>
-      ))}
-      <select
-        value=""
-        onChange={(e) => { if (e.target.value) onChange([...condicoes, e.target.value]) }}
-        className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-parchment-200/60 outline-none"
-      >
-        <option value="">＋ condição</option>
-        {disponiveis.map((c) => <option key={c.nome} value={c.nome}>{c.nome}</option>)}
-      </select>
+    <div className="mt-2 space-y-1.5 border-t border-white/5 pt-2">
+      <div className="flex flex-wrap items-center gap-1.5">
+        {c.condicoes.map((nome) => (
+          <span
+            key={nome}
+            className="chip border-dragon-400/40 bg-dragon-500/15 text-parchment-100"
+          >
+            <button
+              type="button"
+              onClick={() => setEditando(editando === nome ? '' : nome)}
+              title="Definir por quantas rodadas"
+              className="hover:text-dragon-300"
+            >
+              {nome}
+              {rodadas[nome] ? (
+                <b className="ml-1 text-amber-300">{rodadas[nome]}</b>
+              ) : null}
+            </button>
+            {editando === nome && (
+              <input
+                type="number"
+                min={0}
+                max={99}
+                autoFocus
+                value={rodadas[nome] ?? ''}
+                placeholder="—"
+                onChange={(e) => definirPrazo(nome, e.target.value)}
+                onBlur={() => setEditando('')}
+                className="ml-1 w-10 rounded border border-white/20 bg-ink-900/80 px-1 text-center text-xs text-parchment-50 outline-none"
+                title="Rodadas restantes. Vazio = até alguém tirar."
+              />
+            )}
+            <button
+              type="button"
+              onClick={() => remover(nome)}
+              title="Remover condição"
+              className="ml-1 text-parchment-200/50 hover:text-dragon-300"
+            >
+              ✕
+            </button>
+          </span>
+        ))}
+        <select
+          value=""
+          onChange={(e) => {
+            if (e.target.value) onChange([...c.condicoes, e.target.value], rodadas)
+          }}
+          className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-parchment-200/60 outline-none"
+        >
+          <option value="">＋ condição</option>
+          {disponiveis.map((x) => (
+            <option key={x.nome} value={x.nome}>
+              {x.nome}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Concentração some da mesa toda hora: ninguém lembra que o mago está
+          segurando uma magia até meia hora depois. Ao tomar dano, o registro
+          avisa o teste com a CD já calculada. */}
+      <div className="flex items-center gap-1.5">
+        <span className="text-xs text-parchment-200/40">🧿</span>
+        <input
+          value={c.concentracao ?? ''}
+          onChange={(e) => onConcentracao(e.target.value)}
+          placeholder="concentrando em…"
+          className={`min-w-0 flex-1 rounded-full border px-2 py-0.5 text-xs outline-none ${
+            c.concentracao
+              ? 'border-arcane-400/50 bg-arcane-500/15 text-parchment-100'
+              : 'border-white/10 bg-white/5 text-parchment-200/60'
+          }`}
+        />
+      </div>
     </div>
   )
 }

@@ -415,6 +415,26 @@ export interface Combatant {
   nomeOculto: boolean // se true, os jogadores veem "???" no lugar do nome (imagem continua)
   condicoes: string[] // condições ativas neste combate
   /**
+   * Rodadas restantes de cada condição, pelo nome dela.
+   *
+   * Fica ao LADO de `condicoes`, e não dentro: aquela lista atravessa a rede
+   * até a ficha do jogador (`ajustarFichaDaMesa`) e é lida pela ficha, pela
+   * faixa do grupo e pelo cartão. Trocar a forma dela quebraria quem estivesse
+   * com uma versão antiga do app em cache, no meio da sessão.
+   *
+   * Quem manda é `condicoes`. Uma chave sobrando aqui não faz mal — nada é
+   * desenhado a partir deste mapa sozinho.
+   */
+  rodadasDeCondicao?: Record<string, number>
+  /**
+   * A magia que esta criatura está concentrando.
+   *
+   * Concentração existia só como propriedade de magia no catálogo e sumia no
+   * combate: a mesa inteira esquecia que o mago estava concentrado até alguém
+   * lembrar meia hora depois.
+   */
+  concentracao?: string
+  /**
    * Ações lendárias ainda disponíveis nesta rodada.
    *
    * Recarrega no início do turno da criatura, que é como a regra funciona: as
@@ -442,6 +462,7 @@ export type TipoEventoCombate =
   | 'rodada'
   | 'fase'
   | 'lendaria'
+  | 'concentracao'
   | 'entrou'
   | 'nota'
 

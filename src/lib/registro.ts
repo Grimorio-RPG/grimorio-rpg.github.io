@@ -8,6 +8,7 @@
 // da sessão saem daqui, em vez de serem digitados à mão.
 
 import type { Battle, Combatant, EventoCombate, TipoEventoCombate } from '../types'
+import { cdDeConcentracao } from './calc'
 import { uid } from './character'
 
 /** Quantos eventos guardamos. Um combate longo não pode virar um arquivo. */
@@ -46,6 +47,26 @@ export function eventosDeVida(
   const delta = pvNovo - antes.pvAtual
   if (delta === 0) return []
 
+  // Dano em quem está concentrando pede um teste, e a CD depende do dano —
+  // duas coisas que a mesa esquece justamente quando a luta fica interessante.
+  if (delta < 0 && antes.concentracao) {
+    const cd = cdDeConcentracao(-delta)
+    return [
+      ...eventosDeVidaBase(antes, pvNovo, delta),
+      {
+        tipo: 'concentracao' as const,
+        alvo: antes.nome,
+        deInimigo: antes.origem === 'inimigo',
+        texto: `${antes.nome}: salvaguarda de CON CD ${cd} para manter ${antes.concentracao}`,
+      },
+    ]
+  }
+
+  return eventosDeVidaBase(antes, pvNovo, delta)
+}
+
+function eventosDeVidaBase(antes: Combatant, pvNovo: number, delta: number): Novo[] {
+
   const deInimigo = antes.origem === 'inimigo'
   const eventos: Novo[] = [
     delta < 0
@@ -78,6 +99,16 @@ export function eventosDeVida(
   }
 
   return eventos
+}
+
+/** Uma condição que acabou sozinha, ao virar o turno. */
+export function eventoDeExpiracao(alvo: string, condicao: string, deInimigo: boolean): Novo {
+  return {
+    tipo: 'condicao',
+    alvo,
+    deInimigo,
+    texto: `${alvo} não está mais ${condicao.toLowerCase()} (acabou o prazo)`,
+  }
 }
 
 /** As condições que entraram e as que saíram, entre dois estados. */

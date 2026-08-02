@@ -157,3 +157,15 @@ export function passivePerception(char: Character): number {
 export function classInfo(nome: string) {
   return CLASSES.find((c) => c.nome === nome) ?? null
 }
+
+/**
+ * A CD para manter a concentração ao sofrer dano: 10, ou metade do dano —
+ * o que for maior.
+ *
+ * Mora aqui, com as outras contas de regra, e não junto do registro de
+ * combate: o registro precisa da conta, a batalha precisa do registro para
+ * censurar, e a conta no meio fechava um ciclo entre os dois módulos.
+ */
+export function cdDeConcentracao(dano: number): number {
+  return Math.max(10, Math.floor(dano / 2))
+}
