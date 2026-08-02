@@ -85,6 +85,19 @@ checar('PV vira porcentagem (133/200 → 67/100)', inimigo.pvMax === 100 && inim
 checar('inimigo vivo nunca chega a 0%', inimigo.pvAtual > 0)
 checar('imagem do DM é trocada', inimigo.imagemUrl === 'foto-publica')
 checar('condições continuam visíveis', inimigo.condicoes.includes('Amedrontado'))
+
+// O caso que faltava: quando NÃO existe foto de jogador. A checagem acima só
+// cobria o inimigo que já tinha uma, então o `||` que caía na foto do DM passava
+// batido — e entregava ao grupo a referência privada, onde muita gente cola o
+// stat block inteiro. O bestiário já tratava disso; a batalha, não.
+const semFotoPublica = projetarBatalha({
+  ...batalha,
+  combatentes: [{ ...batalha.combatentes[0], nomeOculto: false, imagemJogadorUrl: '' }],
+}).combatentes[0]
+checar('sem foto de jogador, o combate não entrega a do DM', semFotoPublica.imagemUrl === '')
+checar('sem foto de jogador, nem no campo espelhado', !semFotoPublica.imagemJogadorUrl)
+semVazamento('batalha sem foto de jogador', semFotoPublica, ['FOTO-SECRETA-DO-DM'])
+
 checar('aliado mantém PV real', aliado.pvAtual === 22 && aliado.pvMax === 40)
 checar('aliado mantém o nome', aliado.nome === 'Arch Rios')
 semVazamento('batalha', pb, ['SEGREDO-DRAGAO-ANCIAO', 'FOTO-SECRETA-DO-DM'])
@@ -251,6 +264,17 @@ checar('token oculto some de verdade', pm.tokens.length === 2)
 checar('inimigo visível usa a foto de jogador', pm.tokens.find((t) => t.id === 't2').imagemUrl === 'foto-jogador')
 checar('aliado mantém o avatar', pm.tokens.find((t) => t.id === 't3').imagemUrl === 'avatar')
 semVazamento('mapa', pm, ['SEGREDO-EMBOSCADA', 'FOTO-DM-GOBLIN'])
+
+// O mesmo buraco da batalha: o token visível SEM foto de jogador caía na do DM.
+// O 't1' já não tinha foto pública, mas era oculto — sumia antes de chegar na
+// troca de imagem, então o caso nunca era exercitado.
+const semFotoNoMapa = projetarCena({
+  ...cena,
+  tokens: [{ ...cena.tokens[0], id: 't4', nome: 'Lobo', oculto: false, imagemUrl: 'FOTO-DM-LOBO' }],
+}).tokens[0]
+checar('token sem foto de jogador não entrega a do DM', semFotoNoMapa.imagemUrl === '')
+checar('token sem foto de jogador, nem no campo espelhado', !semFotoNoMapa.imagemJogadorUrl)
+semVazamento('mapa sem foto de jogador', semFotoNoMapa, ['FOTO-DM-LOBO'])
 
 // ---------------------------------------------------------------------------
 console.log('Mundo')

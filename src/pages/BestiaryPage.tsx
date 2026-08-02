@@ -11,6 +11,7 @@ import {
   categoriaInfo,
   fasesDoChefe,
   imageToDataUrl,
+  projetarBestiario,
   rotuloFase,
   nivelInfo,
   novoMonstro,
@@ -110,8 +111,13 @@ function BestiarioDoMestre() {
     [monstros, filtros],
   )
 
+  // A prévia passa pela MESMA projeção que sai para o grupo.
+  //
+  // Antes ela lia os dados crus, então mostrava a foto privada do DM onde o
+  // jogador vê silhueta. Justamente a tela que existe para conferir o que
+  // vazou era a que mentia sobre isso.
   const conhecidos = useMemo(
-    () => filtrarMonstros(monstros.filter((m) => m.conhecimento !== 'desconhecido'), filtros),
+    () => filtrarMonstros(projetarBestiario(monstros), filtros),
     [monstros, filtros],
   )
 

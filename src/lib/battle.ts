@@ -71,7 +71,12 @@ export function projetarBatalha(b: Battle): Battle {
       if (c.origem !== 'inimigo') return c
       // PV vira porcentagem: a barra e o rótulo continuam certos, o número não.
       const pct = c.pvMax > 0 ? Math.round(Math.max(0, Math.min(1, c.pvAtual / c.pvMax)) * 100) : 0
-      const img = c.imagemJogadorUrl || c.imagemUrl
+      // Sem cair na imagem do DM — a mesma regra que o bestiário já segue e que
+      // aqui faltava. Ela é referência privada, e muita gente cola ali o stat
+      // block inteiro, com táticas e lore; entregá-la logo no combate é o pior
+      // momento possível. Quem quiser compartilhar a arte preenche a foto do
+      // grupo, que é o campo feito para isso.
+      const img = c.imagemJogadorUrl
       return {
         ...c,
         nome: c.nomeOculto ? '???' : c.nome,

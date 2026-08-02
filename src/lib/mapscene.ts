@@ -103,6 +103,10 @@ export function tokenObjeto(nome: string, cor: string): Token {
 /**
  * Projeção pública da cena — tokens ocultos somem de verdade, e o inimigo vai
  * com a imagem de jogador, não com a foto da ficha do DM.
+ *
+ * Sem cair na imagem do DM quando não há a de jogador: era um `||` que
+ * entregava a referência privada, a mesma coisa que o bestiário já corrigira.
+ * O token fica sem foto, como a criatura sem foto no bestiário fica.
  */
 export function projetarCena(c: MapScene): MapScene {
   return {
@@ -111,8 +115,7 @@ export function projetarCena(c: MapScene): MapScene {
       .filter((t) => !t.oculto)
       .map((t) => {
         if (t.origem !== 'inimigo') return t
-        const img = t.imagemJogadorUrl || t.imagemUrl
-        return { ...t, imagemUrl: img, imagemJogadorUrl: img }
+        return { ...t, imagemUrl: t.imagemJogadorUrl, imagemJogadorUrl: t.imagemJogadorUrl }
       }),
   }
 }
