@@ -334,6 +334,32 @@ export interface Viagem {
   cronica: EntradaCronica[]
 }
 
+/**
+ * Uma entrada de tabela sorteável.
+ *
+ * O peso existe para "nada acontece" poder ser comum sem ocupar seis linhas
+ * iguais. Ausente vale 1.
+ */
+export interface EntradaTabela {
+  id: string
+  texto: string
+  peso?: number
+}
+
+/**
+ * Tabela do DM: encontros por região, nomes de NPC, rumores, complicações.
+ *
+ * É prep, e prep não sai na projeção — a tabela conta o que ainda vai
+ * acontecer.
+ */
+export interface TabelaSorteavel {
+  id: string
+  nome: string
+  /** Onde ela vale. Texto livre, casado de forma frouxa com o lugar. */
+  contexto: string
+  entradas: EntradaTabela[]
+}
+
 export interface Campaign {
   updatedAt: number
   nome: string
@@ -349,6 +375,8 @@ export interface Campaign {
   handouts: Handout[]
   reputacoes: Reputacao[]
   viagem: Viagem
+  /** Tabelas do DM. Ausente em campanhas antigas. */
+  tabelas?: TabelaSorteavel[]
 }
 
 // ---------------------------------------------------------------------------

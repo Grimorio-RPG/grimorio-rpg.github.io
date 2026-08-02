@@ -173,6 +173,15 @@ const campanha = {
     { id: 'h2', titulo: 'SEGREDO-HANDOUT', texto: 'não revelado', imagemUrl: '', revelado: false },
   ],
   reputacoes: [],
+  // Prep inteira: encontros que ainda podem vir, reviravoltas guardadas.
+  tabelas: [
+    {
+      id: 'tb1',
+      nome: 'SEGREDO-TABELA-EMBOSCADAS',
+      contexto: 'floresta',
+      entradas: [{ id: 'e1', texto: 'SEGREDO-ENTRADA-TRAICAO' }],
+    },
+  ],
   viagem: {
     emCurso: true, dia: 12, local: 'Vau do Glassrun', destino: 'O Portão', facesDado: 6,
     // Prep do DM: é o que ainda vai acontecer. Nada disto pode sair.
@@ -199,6 +208,7 @@ checar('handout não revelado some', pc.handouts.length === 1)
 checar('sinopse e onde paramos continuam', pc.sinopse === 'sinopse pública' && pc.ondeParamos === 'resumo público')
 checar('sessões continuam', pc.sessoes.length === 1)
 checar('tabela de eventos da estrada não é publicada', pc.viagem.tabelaEventos.length === 0)
+checar('as tabelas do DM não são publicadas', (pc.tabelas ?? []).length === 0)
 checar('entrada de bastidor da crônica some', pc.viagem.cronica.length === 1)
 checar('entrada normal da crônica passa', pc.viagem.cronica[0].texto === 'A estrada alagou.')
 checar('dia e local da viagem continuam', pc.viagem.dia === 12 && pc.viagem.local === 'Vau do Glassrun')
@@ -207,6 +217,7 @@ semVazamento('campanha', pc, [
   'SEGREDO-CODEX-1', 'SEGREDO-CODEX-2', 'SEGREDO-VERBETE-OCULTO',
   'SEGREDO-DESCRICAO-NAO-ESTUDADA', 'SEGREDO-HANDOUT',
   'SEGREDO-EVENTO-EMBOSCADA', 'SEGREDO-EVENTO-CARAVANA', 'SEGREDO-BASTIDOR-GUIA-MENTIU',
+  'SEGREDO-TABELA-EMBOSCADAS', 'SEGREDO-ENTRADA-TRAICAO',
 ])
 
 // ---------------------------------------------------------------------------

@@ -200,6 +200,9 @@ export function projetarCampanha(c: Campaign): Campaign {
         descricao: v.conhecimento === 'desconhecido' || v.conhecimento === 'encontrado' ? '' : v.descricao,
       })),
     handouts: c.handouts.filter((h) => h.revelado),
+    // As tabelas do DM são prep inteira — encontros que ainda podem vir,
+    // reviravoltas guardadas. Nada disso sai.
+    tabelas: [],
     // A crônica é do grupo, mas a tabela de eventos é prep: publicá-la
     // entregaria o que ainda vai acontecer na estrada. As entradas marcadas
     // como bastidor também ficam.

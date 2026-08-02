@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { Campaign, Character } from '../types'
+import type { Campaign, Character, TabelaSorteavel } from '../types'
 import { useCampaign } from '../hooks/useCampaign'
 import { useEstadoMesa, useMesa, useSessao } from '../hooks/useSync'
 import { ResumoDaSessao } from '../components/resumo-sessao'
@@ -28,7 +28,8 @@ import {
 import { ABILITIES } from '../data/rules'
 import CharacterReadonly from '../components/CharacterReadonly'
 import { Field, SectionCard, TextArea, TextField } from '../components/ui'
-import { ViewToggle } from '../components/layout-ui'
+import { EmptyState, ViewToggle } from '../components/layout-ui'
+import { novaEntrada, novaTabela, sortearSemRepetir, tabelaUtil } from '../lib/tabelas'
 import { CodexTab, HandoutsTab, ReputacaoTab } from '../components/codex'
 import { EstradaTab } from '../components/estrada'
 
@@ -43,6 +44,7 @@ type Aba =
   | 'codex'
   | 'handouts'
   | 'reputacao'
+  | 'tabelas'
 type Modo = 'dm' | 'jogadores'
 
 const ABAS: { id: Aba; label: string; icon: string; soDm?: boolean }[] = [
@@ -56,6 +58,7 @@ const ABAS: { id: Aba; label: string; icon: string; soDm?: boolean }[] = [
   { id: 'codex', label: 'Codex', icon: '📖' },
   { id: 'handouts', label: 'Documentos', icon: '🗞️' },
   { id: 'reputacao', label: 'Reputação', icon: '⚖️' },
+  { id: 'tabelas', label: 'Tabelas', icon: '🎴', soDm: true },
 ]
 
 export default function CampaignPage() {
@@ -128,6 +131,7 @@ function CampanhaDoMestre() {
       {abaAtual === 'npcs' && <NpcsTab campaign={campaign} update={update} />}
       {abaAtual === 'codex' && <CodexTab campaign={dados} update={update} visaoJogador={visaoJogador} />}
       {abaAtual === 'handouts' && <HandoutsTab campaign={dados} update={update} visaoJogador={visaoJogador} />}
+      {abaAtual === 'tabelas' && <TabelasTab campaign={campaign} update={update} />}
       {abaAtual === 'reputacao' && <ReputacaoTab campaign={dados} update={update} visaoJogador={visaoJogador} />}
     </div>
   )
@@ -797,6 +801,171 @@ function Modal({ children, onClose }: { children: React.ReactNode; onClose: () =
         </div>
         {children}
       </div>
+    </div>
+  )
+}
+
+
+/**
+ * O baralho do DM: tabelas sorteáveis.
+ *
+ * Todo DM tem isto num caderno e nunca tem na hora — e improvisar um nome no
+ * susto produz sempre o mesmo "Gareth". É prep inteira: nada daqui sai na
+ * projeção, porque a tabela conta o que ainda vai acontecer.
+ */
+function TabelasTab({
+  campaign,
+  update,
+}: {
+  campaign: Campaign
+  update: (p: Partial<Campaign>) => void
+}) {
+  const tabelas = campaign.tabelas ?? []
+  // O que saiu de cada tabela, para não repetir na sequência. Vive só nesta
+  // visita: guardar entre sessões só faria a tabela secar.
+  const [ultimos, setUltimos] = useState<Record<string, string[]>>({})
+
+  function setTabelas(t: TabelaSorteavel[]) {
+    update({ tabelas: t })
+  }
+  function patch(id: string, p: Partial<TabelaSorteavel>) {
+    setTabelas(tabelas.map((t) => (t.id === id ? { ...t, ...p } : t)))
+  }
+
+  function rolar(t: TabelaSorteavel) {
+    const recentes = ultimos[t.id] ?? []
+    const saiu = sortearSemRepetir(t, recentes)
+    if (!saiu) return
+    // Guarda os três últimos: o bastante para não repetir em seguida, sem
+    // esvaziar uma tabela de cinco linhas.
+    setUltimos({ ...ultimos, [t.id]: [saiu, ...recentes].slice(0, 3) })
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm text-parchment-200/70">
+          Encontros por região, nomes de NPC, rumores, complicações. Nada daqui aparece
+          para o grupo.
+        </p>
+        <button className="btn-primary text-sm" onClick={() => setTabelas([...tabelas, novaTabela()])}>
+          ＋ Nova tabela
+        </button>
+      </div>
+
+      {tabelas.length === 0 ? (
+        <EmptyState
+          icon="🎴"
+          titulo="Nenhuma tabela ainda"
+          texto="Crie uma para sortear na hora, em vez de improvisar o mesmo nome de sempre."
+        />
+      ) : (
+        <div className="space-y-3">
+          {tabelas.map((t) => {
+            const saiu = (ultimos[t.id] ?? [])[0]
+            return (
+              <div key={t.id} className="card p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    className="stat-input min-w-0 flex-1"
+                    value={t.nome}
+                    onChange={(e) => patch(t.id, { nome: e.target.value })}
+                    placeholder="Rumores da taverna"
+                  />
+                  <input
+                    className="stat-input w-36"
+                    value={t.contexto}
+                    onChange={(e) => patch(t.id, { contexto: e.target.value })}
+                    placeholder="onde vale"
+                    title="Lugar em que ela vale. Vazio = em qualquer lugar."
+                  />
+                  <button
+                    className="btn-primary shrink-0 px-3 py-1 text-sm"
+                    onClick={() => rolar(t)}
+                    disabled={!tabelaUtil(t)}
+                  >
+                    🎲 Sortear
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (confirm(`Apagar a tabela "${t.nome || 'sem nome'}"?`)) {
+                        setTabelas(tabelas.filter((x) => x.id !== t.id))
+                      }
+                    }}
+                    className="px-1 text-parchment-200/40 hover:text-dragon-400"
+                    aria-label="Apagar tabela"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {saiu && (
+                  <p className="mt-2 rounded-lg border border-arcane-400/30 bg-arcane-500/10 p-2 text-sm text-parchment-50">
+                    🎲 {saiu}
+                  </p>
+                )}
+
+                <details className="mt-2">
+                  <summary className="cursor-pointer text-xs text-parchment-200/60">
+                    {t.entradas.filter((e) => e.texto.trim()).length} entradas
+                  </summary>
+                  <div className="mt-1.5 space-y-1.5">
+                    {t.entradas.map((e) => (
+                      <div key={e.id} className="flex items-center gap-2">
+                        <input
+                          className="stat-input min-w-0 flex-1"
+                          value={e.texto}
+                          onChange={(ev) =>
+                            patch(t.id, {
+                              entradas: t.entradas.map((x) =>
+                                x.id === e.id ? { ...x, texto: ev.target.value } : x,
+                              ),
+                            })
+                          }
+                          placeholder="O que pode sair"
+                        />
+                        <input
+                          type="number"
+                          min={1}
+                          max={99}
+                          className="stat-input w-14 shrink-0"
+                          value={e.peso ?? ''}
+                          onChange={(ev) =>
+                            patch(t.id, {
+                              entradas: t.entradas.map((x) =>
+                                x.id === e.id
+                                  ? { ...x, peso: ev.target.value ? Number(ev.target.value) : undefined }
+                                  : x,
+                              ),
+                            })
+                          }
+                          placeholder="1"
+                          title="Peso. Vazio = 1. Serve para 'nada acontece' ser comum sem ocupar seis linhas."
+                        />
+                        <button
+                          onClick={() =>
+                            patch(t.id, { entradas: t.entradas.filter((x) => x.id !== e.id) })
+                          }
+                          className="px-1 text-parchment-200/40 hover:text-dragon-400"
+                          aria-label="Remover entrada"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      className="btn-ghost py-0.5 text-xs"
+                      onClick={() => patch(t.id, { entradas: [...t.entradas, novaEntrada()] })}
+                    >
+                      ＋ entrada
+                    </button>
+                  </div>
+                </details>
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
