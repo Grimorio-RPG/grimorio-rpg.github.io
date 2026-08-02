@@ -65,16 +65,18 @@ export function empurrarListaDoDm<T>(mesaId: string | null, chave: string, lista
  *
  * O eco da própria escrita também chega; quem chama compara e ignora quando não
  * há novidade, senão a tela pisca a cada tecla digitada.
+ *
+ * O `null` é entregue, não engolido: numa mesa recém-criada a chave ainda não
+ * existe, e quem espera a nuvem responder para só então publicar ficaria
+ * esperando para sempre — nunca enviando o que tem.
  */
 export function assinarDadoDoDm<T>(
   mesaId: string | null,
   chave: string,
-  aoReceber: (dados: T) => void,
+  aoReceber: (dados: T | null) => void,
 ): () => void {
   if (!mesaId) return () => {}
-  return assinarEstado(mesaId, chave, (dados) => {
-    if (dados != null) aoReceber(dados as T)
-  })
+  return assinarEstado(mesaId, chave, (dados) => aoReceber((dados ?? null) as T | null))
 }
 
 /** Publica um objeto (não lista) na chave privada. */

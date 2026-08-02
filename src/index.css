@@ -280,3 +280,20 @@
     filter: none !important;
   }
 }
+
+/* Espera pela tela que está chegando. O dado balança de leve, sem girar: em
+   telas fracas um giro contínuo custa quadro, e isto aparece por milissegundos. */
+@keyframes gv-carregando {
+  0%, 100% { transform: translateY(0) rotate(-8deg); opacity: 0.55; }
+  50%      { transform: translateY(-6px) rotate(8deg); opacity: 1; }
+}
+
+.gv-carregando {
+  animation: gv-carregando 1.1s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gv-carregando {
+    animation: none;
+  }
+}

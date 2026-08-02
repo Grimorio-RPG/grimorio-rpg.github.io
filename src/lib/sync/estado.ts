@@ -107,6 +107,13 @@ async function garantirCanal(mesaId: string): Promise<Assinatura | null> {
           return
         }
 
+        // O eco da própria escrita também chega aqui. Sem este corte, cada vez
+        // que o DM mexia numa criatura o aparelho dele baixava o bestiário
+        // inteiro de volta — com as imagens embutidas, e ele acabara de mandar.
+        // O carimbo é nosso, então a comparação é exata: se bate, é o eco.
+        const carimbo = (payload.new as { atualizado_em?: string } | null)?.atualizado_em
+        if (typeof carimbo === 'string' && carimbo === ultimoCarimbo.get(`${mesaId}:${chave}`)) return
+
         // Não usamos `payload.new.dados`: o Realtime tem limite de tamanho por
         // mensagem, e um mapa com a imagem embutida passa fácil desse limite —
         // chegaria truncado. O evento serve só como aviso; o valor vem do banco.
@@ -160,6 +167,12 @@ export function assinarEstado(mesaId: string, chave: string, fn: Ouvinte): () =>
   }
 }
 
+// O que sabemos que a nuvem já tem, por chave, e com que carimbo. Serve a duas
+// economias: não reenviar o que não mudou, e reconhecer o eco da própria
+// escrita quando ele volta pelo tempo real.
+const naNuvem = new Map<string, string>()
+const ultimoCarimbo = new Map<string, string>()
+
 export async function lerEstado(mesaId: string, chave: string): Promise<unknown | null> {
   const sb = await getSupabase()
   if (!sb) return null
@@ -169,23 +182,37 @@ export async function lerEstado(mesaId: string, chave: string): Promise<unknown 
     .eq('mesa_id', mesaId)
     .eq('chave', chave)
     .maybeSingle()
-  return data?.dados ?? null
+  const valor = data?.dados ?? null
+  naNuvem.set(`${mesaId}:${chave}`, JSON.stringify(valor))
+  return valor
 }
 
 /**
  * Publica uma chave. Só o DM consegue (o RLS recusa os demais), então uma falha
  * aqui não é motivo para atrapalhar o jogo: o app segue funcionando local.
+ *
+ * Escrita idêntica não vai. Abrir a aba do mapa remontava o hook e reenviava a
+ * cena inteira — imagem de 1600px junto — mesmo sem ninguém ter tocado em nada;
+ * cinco visitas eram cinco envios do mesmo arquivo. Só pulamos quando os bytes
+ * batem com os que a nuvem já tem, então nada deixa de ser salvo por isso.
  */
 export async function publicarEstado(mesaId: string, chave: string, dados: unknown): Promise<boolean> {
   const sb = await getSupabase()
   if (!sb) return false
+
+  const id = `${mesaId}:${chave}`
+  const serializado = JSON.stringify(dados ?? null)
+  if (naNuvem.get(id) === serializado) return true
+
+  const carimbo = new Date().toISOString()
   const { error } = await sb
     .from('mesa_estado')
-    .upsert(
-      { mesa_id: mesaId, chave, dados, atualizado_em: new Date().toISOString() },
-      { onConflict: 'mesa_id,chave' },
-    )
-  return !error
+    .upsert({ mesa_id: mesaId, chave, dados, atualizado_em: carimbo }, { onConflict: 'mesa_id,chave' })
+  if (error) return false
+
+  naNuvem.set(id, serializado)
+  ultimoCarimbo.set(id, carimbo)
+  return true
 }
 
 // ---------------------------------------------------------------------------

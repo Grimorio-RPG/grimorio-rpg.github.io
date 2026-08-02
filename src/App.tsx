@@ -1,17 +1,35 @@
+import { lazy } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import Layout from './components/Layout'
 import CharactersPage from './pages/CharactersPage'
-import CharacterWizard from './pages/CharacterWizard'
-import CharacterSheet from './pages/CharacterSheet'
-import SpellsPage from './pages/SpellsPage'
-import BestiaryPage from './pages/BestiaryPage'
-import BattlePage from './pages/BattlePage'
-import MapPage from './pages/MapPage'
-import WorldPage from './pages/WorldPage'
-import CampaignPage from './pages/CampaignPage'
-import DataPage from './pages/DataPage'
-import MesaPage from './pages/MesaPage'
-import EntrarPage from './pages/EntrarPage'
+import { CARREGADORES, comRecargaSeSumiu } from './pages/rotas'
+
+// Cada tela vira um arquivo à parte, buscado só quando alguém abre aquela aba.
+//
+// Antes tudo vinha num pacote só: quem clicava no link no celular para olhar a
+// própria ficha baixava junto o bestiário, o mapa tático, o editor de mundo e a
+// tela de batalha — telas que, sendo jogador, nunca vai abrir. Num 4G de mesa de
+// jogo isso é a diferença entre abrir na hora e encarar a tela vazia.
+//
+// A lista de fichas fica de fora: é a porta de entrada, e adiar a porta de
+// entrada só troca um download por dois.
+//
+// Os `import()` vêm de `rotas.ts`, os mesmos que o menu usa para adiantar a
+// tela no passar do mouse — precisam ser a mesma expressão para o navegador
+// reaproveitar o arquivo em vez de buscá-lo outra vez.
+const CharacterWizard = lazy(CARREGADORES['/fichas/novo'])
+const SpellsPage = lazy(CARREGADORES['/feiticos'])
+const BestiaryPage = lazy(CARREGADORES['/bestiario'])
+const BattlePage = lazy(CARREGADORES['/batalhas'])
+const MapPage = lazy(CARREGADORES['/mapa'])
+const WorldPage = lazy(CARREGADORES['/mundo'])
+const CampaignPage = lazy(CARREGADORES['/campanha'])
+const MesaPage = lazy(CARREGADORES['/mesa'])
+const DataPage = lazy(CARREGADORES['/dados'])
+
+// Estas duas não estão no menu: abrem por link, não por aba.
+const CharacterSheet = lazy(comRecargaSeSumiu(() => import('./pages/CharacterSheet')))
+const EntrarPage = lazy(comRecargaSeSumiu(() => import('./pages/EntrarPage')))
 
 export default function App() {
   return (

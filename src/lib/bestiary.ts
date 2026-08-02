@@ -248,10 +248,65 @@ export function saveBestiary(list: Monster[]): void {
 }
 
 /**
+ * O navegador sabe gravar WebP?
+ *
+ * Vale perguntar porque `toDataURL` não reclama de um formato que não conhece:
+ * devolve PNG calado, que para uma foto sai MAIOR que o JPEG que queríamos
+ * evitar. A resposta é a mesma a sessão toda, então perguntamos uma vez.
+ */
+let sabeWebp: boolean | null = null
+
+function suportaWebp(): boolean {
+  if (sabeWebp === null) {
+    const teste = document.createElement('canvas')
+    teste.width = 1
+    teste.height = 1
+    sabeWebp = teste.toDataURL('image/webp').startsWith('data:image/webp')
+  }
+  return sabeWebp
+}
+
+/** Desenha num canvas do tamanho pedido, mantendo a proporção. */
+function desenharReduzido(fonte: CanvasImageSource, largura: number, altura: number, maxSize: number) {
+  const escala = Math.min(1, maxSize / Math.max(largura, altura))
+  const canvas = document.createElement('canvas')
+  canvas.width = Math.round(largura * escala)
+  canvas.height = Math.round(altura * escala)
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('ctx')
+  ctx.drawImage(fonte, 0, 0, canvas.width, canvas.height)
+  return canvas
+}
+
+/**
  * Converte um arquivo de imagem em data URL redimensionada, para caber com folga
  * no localStorage (limite ~5 MB). Mantém proporção, lado maior = maxSize.
+ *
+ * Sai em WebP onde dá, com JPEG de reserva. Não é detalhe de formato: estas
+ * imagens viajam embutidas no JSON que sincroniza entre os aparelhos, e o
+ * mesmo retrato em WebP pesa perto de um terço menos com a mesma qualidade —
+ * menos dado no 4G da mesa, e mais folga antes de esbarrar no limite de espaço.
  */
-export function imageToDataUrl(file: File, maxSize = 480, quality = 0.82): Promise<string> {
+export async function imageToDataUrl(file: File, maxSize = 480, quality = 0.82): Promise<string> {
+  const tipo = suportaWebp() ? 'image/webp' : 'image/jpeg'
+
+  // Caminho curto: decodifica o arquivo direto, sem passar por uma base64
+  // gigante no meio. Numa foto de celular de 12 MP essa string intermediária
+  // sozinha passa de 15 MB.
+  if (typeof createImageBitmap === 'function') {
+    try {
+      const bitmap = await createImageBitmap(file)
+      try {
+        return desenharReduzido(bitmap, bitmap.width, bitmap.height, maxSize).toDataURL(tipo, quality)
+      } finally {
+        bitmap.close()
+      }
+    } catch {
+      // Formato que o `createImageBitmap` não decodifica (alguns HEIC, SVG);
+      // o caminho abaixo dá conta.
+    }
+  }
+
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onerror = () => reject(new Error('read'))
@@ -259,16 +314,11 @@ export function imageToDataUrl(file: File, maxSize = 480, quality = 0.82): Promi
       const img = new Image()
       img.onerror = () => reject(new Error('img'))
       img.onload = () => {
-        const scale = Math.min(1, maxSize / Math.max(img.width, img.height))
-        const w = Math.round(img.width * scale)
-        const h = Math.round(img.height * scale)
-        const canvas = document.createElement('canvas')
-        canvas.width = w
-        canvas.height = h
-        const ctx = canvas.getContext('2d')
-        if (!ctx) return reject(new Error('ctx'))
-        ctx.drawImage(img, 0, 0, w, h)
-        resolve(canvas.toDataURL('image/jpeg', quality))
+        try {
+          resolve(desenharReduzido(img, img.width, img.height, maxSize).toDataURL(tipo, quality))
+        } catch {
+          reject(new Error('ctx'))
+        }
       }
       img.src = reader.result as string
     }

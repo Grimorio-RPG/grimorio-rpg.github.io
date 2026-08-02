@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { DiceTray } from './dice-ui'
 import { FormLogin } from './login-ui'
 import { Modal } from './layout-ui'
 import { useSessao } from '../hooks/useSync'
+import { precarregarRota } from '../pages/rotas'
 
 const NAV = [
   { to: '/fichas', label: 'Fichas', icon: '📜', desc: 'Personagens' },
@@ -57,7 +58,11 @@ export default function Layout() {
         </header>
 
         <main className="mx-auto w-full max-w-6xl flex-1 px-3 py-4 pb-24 sm:px-4 sm:py-6 sm:pb-28 md:px-8 md:py-10 md:pb-28">
-          <Outlet />
+          {/* As telas chegam em arquivos separados; o menu acima continua no
+              lugar enquanto a de dentro carrega. */}
+          <Suspense fallback={<Carregando />}>
+            <Outlet />
+          </Suspense>
         </main>
         <DiceTray />
       </div>
@@ -145,9 +150,16 @@ function NavItem({
   desc?: string
   compact?: boolean
 }) {
+  // Buscar a tela no passar do mouse (ou no encostar do dedo) tira a espera do
+  // caminho: o arquivo chega enquanto a pessoa decide se vai clicar.
+  const adiantar = () => precarregarRota(to)
+
   return (
     <NavLink
       to={to}
+      onMouseEnter={adiantar}
+      onFocus={adiantar}
+      onTouchStart={adiantar}
       className={({ isActive }) =>
         [
           'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition',
@@ -164,5 +176,24 @@ function NavItem({
         {desc && !compact && <span className="text-[11px] text-parchment-200/50">{desc}</span>}
       </span>
     </NavLink>
+  )
+}
+
+/**
+ * O que aparece enquanto a tela pedida está chegando.
+ *
+ * Some quase sempre antes de ser vista: os arquivos são pequenos e o service
+ * worker guarda cada um depois da primeira visita.
+ */
+function Carregando() {
+  return (
+    <div className="flex min-h-[40vh] items-center justify-center" role="status" aria-live="polite">
+      <div className="flex flex-col items-center gap-3 text-parchment-200/50">
+        <span className="gv-carregando text-3xl" aria-hidden="true">
+          🎲
+        </span>
+        <span className="text-sm">Rolando iniciativa…</span>
+      </div>
+    </div>
   )
 }
