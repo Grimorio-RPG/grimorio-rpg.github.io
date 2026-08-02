@@ -12,6 +12,7 @@ import {
   statusPV,
 } from '../lib/battle'
 import { PartyBar } from '../components/party-bar'
+import { descreveRolagem } from '../lib/dice'
 import { xpDoNd, progressoDeXp, avaliarEncontro, CORES_DIFICULDADE } from '../data/progression'
 import { useCharacters } from '../hooks/useCharacters'
 import { loadCharacters } from '../lib/storage'
@@ -365,6 +366,13 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
       )}
 
       <PartyBar combatentes={ordenados} atualId={atual?.id} />
+
+      {atual?.origem === 'inimigo' && (
+        <TurnoDoInimigo
+          combatente={atual}
+          monstro={monstros.find((m) => m.id === atual.refId)}
+        />
+      )}
 
       <AddCombatentes battle={battle} update={update} mesaId={souDm && mesa ? mesa.id : null} />
 
@@ -815,6 +823,117 @@ function MedidorDeDificuldade({
           <span className="text-orange-400">{av.orcamento.alta.toLocaleString('pt-BR')}</span>
         </span>
       </div>
+    </div>
+  )
+}
+
+/**
+ * O que o inimigo da vez pode fazer.
+ *
+ * No turno de um monstro o DM precisava sair da batalha, abrir o bestiário,
+ * achar a criatura e ler a ficha — com a mesa esperando. Aqui as ações vêm
+ * junto, e o dado rola de onde está.
+ */
+function TurnoDoInimigo({ combatente, monstro }: { combatente: Combatant; monstro?: Monster }) {
+  const [ultima, setUltima] = useState('')
+
+  if (!monstro) {
+    return (
+      <div className="card border-l-4 border-l-dragon-500 p-3 text-sm text-parchment-200/60">
+        Turno de <b className="text-parchment-100">{combatente.nome}</b> — a ficha desta criatura não
+        está mais no bestiário.
+      </div>
+    )
+  }
+
+  /** Extrai a primeira notação de dado de um texto livre ("2d6+3 cortante"). */
+  const notacao = (texto: string) =>
+    texto.match(/(\d+)d(\d+)(\s*[+-]\s*\d+)?/i)
+
+  function rolar(texto: string, rotulo: string) {
+    const m = notacao(texto)
+    if (!m) return
+    const mod = m[3] ? parseInt(m[3].replace(/\s+/g, ''), 10) : 0
+    const r = rolarComModo(Number(m[1]), Number(m[2]), mod, `${monstro!.nome} · ${rotulo}`)
+    setUltima(descreveRolagem(r))
+  }
+
+  /** Bônus de acerto, quando a descrição traz "+5 para acertar". */
+  const acerto = (texto: string) => texto.match(/([+-]\d+)\s*para\s*(?:acertar|atingir)/i)?.[1]
+
+  function rolarAtaque(bonus: string, rotulo: string) {
+    const r = rolarComModo(1, 20, parseInt(bonus, 10) || 0, `${monstro!.nome} · ${rotulo} (ataque)`)
+    setUltima(descreveRolagem(r))
+  }
+
+  return (
+    <div className="card border-l-4 border-l-dragon-500 p-3">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <span className="panel-title">Turno de</span>
+        <b className="text-parchment-50">{combatente.nome}</b>
+        <span className="chip text-xs">CA {monstro.ca}</span>
+        <span className="chip text-xs">
+          PV {combatente.pvAtual}/{combatente.pvMax}
+        </span>
+        {monstro.deslocamento && <span className="chip text-xs">{monstro.deslocamento}</span>}
+      </div>
+
+      {ultima && (
+        <p className="mb-2 rounded-lg border border-dragon-400/30 bg-dragon-500/10 p-2 text-sm text-parchment-100">
+          🎲 {ultima}
+        </p>
+      )}
+
+      {monstro.acoes.length > 0 ? (
+        <div className="space-y-1.5">
+          {monstro.acoes.map((a) => {
+            const bonus = acerto(a.descricao)
+            const dano = notacao(a.descricao)?.[0]
+            return (
+              <div
+                key={a.id}
+                className="flex flex-wrap items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] p-2"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-parchment-50">{a.nome}</p>
+                  <p className="text-xs leading-relaxed text-parchment-200/70">{a.descricao}</p>
+                </div>
+                {bonus && (
+                  <button
+                    type="button"
+                    className="chip shrink-0 hover:border-emerald-400/60"
+                    onClick={() => rolarAtaque(bonus, a.nome)}
+                  >
+                    🎯 {bonus}
+                  </button>
+                )}
+                {dano && (
+                  <button
+                    type="button"
+                    className="chip shrink-0 hover:border-dragon-400/60"
+                    onClick={() => rolar(a.descricao, a.nome)}
+                  >
+                    🎲 {dano}
+                  </button>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      ) : (
+        <p className="text-sm text-parchment-200/50">
+          Esta criatura não tem ações cadastradas. Adicione-as no bestiário para rolá-las daqui.
+        </p>
+      )}
+
+      {monstro.taticas && (
+        <details className="mt-2">
+          <summary className="cursor-pointer text-xs text-parchment-200/60">
+            🙈 Suas táticas
+          </summary>
+          <p className="mt-1 whitespace-pre-wrap text-xs text-parchment-200/70">{monstro.taticas}</p>
+        </details>
+      )}
     </div>
   )
 }

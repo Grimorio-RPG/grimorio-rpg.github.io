@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Monster } from '../types'
 import { loadBestiary, projetarBestiario, religarSementes, saveBestiary } from '../lib/bestiary'
 import { publicarComAtraso } from '../lib/sync/estado'
-import { empurrarListaDoDm, puxarListaDoDm } from '../lib/sync/dmSync'
+import { assinarDadoDoDm, empurrarListaDoDm, juntarPorData, puxarListaDoDm } from '../lib/sync/dmSync'
 import { CHAVES_MESA } from '../lib/sync/config'
 import { useMesa } from './useSync'
 
@@ -47,6 +47,29 @@ export function useBestiary() {
       vivo = false
       carregando.current = false
     }
+  }, [mesaId])
+
+  /**
+   * Recebe as mudanças ao vivo.
+   *
+   * Faltava: quando estendi a sincronização para os outros domínios, o
+   * bestiário ficou só com o puxão de abertura. Editar uma criatura no PC não
+   * chegava ao celular já aberto, e as duas telas mostravam CA e PV diferentes
+   * da mesma criatura.
+   */
+  useEffect(() => {
+    if (!mesaId) return
+    return assinarDadoDoDm<Monster[]>(mesaId, CHAVES_MESA.bestiario, (remoto) => {
+      if (!Array.isArray(remoto)) return
+      setMonstros((atual) => {
+        const juntos = religarSementes(juntarPorData(atual, remoto))
+        // Sem novidade é o eco da própria escrita: ignorar evita repintar a
+        // lista a cada tecla digitada no editor.
+        if (JSON.stringify(juntos) === JSON.stringify(atual)) return atual
+        saveBestiary(juntos)
+        return juntos
+      })
+    })
   }, [mesaId])
 
   useEffect(() => {
