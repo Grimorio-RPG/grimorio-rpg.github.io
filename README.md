@@ -117,14 +117,19 @@ Notas de arquitetura:
 - **Armazenamento** (`src/lib/store.ts`): tudo no IndexedDB, com API síncrona
   (o cache é carregado antes de renderizar) e migração automática do
   localStorage antigo.
-- **pdf.js é carregado sob demanda**, só quando você importa um PDF — o bundle
-  inicial fica em ~360 KB.
+- **Cada tela é um arquivo à parte** (`src/pages/rotas.ts`), buscado só quando
+  alguém abre aquela aba — quem entra pelo link para ver a própria ficha não
+  baixa o bestiário nem o mapa tático. O menu adianta a tela no passar do mouse,
+  então a troca de aba continua instantânea. Entrada: ~93 KB comprimidos.
+- **pdf.js é carregado sob demanda**, só quando você importa um PDF.
 - **PWA**: dá para instalar no celular e usar offline (`public/sw.js`).
 
 ## 🗺️ Próximos passos
 
-O plano do backend de sincronização em tempo real (para cada jogador acompanhar
-do próprio celular) está em [`docs/SINCRONIZACAO.md`](docs/SINCRONIZACAO.md).
+- [`docs/MELHORIAS.md`](docs/MELHORIAS.md) — o que falta no app, de onde vem cada
+  ideia (RPGs, JRPGs, roguelites e cardgames) e quanto custa.
+- [`docs/SINCRONIZACAO.md`](docs/SINCRONIZACAO.md) — como o estado da mesa chega
+  ao celular de cada jogador.
 
 ## ⚖️ Conteúdo
 

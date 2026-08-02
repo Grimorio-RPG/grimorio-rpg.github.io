@@ -418,7 +418,7 @@ export interface Token {
   id: string
   nome: string
   imagemUrl: string // imagem vista pelo DM
-  imagemJogadorUrl: string // imagem vista pelos jogadores (fallback: imagemUrl)
+  imagemJogadorUrl: string // a ÚNICA que sai para o grupo; vazia = silhueta
   origem: 'aliado' | 'inimigo' | 'objeto'
   x: number // posição no mapa, fração 0..1
   y: number // posição no mapa, fração 0..1
@@ -446,7 +446,7 @@ export interface Monster {
   updatedAt: number
   nome: string
   imagemUrl: string // foto de referência do DM (URL ou data URL)
-  imagemJogadorUrl: string // foto que os jogadores veem (fallback: imagemUrl)
+  imagemJogadorUrl: string // a ÚNICA que sai para o grupo; vazia = silhueta
   tipo: string // ex: "Humanoide (goblinoide)"
   tamanho: string // Miúdo, Pequeno, Médio, Grande, Enorme, Colossal
   nd: string // Nível de Desafio, ex: "1/4"
