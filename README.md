@@ -80,9 +80,16 @@ histórico de rolagens.
 ### Para o DM
 - **Painel da campanha**: fichas do grupo, "tela do mestre" com CA, PV e
   percepções passivas, diário de sessões e NPCs.
-- **Bestiário** com foto, estatísticas, ações e táticas privadas.
+- **Bestiário** com foto, estatísticas, ações (ação, bônus, reação, lendária e de
+  covil), tesouro e táticas privadas.
 - **Batalhas**: monta o encontro com PCs e monstros, controla iniciativa, turnos,
-  vida e condições.
+  vida e condições com prazo. Ações lendárias aparecem no turno dos outros — que
+  é quando a regra as gasta — e as de covil avisam sozinhas na iniciativa 20.
+- **Registro de combate**: o que aconteceu, na ordem, censurado antes de chegar
+  ao grupo. Vira os destaques da tela de vitória.
+- **Tabelas sorteáveis**: encontros por região, nomes de NPC, rumores.
+- **Linha do tempo**: sessões, chefes derrubados e lugares revelados numa lista
+  só, montada a partir do que já está salvo.
 - **Mapa / mesa virtual**: mapa com grade, tokens arrastáveis (com encaixe na
   grade), zoom, régua e tokens ocultáveis.
 - **Codex do mundo**: locais, facções, divindades e segredos, além de documentos

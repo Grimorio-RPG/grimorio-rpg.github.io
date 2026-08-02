@@ -101,7 +101,16 @@ casa direto com as fases de chefe que você já usa no Belak.
 
 ---
 
-## Nível 2 — o momento da recompensa
+## Nível 2 — o momento da recompensa ✅ FEITO
+
+> No ar. Cada criatura tem tesouro opcional em notação de dado, com chance por
+> item; cada criatura derrubada rola o próprio, e o saque aparece virado na tela
+> de vitória, com a divisão pelo grupo e a sobra visível. Os destaques vêm do
+> registro de combate.
+>
+> O que **não** foi feito de propósito: o app não escreve no inventário de
+> ninguém. A ficha é do jogador, e mexer nela sem ele ver seria pior do que não
+> mexer — a tela pede para anotar.
 
 ### 4. Tela de vitória de verdade
 
@@ -135,7 +144,12 @@ livre — recomendo livre, pelo mesmo motivo do resto do app.
 
 ---
 
-## Nível 3 — a mesa como espetáculo
+## Nível 3 — a mesa como espetáculo ✅ FEITO
+
+> No ar. Boss e BBEG levantam uma barra dedicada no topo da tela do grupo, pelo
+> rank **aparente** — é o que sustenta o plot twist. O número de fases continua
+> sem existir do lado do jogador. A inspiração heroica ganhou botão de conceder
+> no combate, e o valor volta para a ficha do dono.
 
 ### 6. Barra de chefe para o grupo
 
@@ -170,7 +184,13 @@ do jogador na hora; gastar rola com vantagem direto da bandeja de dados.
 
 ---
 
-## Nível 4 — o DM improvisando
+## Nível 4 — o DM improvisando ✅ FEITO
+
+> No ar. As tabelas sorteáveis vivem na aba Tabelas da Campanha, com peso por
+> entrada, sorteio que evita repetir o que acabou de sair e contexto casado de
+> forma frouxa com o lugar. A linha do tempo é a aba nova da Campanha, montada
+> na hora a partir do que já estava salvo — sessões, chefes derrubados, lugares
+> revelados, crônica de estrada e recados.
 
 ### 8. Baralho de encontros e tabelas
 
@@ -220,12 +240,11 @@ funcionar. **Recomendo não mexer** enquanto a importação estiver funcionando.
 
 ## O que vem agora
 
-O Nível 1 saiu na ordem 3 → 1 → 2. O que segue é o Nível 2, e a ordem ali é
-forçada: a **tela de vitória (4)** só fica boa depois do **tesouro (5)**, porque
-sem loot ela continua sendo XP com enfeite. Os destaques dela já funcionam — vêm
-do registro de combate.
+Os níveis 1 a 4 estão no ar. Do Nível 5 sobra só o item 10 (imagens no Supabase
+Storage), que **exige SQL seu** e só vale quando o bestiário crescer a ponto de
+doer; o item 11 continua com a recomendação de não mexer.
 
-Mas nada disso vale mais do que **rodar uma sessão de verdade com o grupo**. As
+Nada disso vale mais do que **rodar uma sessão de verdade com o grupo**. As
 correções que mais importaram até aqui — a CA do Thorn, as manobras do
 Guilherme, o Belak diferente entre os aparelhos — vieram todas de gente jogando,
 nenhuma de mim lendo o código.

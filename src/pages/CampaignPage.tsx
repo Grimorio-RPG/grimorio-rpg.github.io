@@ -30,6 +30,9 @@ import CharacterReadonly from '../components/CharacterReadonly'
 import { Field, SectionCard, TextArea, TextField } from '../components/ui'
 import { EmptyState, ViewToggle } from '../components/layout-ui'
 import { novaEntrada, novaTabela, sortearSemRepetir, tabelaUtil } from '../lib/tabelas'
+import { iconeDoMarco, montarLinhaDoTempo } from '../lib/linhaDoTempo'
+import { useBestiary } from '../hooks/useBestiary'
+import { useMundo } from '../hooks/useMundo'
 import { CodexTab, HandoutsTab, ReputacaoTab } from '../components/codex'
 import { EstradaTab } from '../components/estrada'
 
@@ -45,10 +48,12 @@ type Aba =
   | 'handouts'
   | 'reputacao'
   | 'tabelas'
+  | 'linha'
 type Modo = 'dm' | 'jogadores'
 
 const ABAS: { id: Aba; label: string; icon: string; soDm?: boolean }[] = [
   { id: 'mural', label: 'Mural', icon: '📌' },
+  { id: 'linha', label: 'Linha do tempo', icon: '⏳' },
   { id: 'grupo', label: 'Grupo', icon: '🛡️', soDm: true },
   { id: 'tela', label: 'Tela do Mestre', icon: '📊', soDm: true },
   { id: 'estrada', label: 'Estrada', icon: '🧭' },
@@ -131,6 +136,7 @@ function CampanhaDoMestre() {
       {abaAtual === 'npcs' && <NpcsTab campaign={campaign} update={update} />}
       {abaAtual === 'codex' && <CodexTab campaign={dados} update={update} visaoJogador={visaoJogador} />}
       {abaAtual === 'handouts' && <HandoutsTab campaign={dados} update={update} visaoJogador={visaoJogador} />}
+      {abaAtual === 'linha' && <LinhaDoTempoTab campaign={dados} soDoGrupo={visaoJogador} />}
       {abaAtual === 'tabelas' && <TabelasTab campaign={campaign} update={update} />}
       {abaAtual === 'reputacao' && <ReputacaoTab campaign={dados} update={update} visaoJogador={visaoJogador} />}
     </div>
@@ -966,6 +972,75 @@ function TabelasTab({
           })}
         </div>
       )}
+    </div>
+  )
+}
+
+
+/**
+ * A crônica da campanha, numa linha só.
+ *
+ * Metade disto já existia espalhada: sessões numa aba, marcos do mapa noutra,
+ * chefes derrubados no bestiário. Junto, vira a resposta para "o que já
+ * aconteceu nesta campanha?" — a pergunta que abre toda sessão depois de duas
+ * semanas de intervalo.
+ *
+ * Nada é guardado: a linha é montada na hora a partir do que já está salvo.
+ * Uma cópia própria só criaria uma segunda verdade para sair de sincronia.
+ */
+function LinhaDoTempoTab({
+  campaign,
+  soDoGrupo,
+}: {
+  campaign: Campaign
+  soDoGrupo: boolean
+}) {
+  const { monstros } = useBestiary()
+  const { mundo } = useMundo()
+
+  const marcos = useMemo(
+    () => montarLinhaDoTempo(campaign, monstros, mundo?.mapas ?? [], { soDoGrupo }),
+    [campaign, monstros, mundo, soDoGrupo],
+  )
+
+  if (marcos.length === 0) {
+    return (
+      <EmptyState
+        icon="⏳"
+        titulo="A campanha ainda não tem história"
+        texto="Sessões, chefes derrubados, lugares revelados e entradas de estrada aparecem aqui sozinhos."
+      />
+    )
+  }
+
+  return (
+    <div className="relative space-y-3 pl-6">
+      {/* O fio que liga os marcos. Puramente decorativo. */}
+      <div className="absolute bottom-2 left-[7px] top-2 w-px bg-white/10" aria-hidden="true" />
+
+      {marcos.map((m) => (
+        <div key={m.id} className="relative">
+          <span
+            className="absolute -left-6 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-ink-900 text-[10px] ring-1 ring-white/15"
+            aria-hidden="true"
+          >
+            {iconeDoMarco(m.tipo)}
+          </span>
+          <div className="card p-2.5">
+            <div className="flex flex-wrap items-baseline gap-x-2">
+              <p className="text-sm font-semibold text-parchment-50">{m.titulo}</p>
+              {m.quando && (
+                <span className="text-[11px] text-parchment-200/40">{m.quando}</span>
+              )}
+            </div>
+            {m.detalhe && (
+              <p className="mt-0.5 whitespace-pre-wrap text-xs leading-relaxed text-parchment-200/70">
+                {m.detalhe}
+              </p>
+            )}
+          </div>
+        </div>
+      ))}
     </div>
   )
 }
