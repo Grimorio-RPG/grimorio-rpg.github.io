@@ -102,6 +102,24 @@ checar(
   '/fichas não deveria estar em rotas.ts',
 )
 
+// --- endereços aposentados precisam continuar levando a algum lugar ---------
+//
+// A aba Mapa virou parte da Batalha. Quem salvou o link, fixou o atalho no
+// celular ou deixou a aba aberta cairia numa tela que não existe mais — e o
+// service worker entrega o index sem reclamar, então a falha apareceria como
+// uma tela em branco, sem erro nenhum.
+
+checar(
+  '/mapa continua valendo, redirecionando',
+  /path="mapa"[\s\S]{0,200}?Navigate to="\/batalhas"/.test(app),
+  'App.tsx deveria redirecionar mapa → batalhas',
+)
+checar(
+  'e não sobrou aba de Mapa no menu',
+  !doMenu.includes('/mapa'),
+  'Layout.tsx ainda oferece /mapa como aba',
+)
+
 // --- a recuperação de versão precisa continuar de pé ------------------------
 //
 // Sem ela, publicar durante a sessão deixa a tela em branco para quem estava

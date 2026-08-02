@@ -21,7 +21,6 @@ const CharacterWizard = lazy(CARREGADORES['/fichas/novo'])
 const SpellsPage = lazy(CARREGADORES['/feiticos'])
 const BestiaryPage = lazy(CARREGADORES['/bestiario'])
 const BattlePage = lazy(CARREGADORES['/batalhas'])
-const MapPage = lazy(CARREGADORES['/mapa'])
 const WorldPage = lazy(CARREGADORES['/mundo'])
 const CampaignPage = lazy(CARREGADORES['/campanha'])
 const MesaPage = lazy(CARREGADORES['/mesa'])
@@ -42,7 +41,9 @@ export default function App() {
         <Route path="feiticos" element={<SpellsPage />} />
         <Route path="bestiario" element={<BestiaryPage />} />
         <Route path="batalhas" element={<BattlePage />} />
-        <Route path="mapa" element={<MapPage />} />
+        {/* A aba Mapa virou parte da Batalha. O endereço continua valendo:
+            quem salvou o link ou fixou o atalho no celular cai no lugar certo. */}
+        <Route path="mapa" element={<Navigate to="/batalhas" replace />} />
         <Route path="mundo" element={<WorldPage />} />
         <Route path="campanha" element={<CampaignPage />} />
         <Route path="mesa" element={<MesaPage />} />

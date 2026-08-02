@@ -11,7 +11,6 @@ const IMPORTAR = {
   '/feiticos': () => import('./SpellsPage'),
   '/bestiario': () => import('./BestiaryPage'),
   '/batalhas': () => import('./BattlePage'),
-  '/mapa': () => import('./MapPage'),
   '/mundo': () => import('./WorldPage'),
   '/campanha': () => import('./CampaignPage'),
   '/mesa': () => import('./MesaPage'),

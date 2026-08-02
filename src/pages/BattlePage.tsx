@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { Battle, Combatant, EventoCombate, Monster, MonsterAction } from '../types'
+import type { Battle, Combatant, EventoCombate, MapScene, Monster, MonsterAction } from '../types'
 import { useBattle } from '../hooks/useBattle'
 import { useBestiary } from '../hooks/useBestiary'
 import { proximaFase, rotuloFase, tipoAcaoInfo } from '../lib/bestiary'
@@ -26,6 +26,13 @@ import {
   type VidaNoTabuleiro,
 } from '../components/tabuleiro'
 import { useMapScene } from '../hooks/useMapScene'
+import {
+  CoisasNaCena,
+  FerramentasDoMapa,
+  PainelDaCena,
+  SemCena,
+} from '../components/cena-ui'
+import { cenaVazia } from '../lib/mapscene'
 import type { Saque } from '../lib/tesouro'
 import {
   MOEDAS,
@@ -103,6 +110,8 @@ function BatalhaLocal() {
 function BatalhaDaMesa({ mesaId }: { mesaId: string }) {
   const remota = useEstadoMesa<Battle>(mesaId, CHAVES_MESA.batalhaPub)
 
+  const cenaPublicada = useEstadoMesa<MapScene>(mesaId, CHAVES_MESA.mapaPub)
+
   const battle: Battle | null =
     remota && Array.isArray(remota.combatentes) ? { ...batalhaVazia(), ...remota } : null
 
@@ -122,7 +131,11 @@ function BatalhaDaMesa({ mesaId }: { mesaId: string }) {
           Nenhuma batalha em andamento. Assim que o DM montar o encontro, ele aparece aqui sozinho.
         </div>
       ) : (
-        <PlayerView battle={battle} ordenados={ordenar(battle.combatentes)} />
+        <PlayerView
+          battle={battle}
+          ordenados={ordenar(battle.combatentes)}
+          cenaRemota={cenaPublicada ? { ...cenaVazia(), ...cenaPublicada } : null}
+        />
       )}
     </div>
   )
@@ -909,7 +922,16 @@ function AddCombatentes({ battle, update, mesaId }: { battle: Battle; update: Up
 // ---------------------------------------------------------------------------
 // Visão dos Jogadores
 // ---------------------------------------------------------------------------
-function PlayerView({ battle, ordenados }: { battle: Battle; ordenados: Combatant[] }) {
+function PlayerView({
+  battle,
+  ordenados,
+  cenaRemota,
+}: {
+  battle: Battle
+  ordenados: Combatant[]
+  /** Presente só quando quem olha é um jogador de uma mesa. */
+  cenaRemota?: MapScene | null
+}) {
   const inimigos = ordenados.filter((c) => c.origem === 'inimigo')
   const aliados = ordenados.filter((c) => c.origem === 'aliado')
   const atual = battle.emAndamento ? ordenados[battle.turnoIndex] : null
@@ -934,6 +956,7 @@ function PlayerView({ battle, ordenados }: { battle: Battle; ordenados: Combatan
         ordenados={ordenados}
         atualId={atual?.id}
         visaoJogador
+        cenaRemota={cenaRemota}
       />
 
       {/* Turno */}
@@ -1614,6 +1637,7 @@ function CenaDaBatalha({
   visaoJogador,
   onAnterior,
   onProximo,
+  cenaRemota,
 }: {
   battle: Battle
   update?: UpdateFn
@@ -1622,12 +1646,28 @@ function CenaDaBatalha({
   visaoJogador: boolean
   onAnterior?: () => void
   onProximo?: () => void
+  /** A cena publicada pelo DM. Só para quem joga — ver abaixo. */
+  cenaRemota?: MapScene | null
 }) {
-  const { scene, update: updateCena } = useMapScene()
+  const local = useMapScene()
   const [ferramenta, setFerramenta] = useState<Ferramenta>('mover')
   const [selecionado, setSelecionado] = useState<string | null>(null)
 
-  if (!scene?.mapaUrl) return null
+  // No aparelho de um jogador a cena vem da mesa. `useMapScene` lê a cena DESTE
+  // aparelho, que para ele é a dele — vazia — e nunca a que o DM montou.
+  const talvezCena = cenaRemota !== undefined ? cenaRemota : local.scene
+  const updateCena = local.update
+
+  if (!talvezCena) return null
+
+  // Sem mapa, o DM escolhe um dos prontos em vez de encarar tela vazia.
+  if (!talvezCena.mapaUrl) {
+    return visaoJogador ? null : <SemCena update={updateCena} />
+  }
+
+  // Depois das duas saídas acima a cena existe. O nome próprio serve para as
+  // funções internas herdarem essa certeza.
+  const scene = talvezCena
 
   const tokens = tokensDaCena(battle, scene.tokens)
 
@@ -1644,32 +1684,12 @@ function CenaDaBatalha({
       update?.({ combatentes: moverCombatente(battle.combatentes, id, x, y) })
       return
     }
-    updateCena({ tokens: scene!.tokens.map((t) => (t.id === id ? { ...t, x, y } : t)) })
+    updateCena({ tokens: scene.tokens.map((t) => (t.id === id ? { ...t, x, y } : t)) })
   }
 
   return (
     <div className="space-y-2">
-      {!visaoJogador && (
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            className={ferramenta === 'mover' ? 'chip border-arcane-400/60' : 'chip'}
-            onClick={() => setFerramenta('mover')}
-          >
-            ✋ Mover
-          </button>
-          <button
-            type="button"
-            className={ferramenta === 'medir' ? 'chip border-arcane-400/60' : 'chip'}
-            onClick={() => setFerramenta('medir')}
-          >
-            📏 Medir
-          </button>
-          <span className="text-xs text-parchment-200/40">
-            A cena, a grade e os objetos ficam na aba Mapa.
-          </span>
-        </div>
-      )}
+      {!visaoJogador && <FerramentasDoMapa ferramenta={ferramenta} setFerramenta={setFerramenta} />}
 
       {/* A faixa flutua sobre o tabuleiro em vez de empurrá-lo para cima: o
           mapa é a tela, e a fila é o que se consulta sem tirar os olhos dele. */}
@@ -1696,6 +1716,20 @@ function CenaDaBatalha({
           />
         )}
       </div>
+
+      {!visaoJogador && update && (
+        <>
+          <CoisasNaCena
+            scene={scene}
+            update={updateCena}
+            battle={battle}
+            updateBatalha={update}
+            selecionado={selecionado}
+            setSelecionado={setSelecionado}
+          />
+          <PainelDaCena scene={scene} update={updateCena} />
+        </>
+      )}
     </div>
   )
 }
