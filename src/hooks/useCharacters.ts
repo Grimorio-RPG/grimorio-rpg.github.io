@@ -6,9 +6,9 @@ import {
   upsertCharacter,
 } from '../lib/storage'
 import {
+  agendarFichaNaConta,
   assinarFichasDaConta,
   removerFichaDaConta,
-  salvarFichaNaConta,
 } from '../lib/sync/fichas'
 import { assinarFichasDaMesa, listarFichasDaMesa } from '../lib/sync/personagens'
 import { useMesa } from './useSync'
@@ -67,8 +67,10 @@ export function useCharacters() {
     const lista = upsertCharacter(char)
     setCharacters(lista)
     // Sobe a versão já com o `updatedAt` novo, que é quem decide o desempate.
+    // Com atraso: isto é chamado a cada tecla digitada na ficha, e sem juntar a
+    // rajada escrever um parágrafo virava centenas de envios da ficha inteira.
     const salva = lista.find((c) => c.id === char.id)
-    if (salva) void salvarFichaNaConta(salva)
+    if (salva) agendarFichaNaConta(salva)
   }, [])
 
   const remove = useCallback((id: string) => {

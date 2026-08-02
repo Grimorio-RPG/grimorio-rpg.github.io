@@ -38,32 +38,100 @@ async function listarDaConta(): Promise<LinhaFicha[]> {
   })
 }
 
+// Qual linha da tabela guarda cada ficha. A resposta não muda enquanto a ficha
+// existir, e perguntar toda vez dobrava o número de requisições.
+const linhaDaFicha = new Map<string, string>()
+
 /** Sobe uma ficha para a conta. O id local é a chave de deduplicação. */
 export async function salvarFichaNaConta(ficha: Character): Promise<boolean> {
   const sb = await getSupabase()
   const conta = getConta()
   if (!sb || !conta) return false
 
-  const { data: existente } = await sb
-    .from('personagens')
-    .select('id')
-    .eq('dono_id', conta.id)
-    .is('mesa_id', null)
-    .eq('dados->>id', ficha.id)
-    .maybeSingle()
+  let linha = linhaDaFicha.get(ficha.id)
+  if (!linha) {
+    const { data: existente } = await sb
+      .from('personagens')
+      .select('id')
+      .eq('dono_id', conta.id)
+      .is('mesa_id', null)
+      .eq('dados->>id', ficha.id)
+      .maybeSingle()
+    linha = existente?.id as string | undefined
+    if (linha) linhaDaFicha.set(ficha.id, linha)
+  }
 
-  if (existente?.id) {
+  if (linha) {
     const { error } = await sb
       .from('personagens')
       .update({ dados: ficha, atualizado_em: new Date().toISOString() })
-      .eq('id', existente.id)
-    return !error
+      .eq('id', linha)
+    if (error) {
+      // A linha pode ter sido apagada noutro aparelho; esquecer o atalho faz a
+      // próxima tentativa procurar de novo — ou criar.
+      linhaDaFicha.delete(ficha.id)
+      return false
+    }
+    return true
   }
 
-  const { error } = await sb
+  const { data, error } = await sb
     .from('personagens')
     .insert({ mesa_id: null, dono_id: conta.id, dados: ficha })
-  return !error
+    .select('id')
+    .maybeSingle()
+  if (error) return false
+  if (data?.id) linhaDaFicha.set(ficha.id, data.id as string)
+  return true
+}
+
+// ---------------------------------------------------------------------------
+// Envio com atraso
+//
+// A ficha era enviada a cada tecla digitada. Escrever um parágrafo de história
+// virava centenas de requisições, cada uma carregando a ficha inteira — com o
+// retrato em base64 junto. No 4G da mesa isso é caro e lento à toa.
+//
+// O atraso junta a rajada num envio só. Nada se perde no caminho: o que vale
+// mora no aparelho, e o que ficar para trás sobe na próxima sincronização, que
+// compara `updatedAt`.
+// ---------------------------------------------------------------------------
+const timers = new Map<string, ReturnType<typeof setTimeout>>()
+const pendentes = new Map<string, Character>()
+
+function enviarPendente(fichaId: string) {
+  timers.delete(fichaId)
+  const ficha = pendentes.get(fichaId)
+  pendentes.delete(fichaId)
+  if (ficha) void salvarFichaNaConta(ficha)
+}
+
+/** Agenda o envio da ficha, juntando as mudanças seguidas num envio só. */
+export function agendarFichaNaConta(ficha: Character, ms = 1500): void {
+  pendentes.set(ficha.id, ficha)
+  const antigo = timers.get(ficha.id)
+  if (antigo) clearTimeout(antigo)
+  timers.set(
+    ficha.id,
+    setTimeout(() => enviarPendente(ficha.id), ms),
+  )
+}
+
+/** Manda agora o que estiver esperando — ao fechar a aba, por exemplo. */
+export function enviarFichasPendentes(): void {
+  for (const id of [...timers.keys()]) {
+    clearTimeout(timers.get(id)!)
+    enviarPendente(id)
+  }
+}
+
+if (typeof document !== 'undefined') {
+  // `pagehide` é o único que dispara de forma confiável no Safari do iPhone,
+  // e `visibilitychange` pega o trocar de aba no meio da digitação.
+  addEventListener('pagehide', enviarFichasPendentes)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') enviarFichasPendentes()
+  })
 }
 
 /**
