@@ -1,4 +1,4 @@
-import type { Battle, Combatant, Character, Monster } from '../types'
+import type { Battle, Combatant, Character, Monster, Token } from '../types'
 import { abilityMod, armorClass } from './calc'
 import { uid } from './character'
 import { projetarRegistro } from './registro'
@@ -71,7 +71,12 @@ export function projetarBatalha(b: Battle): Battle {
     // O registro sai com os danos de inimigo sem número: somar as anotações
     // seria a porta dos fundos para descobrir quanto falta no chefe.
     registro: projetarRegistro(b.registro),
-    combatentes: b.combatentes.map((c) => {
+    // Quem está fora de cena some por inteiro, e não censurado: `nomeOculto`
+    // mostra "???", que já revela que ALGO está ali. `oculto` é a emboscada que
+    // ainda não saltou — ela não pode nem ocupar uma linha na iniciativa.
+    combatentes: b.combatentes
+      .filter((c) => !c.oculto)
+      .map((c) => {
       if (c.origem !== 'inimigo') return c
       // PV vira porcentagem: a barra e o rótulo continuam certos, o número não.
       const pct = c.pvMax > 0 ? Math.round(Math.max(0, Math.min(1, c.pvAtual / c.pvMax)) * 100) : 0
@@ -113,9 +118,11 @@ export function projetarBatalha(b: Battle): Battle {
 }
 
 /** Cria N combatentes inimigos a partir de um monstro do bestiário. */
-export function combatentesDeMonstro(m: Monster, qtd: number): Combatant[] {
+export function combatentesDeMonstro(m: Monster, qtd: number, jaNaCena = 0): Combatant[] {
   const mod = abilityMod(m.atributos.des)
   return Array.from({ length: Math.max(1, qtd) }, (_, i) => ({
+    ...posicaoDeEntrada(jaNaCena + i, 'inimigo'),
+    tamanho: quadradosDoTamanho(m.tamanho),
     id: uid(),
     origem: 'inimigo' as const,
     refId: m.id,
@@ -136,6 +143,76 @@ export function combatentesDeMonstro(m: Monster, qtd: number): Combatant[] {
       ? { lendariasMax: m.acoesLendarias, lendariasRestantes: m.acoesLendarias }
       : {}),
   }))
+}
+
+// ---------------------------------------------------------------------------
+// O combatente no mapa
+//
+// A criatura é uma só. Estas funções existem para o tabuleiro poder desenhar
+// combatentes sem saber o que é uma batalha, e para o combatente poder ser
+// arrastado sem virar um segundo cadastro.
+// ---------------------------------------------------------------------------
+
+/** Cores por origem, para o anel do token dizer de que lado a criatura está. */
+const COR_PADRAO = { aliado: '#34d399', inimigo: '#f87171' } as const
+
+/**
+ * Onde a próxima criatura entra.
+ *
+ * Espalha numa diagonal leve: entrar quatro goblins empilhados no mesmo ponto
+ * obrigaria a arrastar os quatro antes de conseguir clicar em qualquer um.
+ */
+export function posicaoDeEntrada(quantosJa: number, origem: 'aliado' | 'inimigo') {
+  const coluna = quantosJa % 6
+  const linha = Math.floor(quantosJa / 6) % 4
+  // Os dois lados entram em cantos opostos, como numa mesa de verdade.
+  const base = origem === 'aliado' ? 0.08 : 0.62
+  return { x: base + coluna * 0.05, y: 0.12 + linha * 0.09 }
+}
+
+/** Tamanho em quadrados, lido do tamanho escrito na ficha da criatura. */
+export function quadradosDoTamanho(tamanho: string): number {
+  if (/colossal/i.test(tamanho)) return 4
+  if (/enorme/i.test(tamanho)) return 3
+  if (/grande/i.test(tamanho)) return 2
+  return 1
+}
+
+/**
+ * Desenha o combatente como token.
+ *
+ * O id é o MESMO do combatente — é isto que faz arrastar no mapa e tirar PV na
+ * lista mexerem na mesma criatura.
+ */
+export function tokenDeCombatente(c: Combatant): Token {
+  return {
+    id: c.id,
+    nome: c.nome,
+    imagemUrl: c.imagemUrl,
+    imagemJogadorUrl: c.imagemJogadorUrl,
+    origem: c.origem,
+    x: c.x ?? 0.5,
+    y: c.y ?? 0.5,
+    tamanho: c.tamanho ?? 1,
+    cor: c.cor ?? COR_PADRAO[c.origem],
+    oculto: !!c.oculto,
+    conhecimento: c.conhecimento,
+  }
+}
+
+/**
+ * Os tokens da cena: as criaturas do combate mais os objetos do cenário.
+ *
+ * Portas, baús e marcações continuam vivendo na cena — não entram na
+ * iniciativa, e obrigar cada barril a virar combatente seria absurdo.
+ */
+export function tokensDaCena(b: Battle, objetos: Token[]): Token[] {
+  return [...b.combatentes.map(tokenDeCombatente), ...objetos.filter((t) => t.origem === 'objeto')]
+}
+
+/** Move uma criatura. Ignora quem não está na batalha — deve ser um objeto. */
+export function moverCombatente(cs: Combatant[], id: string, x: number, y: number): Combatant[] {
+  return cs.map((c) => (c.id === id ? { ...c, x, y } : c))
 }
 
 /**
@@ -240,7 +317,7 @@ export function comLendariasDisponiveis(b: Battle): Combatant[] {
 }
 
 /** Cria um combatente aliado a partir de uma ficha de personagem. */
-export function combatenteDePersonagem(c: Character): Combatant {
+export function combatenteDePersonagem(c: Character, jaNaCena = 0): Combatant {
   const mod = abilityMod(c.atributos.des) + (c.iniciativaBonus || 0)
   // `armorClass` e não uma conta à mão: a versão anterior fazia
   // `10 + DES`, ignorando armadura, escudo, estilo de luta Defesa e Defesa sem
@@ -248,6 +325,7 @@ export function combatenteDePersonagem(c: Character): Combatant {
   // ficha. Cálculo de regra tem um dono só.
   const ca = armorClass(c)
   return {
+    ...posicaoDeEntrada(jaNaCena, 'aliado'),
     id: uid(),
     origem: 'aliado',
     refId: c.id,

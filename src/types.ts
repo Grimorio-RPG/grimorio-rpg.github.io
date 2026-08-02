@@ -507,6 +507,30 @@ export interface Combatant {
   categoria?: CategoriaMonstro
   /** O rank que o grupo deve enxergar, quando difere do real. Nunca sai. */
   categoriaAparente?: CategoriaMonstro
+
+  // --- Onde a criatura está no mapa ---------------------------------------
+  //
+  // O combatente e o token do mapa eram objetos separados, cada um com o seu
+  // id, os dois criados a partir do mesmo monstro. Você cadastrava o goblin na
+  // batalha e depois cadastrava o token do goblin no mapa — e o token nem tinha
+  // PV, então tirar vida numa tela não mudava nada na outra.
+  //
+  // Agora é a mesma criatura. Ausente = ainda não foi colocada no mapa.
+  /** Posição, fração 0..1 — a mesma convenção do Token. */
+  x?: number
+  y?: number
+  /** Em quadrados da grade. 1 = Médio. */
+  tamanho?: number
+  /** Cor do anel do token. */
+  cor?: string
+  /**
+   * Fora de cena para o grupo.
+   *
+   * Diferente de `nomeOculto`, que mostra "???" mas revela que ALGO está ali.
+   * Isto some da tela dos jogadores por inteiro — é a emboscada que ainda não
+   * saltou.
+   */
+  oculto?: boolean
   /**
    * Inspiração heroica — só para combatentes que são fichas.
    *
