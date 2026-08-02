@@ -297,3 +297,22 @@
     animation: none;
   }
 }
+
+/* O token de quem está no turno. Pulso no anel, contido no próprio token —
+   nada de varrer a tela, que foi a lição do relógio da faixa de iniciativa. */
+@keyframes gv-token-vez {
+  0%, 100% { filter: drop-shadow(0 0 2px rgba(251, 191, 36, 0.7)); }
+  50%      { filter: drop-shadow(0 0 9px rgba(251, 191, 36, 0.95)); }
+}
+
+.gv-token-vez {
+  animation: gv-token-vez 1.6s ease-in-out infinite;
+  z-index: 5;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gv-token-vez {
+    animation: none;
+    filter: drop-shadow(0 0 6px rgba(251, 191, 36, 0.9));
+  }
+}

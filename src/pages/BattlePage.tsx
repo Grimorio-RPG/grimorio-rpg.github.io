@@ -11,12 +11,16 @@ import {
   correrCondicoes,
   gastarLendarias,
   momentoDoCovil,
+  moverCombatente,
   ordenar,
   recarregarLendarias,
   rolarIniciativa,
   statusPV,
+  tokensDaCena,
 } from '../lib/battle'
 import { PartyBar } from '../components/party-bar'
+import { Tabuleiro, type Ferramenta, type VidaNoTabuleiro } from '../components/tabuleiro'
+import { useMapScene } from '../hooks/useMapScene'
 import type { Saque } from '../lib/tesouro'
 import {
   MOEDAS,
@@ -462,6 +466,8 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
       )}
 
       <PartyBar combatentes={ordenados} atualId={atual?.id} />
+
+      <CenaDaBatalha battle={battle} update={update} atualId={atual?.id} visaoJogador={false} />
 
       {atual?.origem === 'inimigo' && (
         <TurnoDoInimigo
@@ -909,6 +915,8 @@ function PlayerView({ battle, ordenados }: { battle: Battle; ordenados: Combatan
       {/* Quem mais precisa da faixa é o jogador: ele acompanha pelo celular e
           não tem o painel do DM para consultar. */}
       <PartyBar combatentes={ordenados} atualId={atual?.id} />
+
+      <CenaDaBatalha battle={battle} atualId={atual?.id} visaoJogador />
 
       {/* Turno */}
       <div className="card flex flex-wrap items-center justify-between gap-3 p-4">
@@ -1564,6 +1572,92 @@ function BarraDeChefe({ inimigos }: { inimigos: Combatant[] }) {
       <p className="mt-1 text-right text-[11px] text-parchment-200/50">
         {Math.round(pct)}%
       </p>
+    </div>
+  )
+}
+
+
+/**
+ * O mapa da luta, dentro da tela de batalha.
+ *
+ * Ter o mapa numa aba e o combate noutra obrigava a trocar de tela a cada
+ * golpe — e as duas nem falavam entre si, porque a criatura estava cadastrada
+ * duas vezes. Agora é a mesma criatura: arrastar aqui e tirar PV na lista
+ * mexem no mesmo lugar, e o token mostra a vida e de quem é a vez.
+ *
+ * Some quando não há mapa carregado. Nem toda luta acontece sobre um mapa, e
+ * um retângulo vazio no meio da tela só empurraria o resto para baixo.
+ */
+function CenaDaBatalha({
+  battle,
+  update,
+  atualId,
+  visaoJogador,
+}: {
+  battle: Battle
+  update?: UpdateFn
+  atualId?: string
+  visaoJogador: boolean
+}) {
+  const { scene, update: updateCena } = useMapScene()
+  const [ferramenta, setFerramenta] = useState<Ferramenta>('mover')
+  const [selecionado, setSelecionado] = useState<string | null>(null)
+
+  if (!scene?.mapaUrl) return null
+
+  const tokens = tokensDaCena(battle, scene.tokens)
+
+  // A vida vai para o token. Sem isto o DM precisava olhar a lista para saber
+  // quem estava perto de cair, que era metade do problema de ter duas telas.
+  const vidas: Record<string, VidaNoTabuleiro> = {}
+  for (const c of battle.combatentes) {
+    vidas[c.id] = { atual: c.pvAtual, max: c.pvMax, fora: c.pvAtual <= 0 }
+  }
+
+  /** Move a criatura, ou o objeto de cenário — cada um mora num lugar. */
+  function mover(id: string, x: number, y: number) {
+    if (battle.combatentes.some((c) => c.id === id)) {
+      update?.({ combatentes: moverCombatente(battle.combatentes, id, x, y) })
+      return
+    }
+    updateCena({ tokens: scene!.tokens.map((t) => (t.id === id ? { ...t, x, y } : t)) })
+  }
+
+  return (
+    <div className="space-y-2">
+      {!visaoJogador && (
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            className={ferramenta === 'mover' ? 'chip border-arcane-400/60' : 'chip'}
+            onClick={() => setFerramenta('mover')}
+          >
+            ✋ Mover
+          </button>
+          <button
+            type="button"
+            className={ferramenta === 'medir' ? 'chip border-arcane-400/60' : 'chip'}
+            onClick={() => setFerramenta('medir')}
+          >
+            📏 Medir
+          </button>
+          <span className="text-xs text-parchment-200/40">
+            A cena, a grade e os objetos ficam na aba Mapa.
+          </span>
+        </div>
+      )}
+
+      <Tabuleiro
+        scene={scene}
+        tokens={tokens}
+        onMover={mover}
+        visaoJogador={visaoJogador}
+        ferramenta={visaoJogador ? 'mover' : ferramenta}
+        selecionado={selecionado}
+        setSelecionado={setSelecionado}
+        vidas={vidas}
+        atualId={atualId}
+      />
     </div>
   )
 }
