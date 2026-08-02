@@ -7,26 +7,32 @@
 // adicionar um campo novo à ficha de um monstro e esquecer de censurá-lo, o
 // teste quebra.
 
-import { readFileSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { readFileSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { execSync } from 'node:child_process'
 
-// Compila os módulos de projeção para JS puro (eles não dependem de React).
+// Compila os módulos de projeção, com as dependências junto.
+//
+// Antes daqui o teste FATIAVA o arquivo a partir de `export function projetar`
+// e compilava só o pedaço, para não arrastar `store` e o DOM. Isso deixou de
+// funcionar no dia em que uma projeção passou a chamar outro módulo: o corte
+// jogava fora o import e a função quebrava só na hora de rodar.
+//
+// Empacotar resolve e vale mais: o que o teste exercita passa a ser o módulo de
+// verdade, com as dependências que ele realmente usa, e não um recorte que
+// poderia se comportar diferente do que vai para o ar.
 const dir = mkdtempSync(join(tmpdir(), 'proj-'))
-for (const arquivo of ['battle', 'campaign', 'bestiary', 'mapscene', 'mundo']) {
-  const src = readFileSync(`src/lib/${arquivo}.ts`, 'utf8')
-  // Só nos interessam as funções puras de projeção; o resto importa store/DOM.
-  const corte = src.indexOf('export function projetar')
-  if (corte < 0) throw new Error(`sem projeção em ${arquivo}.ts`)
-  const trecho = src.slice(corte)
-  writeFileSync(join(dir, `${arquivo}.ts`), trecho)
+const MODULOS = ['battle', 'campaign', 'bestiary', 'mapscene', 'mundo']
+for (const arquivo of MODULOS) {
+  if (!readFileSync(`src/lib/${arquivo}.ts`, 'utf8').includes('export function projetar')) {
+    throw new Error(`sem projeção em ${arquivo}.ts`)
+  }
 }
 execSync(
-  `npx esbuild ${['battle', 'campaign', 'bestiary', 'mapscene', 'mundo']
-    .map((f) => join(dir, `${f}.ts`))
-    .join(' ')} --outdir=${dir} --format=esm --log-level=error`,
+  `npx esbuild ${MODULOS.map((f) => `src/lib/${f}.ts`).join(' ')} ` +
+    `--bundle --outdir=${dir} --format=esm --log-level=error`,
 )
 
 // pathToFileURL: no Windows um caminho absoluto (`C:\…`) não é URL válida para

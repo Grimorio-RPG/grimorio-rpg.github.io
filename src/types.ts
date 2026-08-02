@@ -425,6 +425,46 @@ export interface Combatant {
   lendariasMax?: number
 }
 
+/**
+ * O que aconteceu no combate, na ordem em que aconteceu.
+ *
+ * A batalha guardava só o retrato do agora — quem está vivo, de quem é a vez.
+ * Quando alguém perguntava "quanto de dano foi aquilo?", a resposta não existia
+ * em lugar nenhum.
+ */
+export type TipoEventoCombate =
+  | 'dano'
+  | 'cura'
+  | 'condicao'
+  | 'caiu'
+  | 'morreu'
+  | 'levantou'
+  | 'rodada'
+  | 'fase'
+  | 'lendaria'
+  | 'entrou'
+  | 'nota'
+
+export interface EventoCombate {
+  id: string
+  em: number // carimbo de tempo
+  rodada: number
+  tipo: TipoEventoCombate
+  /** Quem sofreu ou fez. Guardamos o nome porque o combatente pode sair da lista. */
+  alvo?: string
+  /** Quanto, para dano e cura. */
+  valor?: number
+  /** A frase pronta. É o que a tela mostra. */
+  texto: string
+  /**
+   * O evento fala de um inimigo?
+   *
+   * A projeção usa isto para censurar números que entregariam o PV exato de um
+   * monstro — o grupo vê a porcentagem, e o log não pode ser a porta dos fundos.
+   */
+  deInimigo?: boolean
+}
+
 export interface Battle {
   updatedAt: number
   nome: string
@@ -432,6 +472,8 @@ export interface Battle {
   turnoIndex: number // posição do turno atual na ordem de iniciativa
   emAndamento: boolean
   combatentes: Combatant[]
+  /** Ausente em batalhas antigas. Mais recente por último. */
+  registro?: EventoCombate[]
 }
 
 // ---------------------------------------------------------------------------

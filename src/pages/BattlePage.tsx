@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { Battle, Combatant, Monster, MonsterAction } from '../types'
+import type { Battle, Combatant, EventoCombate, Monster, MonsterAction } from '../types'
 import { useBattle } from '../hooks/useBattle'
 import { useBestiary } from '../hooks/useBestiary'
 import { proximaFase, rotuloFase, tipoAcaoInfo } from '../lib/bestiary'
@@ -17,6 +17,7 @@ import {
 } from '../lib/battle'
 import { PartyBar } from '../components/party-bar'
 import { descreveRolagem } from '../lib/dice'
+import { destaquesDoCombate, eventosDeCondicao, eventosDeVida, registrar } from '../lib/registro'
 import { xpDoNd, progressoDeXp, avaliarEncontro, CORES_DIFICULDADE } from '../data/progression'
 import { useCharacters } from '../hooks/useCharacters'
 import { loadCharacters } from '../lib/storage'
@@ -121,7 +122,22 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
    */
   function patchC(id: string, p: Partial<Combatant>) {
     const alvo = battle.combatentes.find((c) => c.id === id)
-    update({ combatentes: battle.combatentes.map((c) => (c.id === id ? { ...c, ...p } : c)) })
+
+    // O registro nasce aqui porque é aqui que a mudança acontece de verdade —
+    // por botão de dano, por campo de PV ou por condição marcada.
+    let registro = battle.registro
+    if (alvo && battle.emAndamento) {
+      const novos = [
+        ...(p.pvAtual != null ? eventosDeVida(alvo, p.pvAtual) : []),
+        ...(p.condicoes != null ? eventosDeCondicao(alvo, p.condicoes) : []),
+      ]
+      for (const n of novos) registro = registrar({ ...battle, registro }, n)
+    }
+
+    update({
+      combatentes: battle.combatentes.map((c) => (c.id === id ? { ...c, ...p } : c)),
+      ...(registro !== battle.registro ? { registro } : {}),
+    })
 
     if (alvo?.origem !== 'aliado' || !alvo.refId) return
     if (p.pvAtual == null && p.condicoes == null) return
@@ -199,9 +215,18 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
               pvAtual: seguinte.pvMax,
               conhecimento: 'encontrado',
               nomeOculto: false,
+              // O orçamento lendário é da forma nova, e vem cheio.
+              ...(seguinte.acoesLendarias
+                ? { lendariasMax: seguinte.acoesLendarias, lendariasRestantes: seguinte.acoesLendarias }
+                : { lendariasMax: undefined, lendariasRestantes: undefined }),
             }
           : x,
       ),
+      registro: registrar(battle, {
+        tipo: 'fase',
+        alvo: seguinte.nome,
+        texto: `${c.nome} se transformou em ${seguinte.nome}`,
+      }),
     })
     setTransformando({ nome: seguinte.nome, rotulo: rotuloFase(seguinte) })
   }
@@ -228,6 +253,9 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
       turnoIndex: i,
       rodada,
       combatentes: recarregarLendarias(battle.combatentes, ordenados[i]?.id ?? ''),
+      ...(rodada !== battle.rodada
+        ? { registro: registrar({ ...battle, rodada }, { tipo: 'rodada', texto: `— Rodada ${rodada} —` }) }
+        : {}),
     })
   }
   /**
@@ -258,6 +286,7 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
       porPersonagem: Math.floor(xpTotal / aliados.length),
       derrotados: derrotados.length,
       aliados,
+      destaques: destaquesDoCombate(battle),
     })
   }
 
@@ -293,6 +322,7 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
     porPersonagem: number
     derrotados: number
     aliados: Combatant[]
+    destaques: string[]
   } | null>(null)
 
   return (
@@ -303,6 +333,19 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
             {recompensa.derrotados} {recompensa.derrotados === 1 ? 'inimigo derrotado' : 'inimigos derrotados'} ·{' '}
             <b className="text-amber-300">{recompensa.xpTotal.toLocaleString('pt-BR')} XP</b> no total
           </p>
+
+          {/* Os destaques saem do registro do combate. Sem ele não havia de
+              onde tirar "o golpe que doeu" nem "quem chegou perto de morrer" —
+              a informação passava e não ficava em lugar nenhum. */}
+          {recompensa.destaques.length > 0 && (
+            <ul className="mt-3 space-y-1 rounded-lg border border-white/10 bg-white/[0.03] p-3">
+              {recompensa.destaques.map((d) => (
+                <li key={d} className="text-xs text-parchment-200/75">
+                  · {d}
+                </li>
+              ))}
+            </ul>
+          )}
 
           <div className="mt-4 space-y-2">
             {recompensa.aliados.map((a) => {
@@ -391,12 +434,22 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
         />
       )}
 
+      {battle.emAndamento && <RegistroDeCombate registro={battle.registro ?? []} />}
+
       {battle.emAndamento && (
         <AcoesLendarias
           chefes={comLendariasDisponiveis(battle)}
           monstros={monstros}
-          aoGastar={(id, custo) =>
-            update({ combatentes: gastarLendarias(battle.combatentes, id, custo) })
+          aoGastar={(id, custo, nomeDaAcao) =>
+            update({
+              combatentes: gastarLendarias(battle.combatentes, id, custo),
+              registro: registrar(battle, {
+                tipo: 'lendaria',
+                alvo: battle.combatentes.find((c) => c.id === id)?.nome,
+                deInimigo: true,
+                texto: `${battle.combatentes.find((c) => c.id === id)?.nome ?? 'O chefe'} usou ${nomeDaAcao}`,
+              }),
+            })
           }
         />
       )}
@@ -718,6 +771,10 @@ function PlayerView({ battle, ordenados }: { battle: Battle; ordenados: Combatan
           </ol>
         </div>
       )}
+
+      {/* O mesmo registro do DM, já sem os números que entregariam o PV exato
+          de um inimigo — a censura acontece antes de sair pela rede. */}
+      {battle.emAndamento && <RegistroDeCombate registro={battle.registro ?? []} />}
 
       {/* Inimigos */}
       <div>
@@ -1050,7 +1107,7 @@ function AcoesLendarias({
 }: {
   chefes: Combatant[]
   monstros: Monster[]
-  aoGastar: (id: string, custo: number) => void
+  aoGastar: (id: string, custo: number, nomeDaAcao: string) => void
 }) {
   const [ultima, setUltima] = useState('')
   if (chefes.length === 0) return null
@@ -1090,7 +1147,7 @@ function AcoesLendarias({
                         acao={a}
                         nomeDaCriatura={c.nome}
                         aoRolar={setUltima}
-                        aoUsar={podeUsar ? () => aoGastar(c.id, custo) : undefined}
+                        aoUsar={podeUsar ? () => aoGastar(c.id, custo, a.nome) : undefined}
                       />
                     </div>
                   )
@@ -1148,6 +1205,79 @@ function AcoesDeCovil({ chefes, monstros }: { chefes: Combatant[]; monstros: Mon
           </div>
         ))}
       </div>
+    </div>
+  )
+}
+
+/** Cor e ícone de cada tipo de evento, para o olho achar o que procura. */
+const ESTILO_EVENTO: Record<string, { icone: string; classe: string }> = {
+  dano: { icone: '💥', classe: 'text-dragon-300' },
+  cura: { icone: '💚', classe: 'text-emerald-300' },
+  condicao: { icone: '🌀', classe: 'text-violet-300' },
+  caiu: { icone: '💀', classe: 'text-amber-300' },
+  morreu: { icone: '☠️', classe: 'text-parchment-200/70' },
+  levantou: { icone: '✨', classe: 'text-emerald-300' },
+  fase: { icone: '🌋', classe: 'text-amber-200' },
+  lendaria: { icone: '👑', classe: 'text-amber-200' },
+  entrou: { icone: '➕', classe: 'text-parchment-200/60' },
+  nota: { icone: '✏️', classe: 'text-parchment-200/70' },
+}
+
+/**
+ * O que aconteceu no combate, do mais recente para o mais antigo.
+ *
+ * Recente em cima de propósito: a pergunta que a mesa faz é sobre o que acabou
+ * de acontecer, e obrigar a rolar até o fim para achar isso seria trocar o
+ * problema de lugar.
+ */
+function RegistroDeCombate({ registro }: { registro: EventoCombate[] }) {
+  const [aberto, setAberto] = useState(false)
+  if (registro.length === 0) return null
+
+  const recentes = [...registro].reverse()
+  const mostrados = aberto ? recentes : recentes.slice(0, 6)
+
+  return (
+    <div className="card p-3">
+      <div className="mb-2 flex items-center justify-between">
+        <p className="panel-title">📜 O que aconteceu</p>
+        {recentes.length > 6 && (
+          <button
+            type="button"
+            className="btn-ghost py-0.5 text-xs"
+            onClick={() => setAberto((v) => !v)}
+          >
+            {aberto ? 'Mostrar menos' : `Ver tudo (${recentes.length})`}
+          </button>
+        )}
+      </div>
+
+      <ol className={aberto ? 'max-h-80 space-y-1 overflow-y-auto pr-1' : 'space-y-1'}>
+        {mostrados.map((e) => {
+          if (e.tipo === 'rodada') {
+            return (
+              <li
+                key={e.id}
+                className="flex items-center gap-2 py-1 text-[11px] uppercase tracking-wider text-parchment-200/40"
+              >
+                <span className="h-px flex-1 bg-white/10" />
+                {e.texto}
+                <span className="h-px flex-1 bg-white/10" />
+              </li>
+            )
+          }
+          const estilo = ESTILO_EVENTO[e.tipo] ?? ESTILO_EVENTO.nota
+          return (
+            <li key={e.id} className="flex items-start gap-2 text-sm">
+              <span className="shrink-0 tabular-nums text-[11px] text-parchment-200/35">
+                R{e.rodada}
+              </span>
+              <span aria-hidden="true">{estilo.icone}</span>
+              <span className={estilo.classe}>{e.texto}</span>
+            </li>
+          )
+        })}
+      </ol>
     </div>
   )
 }

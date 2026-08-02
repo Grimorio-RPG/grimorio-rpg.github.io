@@ -1,6 +1,7 @@
 import type { Battle, Combatant, Character, Monster } from '../types'
 import { abilityMod, armorClass } from './calc'
 import { uid } from './character'
+import { projetarRegistro } from './registro'
 import { CHAVES, readRaw, writeJson } from './store'
 
 const KEY = CHAVES.batalha
@@ -67,6 +68,9 @@ export function saveBattle(b: Battle): Battle {
 export function projetarBatalha(b: Battle): Battle {
   return {
     ...b,
+    // O registro sai com os danos de inimigo sem número: somar as anotações
+    // seria a porta dos fundos para descobrir quanto falta no chefe.
+    registro: projetarRegistro(b.registro),
     combatentes: b.combatentes.map((c) => {
       if (c.origem !== 'inimigo') return c
       // PV vira porcentagem: a barra e o rótulo continuam certos, o número não.
