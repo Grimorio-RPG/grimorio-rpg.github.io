@@ -155,7 +155,7 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
     })
 
     if (alvo?.origem !== 'aliado' || !alvo.refId) return
-    if (p.pvAtual == null && p.condicoes == null) return
+    if (p.pvAtual == null && p.condicoes == null && p.inspiracaoHeroica == null) return
 
     const ficha = loadCharacters().find((f) => f.id === alvo.refId)
     if (ficha) {
@@ -164,6 +164,7 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
         ...ficha,
         ...(p.pvAtual != null ? { pvAtual: p.pvAtual } : {}),
         ...(p.condicoes != null ? { condicoes: p.condicoes } : {}),
+        ...(p.inspiracaoHeroica != null ? { inspiracaoHeroica: p.inspiracaoHeroica } : {}),
       })
       return
     }
@@ -173,6 +174,7 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
       void ajustarFichaDaMesa(mesa.id, alvo.refId, {
         ...(p.pvAtual != null ? { pvAtual: p.pvAtual } : {}),
         ...(p.condicoes != null ? { condicoes: p.condicoes } : {}),
+        ...(p.inspiracaoHeroica != null ? { inspiracaoHeroica: p.inspiracaoHeroica } : {}),
       })
     }
   }
@@ -662,6 +664,21 @@ function CombatantRow({
         </button>
       )}
 
+      {c.origem === 'aliado' && (
+        <button
+          type="button"
+          onClick={() => onPatch({ inspiracaoHeroica: !c.inspiracaoHeroica })}
+          title="Inspiração heroica: gasta para rolar de novo com vantagem"
+          className={`mt-2 w-full rounded-lg border py-1 text-xs transition ${
+            c.inspiracaoHeroica
+              ? 'border-amber-400/60 bg-amber-500/20 text-amber-200'
+              : 'border-white/10 text-parchment-200/40 hover:border-amber-400/40 hover:text-amber-200/70'
+          }`}
+        >
+          {c.inspiracaoHeroica ? '✨ Com inspiração heroica' : '✨ Conceder inspiração'}
+        </button>
+      )}
+
       <CondicoesEditor
         c={c}
         onChange={(cond, rodadas) => onPatch({ condicoes: cond, rodadasDeCondicao: rodadas })}
@@ -885,6 +902,10 @@ function PlayerView({ battle, ordenados }: { battle: Battle; ordenados: Combatan
 
   return (
     <div className="space-y-5">
+      {/* O chefe da vez, em destaque. Vem antes de tudo porque é a resposta
+          para "contra o que estamos lutando". */}
+      <BarraDeChefe inimigos={inimigos} />
+
       {/* Quem mais precisa da faixa é o jogador: ele acompanha pelo celular e
           não tem o painel do DM para consultar. */}
       <PartyBar combatentes={ordenados} atualId={atual?.id} />
@@ -1477,6 +1498,71 @@ function SaqueDoEncontro({ saque, quantos }: { saque: Saque; quantos: number }) 
 
       <p className="mt-2 text-[11px] text-parchment-200/40">
         Anote nas fichas — o app não mexe no inventário de ninguém sozinho.
+      </p>
+    </div>
+  )
+}
+
+
+/**
+ * A barra do chefe, na tela do grupo.
+ *
+ * Só aparece para Boss e BBEG — e para o rank que o grupo ENXERGA, que pode
+ * não ser o verdadeiro. É assim que o vilão de fachada ganha barra de chefe e o
+ * verdadeiro passa despercebido até a hora.
+ *
+ * O número de fases nunca chega aqui: o combatente não carrega essa informação,
+ * e é de propósito. Uma barra segmentada entregaria "ainda tem mais duas
+ * formas" antes da primeira virada.
+ */
+function BarraDeChefe({ inimigos }: { inimigos: Combatant[] }) {
+  const chefe = inimigos.find(
+    (c) => (c.categoria === 'boss' || c.categoria === 'bbeg') && c.pvAtual > 0,
+  )
+  if (!chefe) return null
+
+  const pct = chefe.pvMax > 0 ? Math.max(0, Math.min(100, (chefe.pvAtual / chefe.pvMax) * 100)) : 0
+  const bbeg = chefe.categoria === 'bbeg'
+  const img = chefe.imagemJogadorUrl || chefe.imagemUrl
+
+  return (
+    <div
+      className={`relative overflow-hidden rounded-xl border p-3 ${
+        bbeg
+          ? 'border-dragon-400/60 bg-gradient-to-r from-dragon-900/60 via-ink-900/80 to-dragon-900/60'
+          : 'border-amber-400/40 bg-gradient-to-r from-amber-900/30 via-ink-900/80 to-amber-900/30'
+      }`}
+    >
+      <div className="flex items-center gap-3">
+        {img && (
+          <img
+            src={img}
+            alt=""
+            className={`h-12 w-12 shrink-0 rounded-full object-cover ring-2 ${
+              bbeg ? 'ring-dragon-400/70' : 'ring-amber-400/60'
+            }`}
+          />
+        )}
+        <div className="min-w-0 flex-1">
+          <p className="text-[10px] uppercase tracking-[0.25em] text-parchment-200/50">
+            {bbeg ? 'Ameaça final' : 'Chefe'}
+          </p>
+          <p className="truncate font-display text-lg text-parchment-50">{chefe.nome}</p>
+        </div>
+      </div>
+
+      <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-black/50">
+        <div
+          className={`h-full rounded-full transition-[width] duration-700 ease-out ${
+            bbeg ? 'bg-dragon-500' : 'bg-amber-400'
+          }`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      {/* O número exato nunca aparece: a projeção já manda porcentagem, e
+          escrever "60/100" daria a impressão de ser o PV de verdade. */}
+      <p className="mt-1 text-right text-[11px] text-parchment-200/50">
+        {Math.round(pct)}%
       </p>
     </div>
   )

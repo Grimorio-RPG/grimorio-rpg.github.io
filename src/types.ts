@@ -468,6 +468,25 @@ export interface Combatant {
   lendariasRestantes?: number
   /** Teto de ações lendárias por rodada, copiado do bestiário. */
   lendariasMax?: number
+  /**
+   * Peso da criatura, copiado do bestiário — é o que faz a tela do grupo
+   * levantar a barra de chefe.
+   *
+   * Guarda o rank VERDADEIRO. A projeção troca pelo aparente antes de sair,
+   * do mesmo jeito que o bestiário faz: é justamente isto que segura o plot
+   * twist de um vilão que o grupo acha que é outra coisa.
+   */
+  categoria?: CategoriaMonstro
+  /** O rank que o grupo deve enxergar, quando difere do real. Nunca sai. */
+  categoriaAparente?: CategoriaMonstro
+  /**
+   * Inspiração heroica — só para combatentes que são fichas.
+   *
+   * Existe aqui, e não só na ficha, porque o DM concede da tela dele durante o
+   * combate: é o momento em que ela é ganha. O valor volta para a ficha do
+   * dono pelo mesmo caminho que o PV.
+   */
+  inspiracaoHeroica?: boolean
 }
 
 /**

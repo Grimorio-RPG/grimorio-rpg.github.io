@@ -144,7 +144,7 @@ export function assinarFichasDaMesa(mesaId: string, aoMudar: () => void): () => 
 export async function ajustarFichaDaMesa(
   mesaId: string,
   fichaId: string,
-  estado: { pvAtual?: number; condicoes?: string[] },
+  estado: { pvAtual?: number; condicoes?: string[]; inspiracaoHeroica?: boolean },
 ): Promise<boolean> {
   const sb = await getSupabase()
   if (!sb) return false

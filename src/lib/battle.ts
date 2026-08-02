@@ -95,6 +95,11 @@ export function projetarBatalha(b: Battle): Battle {
         // rank aparente existe para evitar.
         lendariasMax: undefined,
         lendariasRestantes: undefined,
+        // O rank sai como o APARENTE, quando houver um — a mesma regra do
+        // bestiário. É o que sustenta o plot twist: o grupo levanta a barra de
+        // chefe para quem ele ACHA que é o chefe.
+        categoria: c.categoriaAparente ?? c.categoria,
+        categoriaAparente: undefined,
         // O nome da magia que o inimigo concentra é informação sua. Que ele
         // está concentrando, a mesa descobre olhando; o QUE ele conjurou, não.
         //
@@ -125,6 +130,8 @@ export function combatentesDeMonstro(m: Monster, qtd: number): Combatant[] {
     iniciativaMod: mod,
     nomeOculto: false,
     condicoes: [],
+    ...(m.categoria ? { categoria: m.categoria } : {}),
+    ...(m.categoriaAparente ? { categoriaAparente: m.categoriaAparente } : {}),
     ...(m.acoesLendarias
       ? { lendariasMax: m.acoesLendarias, lendariasRestantes: m.acoesLendarias }
       : {}),
@@ -258,6 +265,7 @@ export function combatenteDePersonagem(c: Character): Combatant {
     // A ficha já sabia disto (`concentrando`) e a batalha ignorava — o mago
     // entrava em combate e a concentração sumia da tela do DM.
     ...(c.concentrando ? { concentracao: c.concentrando } : {}),
+    inspiracaoHeroica: !!c.inspiracaoHeroica,
   }
 }
 

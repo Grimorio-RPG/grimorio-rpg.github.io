@@ -104,6 +104,25 @@ checar('sem foto de jogador, o combate não entrega a do DM', semFotoPublica.ima
 checar('sem foto de jogador, nem no campo espelhado', !semFotoPublica.imagemJogadorUrl)
 semVazamento('batalha sem foto de jogador', semFotoPublica, ['FOTO-SECRETA-DO-DM'])
 
+// A barra de chefe da tela do grupo se levanta pelo rank. Ele precisa sair
+// como o APARENTE — é o que sustenta o plot twist de um vilão de fachada.
+const chefeDisfarcado = projetarBatalha({
+  ...batalha,
+  combatentes: [
+    { ...batalha.combatentes[0], categoria: 'bbeg', categoriaAparente: 'miniboss' },
+  ],
+}).combatentes[0]
+checar('o rank que sai é o aparente', chefeDisfarcado.categoria === 'miniboss')
+checar('o verdadeiro não vai junto', chefeDisfarcado.categoriaAparente === undefined)
+checar('e não sobra em canto nenhum do JSON', !JSON.stringify(chefeDisfarcado).includes('bbeg'))
+
+// Sem disfarce, o rank real é o que o grupo vê — senão nenhum chefe teria barra.
+const semDisfarce = projetarBatalha({
+  ...batalha,
+  combatentes: [{ ...batalha.combatentes[0], categoria: 'boss' }],
+}).combatentes[0]
+checar('sem rank aparente, vale o verdadeiro', semDisfarce.categoria === 'boss')
+
 // O contador lendário responderia "isto é um chefe" sobre uma criatura que o
 // grupo ainda vê como "???" — a mesma entrega que o rank aparente evita.
 const lendario = projetarBatalha({
