@@ -377,6 +377,7 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
   const { save: salvarFicha } = useCharacters()
   const { monstros, salvar: salvarMonstro } = useBestiary()
   const [transformando, setTransformando] = useState<{ nome: string; rotulo: string } | null>(null)
+  const [mapaVisivel, setMapaVisivel] = useMapaVisivel()
   const [recompensa, setRecompensa] = useState<{
     xpTotal: number
     porPersonagem: number
@@ -483,75 +484,97 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
         </div>
       )}
 
+      {/* Os controles vieram para cima do mapa. São o que mais se usa, e
+          ficavam depois de tudo — passar de turno exigia rolar a tela inteira. */}
+      {battle.combatentes.length > 0 && (
+        <div className="card z-20 flex flex-wrap items-center gap-2 p-3 backdrop-blur md:sticky md:top-0">
+          {!battle.emAndamento ? (
+            <>
+              <button className="btn-primary" onClick={iniciar}>▶ Iniciar combate</button>
+              <button className="btn-ghost text-sm" onClick={() => rolarTodos('todos')}>
+                🎲 Iniciativa de todos
+              </button>
+              <button className="btn-ghost text-sm" onClick={() => rolarTodos('inimigo')}>
+                🎲 Só inimigos
+              </button>
+            </>
+          ) : (
+            <>
+              <button className="btn-ghost" onClick={turnoAnterior} aria-label="Turno anterior">←</button>
+              <span className="rounded-lg bg-dragon-500/15 px-3 py-1.5 text-sm font-semibold text-parchment-50">
+                Rodada {battle.rodada}
+              </span>
+              <button className="btn-primary" onClick={proximoTurno}>Próximo turno →</button>
+              {atual && (
+                <span className="hidden text-sm text-parchment-200/70 sm:inline">
+                  vez de <b className="text-dragon-300">{atual.nome}</b>
+                </span>
+              )}
+              <button className="btn-ghost text-sm" onClick={encerrar}>■ Encerrar</button>
+            </>
+          )}
+
+          <div className="ml-auto flex items-center gap-2">
+            <BotaoDoMapa visivel={mapaVisivel} onAlternar={() => setMapaVisivel(!mapaVisivel)} />
+            <button className="btn-ghost text-xs text-parchment-200/40" onClick={limpar}>
+              Limpar
+            </button>
+          </div>
+        </div>
+      )}
+
       <PartyBar combatentes={ordenados} atualId={atual?.id} />
 
-      <CenaDaBatalha
-        battle={battle}
-        update={update}
-        ordenados={ordenados}
-        atualId={atual?.id}
-        visaoJogador={false}
-        onAnterior={battle.emAndamento ? turnoAnterior : undefined}
-        onProximo={battle.emAndamento ? proximoTurno : undefined}
-      />
-
-      {atual?.origem === 'inimigo' && (
-        <TurnoDoInimigo
-          combatente={atual}
-          monstro={monstros.find((m) => m.id === atual.refId)}
-        />
-      )}
-
-      {momentoDoCovil(battle) && (
-        <AcoesDeCovil
-          chefes={battle.combatentes.filter((c) => c.origem === 'inimigo' && c.pvAtual > 0)}
-          monstros={monstros}
-        />
-      )}
-
-      {battle.emAndamento && <RegistroDeCombate registro={battle.registro ?? []} />}
-
-      {battle.emAndamento && (
-        <AcoesLendarias
-          chefes={comLendariasDisponiveis(battle)}
-          monstros={monstros}
-          aoGastar={(id, custo, nomeDaAcao) =>
-            update({
-              combatentes: gastarLendarias(battle.combatentes, id, custo),
-              registro: registrar(battle, {
-                tipo: 'lendaria',
-                alvo: battle.combatentes.find((c) => c.id === id)?.nome,
-                deInimigo: true,
-                texto: `${battle.combatentes.find((c) => c.id === id)?.nome ?? 'O chefe'} usou ${nomeDaAcao}`,
-              }),
-            })
-          }
-        />
-      )}
-
-      <AddCombatentes battle={battle} update={update} mesaId={souDm && mesa ? mesa.id : null} />
-
-      <MedidorDeDificuldade combatentes={battle.combatentes} monstros={monstros} />
-
-      {battle.combatentes.length > 0 && (
-        <>
-          {/* Controles */}
-          <div className="card flex flex-wrap items-center gap-2 p-4">
-            <button className="btn-ghost" onClick={() => rolarTodos('todos')}>🎲 Rolar iniciativa de todos</button>
-            <button className="btn-ghost" onClick={() => rolarTodos('inimigo')}>🎲 Só inimigos</button>
-            <div className="mx-1 h-6 w-px bg-white/10" />
-            {!battle.emAndamento ? (
-              <button className="btn-primary" onClick={iniciar}>▶ Iniciar combate</button>
-            ) : (
-              <>
-                <button className="btn-ghost" onClick={turnoAnterior} aria-label="Turno anterior">←</button>
-                <span className="rounded-lg bg-dragon-500/15 px-3 py-1.5 text-sm font-semibold text-parchment-50">Rodada {battle.rodada}</span>
-                <button className="btn-primary" onClick={proximoTurno}>Próximo turno →</button>
-                <button className="btn-ghost" onClick={encerrar}>■ Encerrar</button>
-              </>
-            )}
-            <button className="btn-ghost ml-auto text-parchment-200/50" onClick={limpar}>Limpar tudo</button>
+      {/* Duas colunas no monitor: o mapa fica parado à esquerda enquanto a
+          coluna da direita rola. No celular tudo empilha, e aí vale mais ainda
+          poder desligar o mapa. */}
+      <div className={mapaVisivel ? 'grid gap-4 lg:grid-cols-[minmax(0,1fr)_400px]' : 'space-y-4'}>
+        {mapaVisivel && (
+          <div className="lg:sticky lg:top-20 lg:self-start">
+            <CenaDaBatalha
+              battle={battle}
+              update={update}
+              ordenados={ordenados}
+              atualId={atual?.id}
+              visaoJogador={false}
+              onAnterior={battle.emAndamento ? turnoAnterior : undefined}
+              onProximo={battle.emAndamento ? proximoTurno : undefined}
+            />
           </div>
+        )}
+
+        <div className="min-w-0 space-y-4">
+          {atual?.origem === 'inimigo' && (
+            <TurnoDoInimigo
+              combatente={atual}
+              monstro={monstros.find((m) => m.id === atual.refId)}
+            />
+          )}
+
+          {momentoDoCovil(battle) && (
+            <AcoesDeCovil
+              chefes={battle.combatentes.filter((c) => c.origem === 'inimigo' && c.pvAtual > 0)}
+              monstros={monstros}
+            />
+          )}
+
+          {battle.emAndamento && (
+            <AcoesLendarias
+              chefes={comLendariasDisponiveis(battle)}
+              monstros={monstros}
+              aoGastar={(id, custo, nomeDaAcao) =>
+                update({
+                  combatentes: gastarLendarias(battle.combatentes, id, custo),
+                  registro: registrar(battle, {
+                    tipo: 'lendaria',
+                    alvo: battle.combatentes.find((c) => c.id === id)?.nome,
+                    deInimigo: true,
+                    texto: `${battle.combatentes.find((c) => c.id === id)?.nome ?? 'O chefe'} usou ${nomeDaAcao}`,
+                  }),
+                })
+              }
+            />
+          )}
 
           {/* Lista */}
           <div className="space-y-4">
@@ -582,9 +605,36 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
                   onVirarFase={() => virarFase(c)}
                 />)}</Grupo>}
           </div>
-        </>
-      )}
+
+          {battle.emAndamento && <RegistroDeCombate registro={battle.registro ?? []} />}
+
+          <AddCombatentes battle={battle} update={update} mesaId={souDm && mesa ? mesa.id : null} />
+
+          <MedidorDeDificuldade combatentes={battle.combatentes} monstros={monstros} />
+        </div>
+      </div>
     </div>
+  )
+}
+
+/**
+ * Liga e desliga o mapa.
+ *
+ * Nem toda mesa joga com mapa na tela: quem tem miniatura e tabuleiro de
+ * verdade só quer o rastreador de combate, e o mapa ali empurra tudo para
+ * baixo. A escolha fica no aparelho — é sobre a SUA tela, não sobre a cena
+ * que o grupo recebe.
+ */
+function BotaoDoMapa({ visivel, onAlternar }: { visivel: boolean; onAlternar: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onAlternar}
+      className={`chip text-xs ${visivel ? 'border-arcane-400/60 text-parchment-50' : 'text-parchment-200/50'}`}
+      title={visivel ? 'Esconder o mapa desta tela' : 'Mostrar o mapa'}
+    >
+      🗺️ {visivel ? 'Mapa' : 'Mapa off'}
+    </button>
   )
 }
 
@@ -959,7 +1009,8 @@ function PlayerView({
         cenaRemota={cenaRemota}
       />
 
-      {/* Turno */}
+      {/* Turno. Com mapa na tela, a faixa flutuante já traz rodada e vez — aqui
+          fica só a contagem de inimigos em pé. */}
       <div className="card flex flex-wrap items-center justify-between gap-3 p-4">
         <div className="flex items-center gap-3">
           <span className="rounded-lg bg-dragon-500/15 px-3 py-1.5 text-sm font-semibold text-parchment-50">Rodada {battle.rodada}</span>
@@ -968,8 +1019,10 @@ function PlayerView({
         <span className="text-sm text-parchment-200/70">Inimigos em pé: <b className="text-parchment-50">{vivos}</b></span>
       </div>
 
-      {/* Ordem de iniciativa */}
-      {battle.emAndamento && (
+      {/* Ordem de iniciativa — só quando NÃO há mapa. Com mapa, a faixa
+          flutuante sobre ele já diz a mesma coisa, e repetir era só mais uma
+          coisa para rolar. */}
+      {battle.emAndamento && !cenaRemota?.mapaUrl && (
         <div className="card p-4">
           <p className="mb-2 panel-title">Ordem de iniciativa</p>
           <ol className="flex flex-wrap gap-2">
@@ -1732,4 +1785,36 @@ function CenaDaBatalha({
       )}
     </div>
   )
+}
+
+/**
+ * Se o mapa aparece nesta tela.
+ *
+ * Nem toda mesa joga com mapa: quem tem miniatura e tabuleiro de verdade só
+ * quer o rastreador de combate, e o mapa ali empurra tudo para baixo.
+ *
+ * Fica no aparelho, e não na cena. É sobre a SUA tela — esconder o mapa aqui
+ * não pode apagar a cena que o grupo está vendo no celular deles.
+ */
+const CHAVE_MAPA_VISIVEL = 'grimorio55e.ui.mapaVisivel'
+
+function useMapaVisivel(): [boolean, (v: boolean) => void] {
+  const [visivel, setVisivel] = useState(() => {
+    try {
+      return localStorage.getItem(CHAVE_MAPA_VISIVEL) !== 'nao'
+    } catch {
+      return true
+    }
+  })
+
+  function definir(v: boolean) {
+    setVisivel(v)
+    try {
+      localStorage.setItem(CHAVE_MAPA_VISIVEL, v ? 'sim' : 'nao')
+    } catch {
+      // Navegador sem armazenamento: a escolha vale só nesta visita.
+    }
+  }
+
+  return [visivel, definir]
 }

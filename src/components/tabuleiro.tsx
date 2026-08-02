@@ -32,7 +32,7 @@ export function Tabuleiro({
   setSelecionado,
   vidas = {},
   atualId,
-  alturaCheia = false,
+  alturaMax = '58vh',
 }: {
   scene: MapScene
   tokens: Token[]
@@ -45,8 +45,12 @@ export function Tabuleiro({
   vidas?: Record<string, VidaNoTabuleiro>
   /** Quem está no turno, para o anel pulsante. */
   atualId?: string
-  /** Ocupa a tela toda, para a versão em que o mapa É a tela. */
-  alturaCheia?: boolean
+  /**
+   * Teto de altura do quadro, em vh. O mapa rola por dentro em vez de empurrar
+   * o resto da tela para baixo — foi o que aconteceu quando ele entrou na
+   * batalha: passar de turno virou rolar a página inteira.
+   */
+  alturaMax?: string
 }) {
   const ref = useRef<HTMLDivElement>(null)
   const [arrastando, setArrastando] = useState<string | null>(null)
@@ -104,7 +108,7 @@ export function Tabuleiro({
   }, [medida, scene.celPx])
 
   return (
-    <div className={`card overflow-auto p-2 ${alturaCheia ? 'h-full' : ''}`}>
+    <div className="card overflow-auto p-2" style={{ maxHeight: alturaMax }}>
       <div
         ref={ref}
         className={`relative mx-auto select-none ${
