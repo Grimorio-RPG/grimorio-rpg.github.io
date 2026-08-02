@@ -86,8 +86,8 @@ function MapaDoMestre() {
     <div>
       <PageHeader
         icon="🗺️"
-        titulo="Mapa / Mesa Virtual"
-        subtitulo="Suba um mapa, posicione tokens do grupo e dos inimigos e mostre a cena aos jogadores."
+        titulo="Cena"
+        subtitulo="Suba o mapa, acerte a grade e ponha os marcadores. A luta acontece na aba Batalha, sobre esta cena."
         acoes={
           <ViewToggle
             valor={modo}

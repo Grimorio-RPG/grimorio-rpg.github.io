@@ -19,7 +19,12 @@ import {
   tokensDaCena,
 } from '../lib/battle'
 import { PartyBar } from '../components/party-bar'
-import { Tabuleiro, type Ferramenta, type VidaNoTabuleiro } from '../components/tabuleiro'
+import {
+  FaixaDeIniciativa,
+  Tabuleiro,
+  type Ferramenta,
+  type VidaNoTabuleiro,
+} from '../components/tabuleiro'
 import { useMapScene } from '../hooks/useMapScene'
 import type { Saque } from '../lib/tesouro'
 import {
@@ -467,7 +472,15 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
 
       <PartyBar combatentes={ordenados} atualId={atual?.id} />
 
-      <CenaDaBatalha battle={battle} update={update} atualId={atual?.id} visaoJogador={false} />
+      <CenaDaBatalha
+        battle={battle}
+        update={update}
+        ordenados={ordenados}
+        atualId={atual?.id}
+        visaoJogador={false}
+        onAnterior={battle.emAndamento ? turnoAnterior : undefined}
+        onProximo={battle.emAndamento ? proximoTurno : undefined}
+      />
 
       {atual?.origem === 'inimigo' && (
         <TurnoDoInimigo
@@ -916,7 +929,12 @@ function PlayerView({ battle, ordenados }: { battle: Battle; ordenados: Combatan
           não tem o painel do DM para consultar. */}
       <PartyBar combatentes={ordenados} atualId={atual?.id} />
 
-      <CenaDaBatalha battle={battle} atualId={atual?.id} visaoJogador />
+      <CenaDaBatalha
+        battle={battle}
+        ordenados={ordenados}
+        atualId={atual?.id}
+        visaoJogador
+      />
 
       {/* Turno */}
       <div className="card flex flex-wrap items-center justify-between gap-3 p-4">
@@ -1591,13 +1609,19 @@ function BarraDeChefe({ inimigos }: { inimigos: Combatant[] }) {
 function CenaDaBatalha({
   battle,
   update,
+  ordenados,
   atualId,
   visaoJogador,
+  onAnterior,
+  onProximo,
 }: {
   battle: Battle
   update?: UpdateFn
+  ordenados: Combatant[]
   atualId?: string
   visaoJogador: boolean
+  onAnterior?: () => void
+  onProximo?: () => void
 }) {
   const { scene, update: updateCena } = useMapScene()
   const [ferramenta, setFerramenta] = useState<Ferramenta>('mover')
@@ -1647,17 +1671,31 @@ function CenaDaBatalha({
         </div>
       )}
 
-      <Tabuleiro
-        scene={scene}
-        tokens={tokens}
-        onMover={mover}
-        visaoJogador={visaoJogador}
-        ferramenta={visaoJogador ? 'mover' : ferramenta}
-        selecionado={selecionado}
-        setSelecionado={setSelecionado}
-        vidas={vidas}
-        atualId={atualId}
-      />
+      {/* A faixa flutua sobre o tabuleiro em vez de empurrá-lo para cima: o
+          mapa é a tela, e a fila é o que se consulta sem tirar os olhos dele. */}
+      <div className="relative">
+        <Tabuleiro
+          scene={scene}
+          tokens={tokens}
+          onMover={mover}
+          visaoJogador={visaoJogador}
+          ferramenta={visaoJogador ? 'mover' : ferramenta}
+          selecionado={selecionado}
+          setSelecionado={setSelecionado}
+          vidas={vidas}
+          atualId={atualId}
+        />
+        {battle.emAndamento && (
+          <FaixaDeIniciativa
+            ordenados={ordenados}
+            atualId={atualId}
+            rodada={battle.rodada}
+            onAnterior={onAnterior}
+            onProximo={onProximo}
+            onSelecionar={setSelecionado}
+          />
+        )}
+      </div>
     </div>
   )
 }

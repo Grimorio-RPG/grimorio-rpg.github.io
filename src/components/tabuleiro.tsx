@@ -264,3 +264,119 @@ function TokenView({
     </div>
   )
 }
+
+
+/**
+ * A fila de iniciativa flutuando sobre o mapa.
+ *
+ * Fica presa no rodapé do tabuleiro em vez de empurrar o mapa para cima: o mapa
+ * é a tela, e a fila é o que se consulta sem tirar os olhos dele. É como Roll20
+ * e Foundry resolvem, e vale mais ainda quando a tela está projetada.
+ *
+ * Recolhível porque uma luta de oito criaturas ocupa espaço demais no celular
+ * — e porque quem está só olhando o mapa fora de combate não precisa dela.
+ */
+export function FaixaDeIniciativa({
+  ordenados,
+  atualId,
+  rodada,
+  onAnterior,
+  onProximo,
+  onSelecionar,
+}: {
+  ordenados: { id: string; nome: string; pvAtual: number; pvMax: number; origem: string }[]
+  atualId?: string
+  rodada: number
+  onAnterior?: () => void
+  onProximo?: () => void
+  onSelecionar?: (id: string) => void
+}) {
+  const [aberta, setAberta] = useState(true)
+  if (ordenados.length === 0) return null
+
+  return (
+    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 p-2">
+      <div className="pointer-events-auto mx-auto max-w-3xl rounded-xl border border-white/15 bg-ink-900/85 shadow-xl backdrop-blur">
+        <div className="flex items-center gap-2 px-2.5 py-1.5">
+          <span className="shrink-0 rounded-lg bg-dragon-500/20 px-2 py-0.5 text-xs font-semibold text-parchment-50">
+            R{rodada}
+          </span>
+
+          {onAnterior && (
+            <button
+              type="button"
+              onClick={onAnterior}
+              className="shrink-0 px-1.5 text-parchment-200/50 hover:text-parchment-50"
+              aria-label="Turno anterior"
+            >
+              ←
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setAberta((v) => !v)}
+            className="min-w-0 flex-1 truncate text-left text-sm text-parchment-100"
+            title={aberta ? 'Recolher a fila' : 'Abrir a fila'}
+          >
+            {aberta ? (
+              <span className="text-parchment-200/50">Iniciativa</span>
+            ) : (
+              <>
+                <span className="text-parchment-200/50">Vez de </span>
+                <b className="text-dragon-300">
+                  {ordenados.find((c) => c.id === atualId)?.nome ?? '—'}
+                </b>
+              </>
+            )}
+          </button>
+
+          {onProximo && (
+            <button type="button" onClick={onProximo} className="btn-primary shrink-0 px-2.5 py-1 text-xs">
+              Próximo →
+            </button>
+          )}
+        </div>
+
+        {aberta && (
+          <ol className="flex gap-1.5 overflow-x-auto px-2.5 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {ordenados.map((c) => {
+              const caido = c.pvAtual <= 0
+              const pct = c.pvMax > 0 ? Math.max(0, Math.min(1, c.pvAtual / c.pvMax)) * 100 : 0
+              return (
+                <li key={c.id} className="shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => onSelecionar?.(c.id)}
+                    className={`w-24 rounded-lg border px-1.5 py-1 text-left transition ${
+                      atualId === c.id
+                        ? 'border-amber-400/70 bg-amber-500/15'
+                        : 'border-white/10 hover:border-white/25'
+                    } ${caido ? 'opacity-40' : ''}`}
+                  >
+                    <span
+                      className={`block truncate text-[11px] ${
+                        c.origem === 'inimigo' ? 'text-dragon-300' : 'text-emerald-300'
+                      }`}
+                    >
+                      {c.nome}
+                    </span>
+                    <span className="mt-0.5 block h-1 overflow-hidden rounded-full bg-black/50">
+                      <span
+                        className="block h-full rounded-full"
+                        style={{
+                          width: `${pct}%`,
+                          background: pct > 50 ? '#34d399' : pct > 25 ? '#fbbf24' : '#f87171',
+                        }}
+                      />
+                    </span>
+                  </button>
+                </li>
+              )
+            })}
+          </ol>
+        )}
+      </div>
+    </div>
+  )
+}

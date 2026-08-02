@@ -10,8 +10,11 @@ const NAV = [
   { to: '/fichas', label: 'Fichas', icon: '📜', desc: 'Personagens' },
   { to: '/feiticos', label: 'Feitiços', icon: '✨', desc: 'Grimório' },
   { to: '/bestiario', label: 'Bestiário', icon: '🐲', desc: 'Inimigos' },
-  { to: '/batalhas', label: 'Batalhas', icon: '⚔️', desc: 'Combate' },
-  { to: '/mapa', label: 'Mapa', icon: '🗺️', desc: 'Mesa virtual' },
+  // Uma aba só: o mapa é onde a luta acontece, e tê-lo separado do combate
+  // obrigava a trocar de tela a cada golpe. A aba Cena guarda o que é
+  // preparação — subir a imagem, acertar a grade, pôr marcadores.
+  { to: '/batalhas', label: 'Batalha', icon: '⚔️', desc: 'Mapa e combate' },
+  { to: '/mapa', label: 'Cena', icon: '🗺️', desc: 'Preparar o mapa' },
   { to: '/mundo', label: 'Mundo', icon: '🧭', desc: 'Mapas & lugares' },
   { to: '/campanha', label: 'Campanha', icon: '📖', desc: 'Resumo & DM' },
   { to: '/mesa', label: 'Mesa', icon: '🎲', desc: 'Jogar em grupo' },
