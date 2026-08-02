@@ -21,7 +21,21 @@ Ele guarda estado, mas não conta história nem lembra o que aconteceu.
 
 ---
 
-## Nível 1 — o que o combate está pedindo
+## Nível 1 — o que o combate está pedindo ✅ FEITO
+
+> Os três itens abaixo estão no ar. O texto de cada um foi mantido como estava
+> quando descrevia o problema — é o registro do que faltava, e vale mais assim
+> do que reescrito no passado.
+>
+> O que mudou: as ações de monstro têm tipo (ação, bônus, reação, lendária,
+> covil) e o leitor de bloco colado não descarta mais nenhuma seção; as
+> lendárias aparecem durante o turno dos OUTROS, que é quando a regra as gasta,
+> com o orçamento recarregando na vez do chefe; as ações de covil avisam sozinhas
+> na iniciativa 20; o combate tem registro, censurado antes de ir para o grupo; e
+> as condições têm prazo que cai sozinho, com a concentração pedindo a
+> salvaguarda com a CD já calculada.
+>
+> Falta o que só a mesa responde: **jogar uma sessão com isso ligado.**
 
 ### 1. Registro de combate
 
@@ -204,12 +218,12 @@ funcionar. **Recomendo não mexer** enquanto a importação estiver funcionando.
 
 ---
 
-## O que eu faria primeiro
+## O que vem agora
 
-**3 → 1 → 2**: ações lendárias (barato e transforma o chefe), depois o registro
-de combate (destrava a tela de vitória e o resumo de sessão), depois as
-condições com duração (o mais chato, e o que mais tira peso da sua cabeça
-durante a luta).
+O Nível 1 saiu na ordem 3 → 1 → 2. O que segue é o Nível 2, e a ordem ali é
+forçada: a **tela de vitória (4)** só fica boa depois do **tesouro (5)**, porque
+sem loot ela continua sendo XP com enfeite. Os destaques dela já funcionam — vêm
+do registro de combate.
 
 Mas nada disso vale mais do que **rodar uma sessão de verdade com o grupo**. As
 correções que mais importaram até aqui — a CA do Thorn, as manobras do
