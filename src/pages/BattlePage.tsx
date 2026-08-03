@@ -19,6 +19,7 @@ import {
   tokensDaCena,
 } from '../lib/battle'
 import { PartyBar } from '../components/party-bar'
+import { alteracaoDe, desfazerUltimo, empilhar, proximoADesfazer } from '../lib/desfazer'
 import {
   FaixaDeIniciativa,
   Tabuleiro,
@@ -157,7 +158,7 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
    * Só vale para as SUAS fichas. A do Guilherme é dele: quem escreve é o dono,
    * e o banco recusaria de qualquer forma (`dono_id = auth.uid()`).
    */
-  function patchC(id: string, p: Partial<Combatant>) {
+  function patchC(id: string, p: Partial<Combatant>, rotulo?: string) {
     const alvo = battle.combatentes.find((c) => c.id === id)
 
     // O registro nasce aqui porque é aqui que a mudança acontece de verdade —
@@ -171,9 +172,19 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
       for (const n of novos) registro = registrar({ ...battle, registro }, n)
     }
 
+    // O passo de desfazer guarda só o valor ANTERIOR dos campos que mudaram.
+    // Arrastar um token não entra: a posição fica fora da lista de campos, e
+    // sem isso dois segundos de arrasto enterrariam o golpe que se quer
+    // desfazer sob dezenas de passos de "mover".
+    const alteracao = alvo ? alteracaoDe(alvo, p) : null
+    const desfazer = alteracao
+      ? empilhar(battle, rotulo ?? `Ajuste em ${alvo?.nome ?? 'combatente'}`, [alteracao])
+      : battle.desfazer
+
     update({
       combatentes: battle.combatentes.map((c) => (c.id === id ? { ...c, ...p } : c)),
       ...(registro !== battle.registro ? { registro } : {}),
+      ...(desfazer !== battle.desfazer ? { desfazer } : {}),
     })
 
     if (alvo?.origem !== 'aliado' || !alvo.refId) return
@@ -201,7 +212,21 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
     }
   }
   function removerC(id: string) {
-    update({ combatentes: battle.combatentes.filter((c) => c.id !== id) })
+    // Apagar a criatura errada era o único erro de combate sem volta: a ficha
+    // saía da lista e não havia de onde recuperá-la.
+    const alvo = battle.combatentes.find((c) => c.id === id)
+    update({
+      combatentes: battle.combatentes.filter((c) => c.id !== id),
+      ...(alvo
+        ? { desfazer: empilhar(battle, `Remoção de ${alvo.nome}`, [], [alvo]) }
+        : {}),
+    })
+  }
+
+  /** Volta um passo. Sincroniza como o resto — ver `lib/desfazer.ts`. */
+  function desfazer() {
+    const patch = desfazerUltimo(battle)
+    if (patch) update(patch)
   }
   function rolarTodos(quem: 'todos' | 'inimigo' | 'aliado') {
     update({
@@ -515,6 +540,7 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
           )}
 
           <div className="ml-auto flex items-center gap-2">
+            <BotaoDesfazer passo={proximoADesfazer(battle)} onDesfazer={desfazer} />
             <BotaoDoMapa visivel={mapaVisivel} onAlternar={() => setMapaVisivel(!mapaVisivel)} />
             <button className="btn-ghost text-xs text-parchment-200/40" onClick={limpar}>
               Limpar
@@ -582,7 +608,7 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
                   key={c.id}
                   c={c}
                   atual={atual?.id === c.id}
-                  onPatch={(p) => patchC(c.id, p)}
+                  onPatch={(p, rotulo) => patchC(c.id, p, rotulo)}
                   onRemove={() => removerC(c.id)}
                   temProximaFase={
                     c.origem === 'inimigo' &&
@@ -595,7 +621,7 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
                   key={c.id}
                   c={c}
                   atual={atual?.id === c.id}
-                  onPatch={(p) => patchC(c.id, p)}
+                  onPatch={(p, rotulo) => patchC(c.id, p, rotulo)}
                   onRemove={() => removerC(c.id)}
                   temProximaFase={
                     c.origem === 'inimigo' &&
@@ -657,7 +683,7 @@ function CombatantRow({
 }: {
   c: Combatant
   atual: boolean
-  onPatch: (p: Partial<Combatant>) => void
+  onPatch: (p: Partial<Combatant>, rotulo?: string) => void
   onRemove: () => void
   /** O chefe caiu, mas ainda tem forma seguinte. */
   temProximaFase?: boolean
@@ -718,7 +744,10 @@ function CombatantRow({
 
         {/* PV — ocupa a linha toda no celular */}
         <div className="order-3 flex w-full items-center justify-center gap-1 sm:order-none sm:w-auto">
-          <button className="btn-ghost px-2 py-1 text-xs" onClick={() => ajusta(-5)}>−5</button>
+          {/* Digitar o número e teclar Enter. Antes eram só −5/−1/+1/+5: tirar
+              13 de vida exigia cinco cliques, e o campo de PV pedia a conta de
+              cabeça. Quem está na mesa tem o dano do dado, não a vida que sobra. */}
+          <PainelDeDano c={c} onPatch={onPatch} />
           <button className="btn-ghost px-2 py-1 text-xs" onClick={() => ajusta(-1)}>−1</button>
           <div className="w-16 text-center">
             <input type="number" value={c.pvAtual} onChange={(e) => { const n = parseInt(e.target.value, 10); onPatch({ pvAtual: Math.max(0, Math.min(c.pvMax, Number.isNaN(n) ? 0 : n)) }) }} className="w-16 rounded-md border border-white/10 bg-ink-900/70 px-1 py-0.5 text-center text-sm outline-none focus:border-arcane-400" />
@@ -730,7 +759,6 @@ function CombatantRow({
             <div className="text-[10px] text-parchment-200/40">/ {c.pvMax}</div>
           </div>
           <button className="btn-ghost px-2 py-1 text-xs" onClick={() => ajusta(1)}>+1</button>
-          <button className="btn-ghost px-2 py-1 text-xs" onClick={() => ajusta(5)}>+5</button>
         </div>
       </div>
 
@@ -1817,4 +1845,98 @@ function useMapaVisivel(): [boolean, (v: boolean) => void] {
   }
 
   return [visivel, definir]
+}
+
+
+/**
+ * Volta o último ajuste.
+ *
+ * Diz o que vai desfazer antes de ser clicado: um botão de desfazer sem rótulo
+ * só troca a dúvida de lugar — "será que isso apaga o dano ou a condição?".
+ */
+function BotaoDesfazer({
+  passo,
+  onDesfazer,
+}: {
+  passo: { descricao: string } | null
+  onDesfazer: () => void
+}) {
+  if (!passo) return null
+  return (
+    <button
+      type="button"
+      onClick={onDesfazer}
+      className="chip text-xs hover:border-amber-400/60"
+      title={`Desfazer: ${passo.descricao}`}
+    >
+      ↶ <span className="hidden max-w-[16ch] truncate sm:inline">{passo.descricao}</span>
+      <span className="sm:hidden">Desfazer</span>
+    </button>
+  )
+}
+
+/**
+ * Aplicar dano e cura.
+ *
+ * Antes eram só os botões −5 / −1 / +1 / +5: tirar 13 de vida exigia cinco
+ * cliques, e o campo de PV pedia a conta feita de cabeça. O dano de 5.5e sai de
+ * um dado — quem está na mesa tem o número, não a vida restante.
+ *
+ * Enter aplica dano, que é o caso comum.
+ */
+function PainelDeDano({
+  c,
+  onPatch,
+}: {
+  c: Combatant
+  onPatch: (p: Partial<Combatant>, rotulo?: string) => void
+}) {
+  const [valor, setValor] = useState('')
+
+  function aplicar(sinal: 1 | -1) {
+    const n = Math.abs(parseInt(valor, 10))
+    if (!Number.isFinite(n) || n === 0) return
+    const alvo = Math.max(0, Math.min(c.pvMax, c.pvAtual + sinal * n))
+    onPatch(
+      { pvAtual: alvo },
+      sinal < 0 ? `${n} de dano em ${c.nome}` : `${n} de cura em ${c.nome}`,
+    )
+    setValor('')
+  }
+
+  return (
+    <div className="flex items-center gap-1">
+      <input
+        type="number"
+        min={0}
+        value={valor}
+        onChange={(e) => setValor(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault()
+            aplicar(e.shiftKey ? 1 : -1)
+          }
+        }}
+        placeholder="—"
+        title="Digite o dano e tecle Enter. Shift+Enter cura."
+        className="w-12 rounded-md border border-white/10 bg-ink-900/70 px-1 py-1 text-center text-sm outline-none focus:border-dragon-400"
+      />
+      <button
+        type="button"
+        className="rounded-md border border-dragon-400/40 px-1.5 py-1 text-xs text-dragon-300 hover:bg-dragon-500/15"
+        onClick={() => aplicar(-1)}
+        title="Aplicar como dano"
+      >
+        💥
+      </button>
+      <button
+        type="button"
+        className="rounded-md border border-emerald-400/40 px-1.5 py-1 text-xs text-emerald-300 hover:bg-emerald-500/15"
+        onClick={() => aplicar(1)}
+        title="Aplicar como cura"
+      >
+        💚
+      </button>
+    </div>
+  )
 }

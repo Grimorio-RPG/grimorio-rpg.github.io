@@ -582,6 +582,15 @@ export interface EventoCombate {
   deInimigo?: boolean
 }
 
+/** Um passo desfazível. A forma mora em `lib/desfazer.ts`. */
+export interface PassoDesfazivel {
+  id: string
+  em: number
+  descricao: string
+  alteracoes: { id: string; campos: Partial<Combatant> }[]
+  removidos?: Combatant[]
+}
+
 export interface Battle {
   updatedAt: number
   nome: string
@@ -591,6 +600,19 @@ export interface Battle {
   combatentes: Combatant[]
   /** Ausente em batalhas antigas. Mais recente por último. */
   registro?: EventoCombate[]
+  /**
+   * Os últimos ajustes, para poderem ser desfeitos.
+   *
+   * Guarda só o que mudou, e não a lista inteira: cada combatente carrega a
+   * imagem embutida, e dez cópias multiplicariam por dez o que sincroniza.
+   *
+   * Fica dentro da batalha porque o desfazer precisa sincronizar — o mesmo DM
+   * abre o app no PC e no celular, e um desfazer que valesse só num deles
+   * deixaria os dois com vidas diferentes.
+   *
+   * NUNCA sai na projeção: guarda o PV anterior exato de cada criatura.
+   */
+  desfazer?: PassoDesfazivel[]
 }
 
 // ---------------------------------------------------------------------------

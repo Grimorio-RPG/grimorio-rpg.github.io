@@ -71,6 +71,10 @@ export function projetarBatalha(b: Battle): Battle {
     // O registro sai com os danos de inimigo sem número: somar as anotações
     // seria a porta dos fundos para descobrir quanto falta no chefe.
     registro: projetarRegistro(b.registro),
+    // A pilha de desfazer guarda o PV ANTERIOR exato de cada criatura, e o
+    // histórico dos últimos dez golpes. Entregaria de bandeja o que a
+    // porcentagem esconde.
+    desfazer: undefined,
     // Quem está fora de cena some por inteiro, e não censurado: `nomeOculto`
     // mostra "???", que já revela que ALGO está ali. `oculto` é a emboscada que
     // ainda não saltou — ela não pode nem ocupar uma linha na iniciativa.
