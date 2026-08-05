@@ -19,7 +19,7 @@ const compilar = (entrada, saida) => {
 
 const {
   sortearTesouro, sortearDoEncontro, dividirMoedas, descreveMoedas,
-  saqueTemAlgo, temTesouro,
+  saqueTemAlgo, temTesouro, saqueVazio,
 } = await compilar('src/lib/tesouro.ts', 'tesouro.js')
 
 let falhas = 0
@@ -82,6 +82,22 @@ checar('cada criatura rola o próprio tesouro', seis.moedas.pp === 18, `deu ${se
 checar('criatura sem tesouro não atrapalha',
   sortearDoEncontro([{ id: 'x' }, goblin]).moedas.pp === 3)
 checar('encontro sem nada não dá nada', !saqueTemAlgo(sortearDoEncontro([{ id: 'x' }])))
+
+// ---------------------------------------------------------------------------
+console.log('Quando a tela de recompensa aparece')
+//
+// A regra que a tela usa, escrita aqui porque ela já falhou: encerrar sem
+// nenhuma ficha na batalha jogava o tesouro fora em silêncio. E rodar o combate
+// sem os PCs na lista é o caso comum — as fichas estão no celular deles.
+
+/** Espelha a condição de `encerrar()` em BattlePage. */
+const mostraRecompensa = (xpTotal, saque) => !(xpTotal <= 0 && !saqueTemAlgo(saque))
+
+const comSaque = sortearDoEncontro([goblin])
+checar('só saque, sem XP: mostra', mostraRecompensa(0, comSaque))
+checar('só XP, sem saque: mostra', mostraRecompensa(1800, saqueVazio()))
+checar('XP e saque: mostra', mostraRecompensa(1800, comSaque))
+checar('nem XP nem saque: não mostra', !mostraRecompensa(0, saqueVazio()))
 
 // ---------------------------------------------------------------------------
 console.log('Divisão')

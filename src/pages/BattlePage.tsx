@@ -358,13 +358,18 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
     )
 
     // Sem XP e sem saque não há tela de recompensa para mostrar.
-    if ((xpTotal <= 0 && !saqueTemAlgo(saqueDoEncontro)) || aliados.length === 0) {
+    //
+    // A falta de aliados NÃO cancela mais a tela. Ela cancelava, e isso jogava
+    // o tesouro fora em silêncio no caso mais comum que existe: o DM conduz o
+    // combate com as fichas do grupo no celular deles, sem pôr ninguém na
+    // lista. Encerrava, e o saque do chefe simplesmente não acontecia.
+    if (xpTotal <= 0 && !saqueTemAlgo(saqueDoEncontro)) {
       update({ emAndamento: false })
       return
     }
     setRecompensa({
       xpTotal,
-      porPersonagem: Math.floor(xpTotal / aliados.length),
+      porPersonagem: aliados.length > 0 ? Math.floor(xpTotal / aliados.length) : 0,
       derrotados: derrotados.length,
       aliados,
       destaques: destaquesDoCombate(battle),
@@ -438,6 +443,14 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
             <SaqueDoEncontro saque={recompensa.saque} quantos={recompensa.aliados.length} />
           )}
 
+          {recompensa.aliados.length === 0 && recompensa.xpTotal > 0 && (
+            <p className="mt-3 rounded-lg border border-white/10 bg-white/[0.03] p-2.5 text-xs text-parchment-200/70">
+              Nenhuma ficha estava no encontro, então não há a quem somar o XP aqui. Divida os{' '}
+              <b className="text-amber-300">{recompensa.xpTotal.toLocaleString('pt-BR')}</b> pelo
+              grupo e anote nas fichas.
+            </p>
+          )}
+
           <div className="mt-4 space-y-2">
             {recompensa.aliados.map((a) => {
               const ficha = loadCharacters().find((f) => f.id === a.refId)
@@ -481,13 +494,20 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
             })}
           </div>
 
+          {/* Sem fichas no encontro não há a quem somar XP: oferecer o botão
+              seria prometer uma ação que não acontece. */}
           <div className="mt-4 flex flex-wrap justify-end gap-2">
-            <button className="btn-ghost" onClick={() => { setRecompensa(null); update({ emAndamento: false }) }}>
-              Encerrar sem XP
+            <button
+              className={recompensa.aliados.length > 0 ? 'btn-ghost' : 'btn-primary'}
+              onClick={() => { setRecompensa(null); update({ emAndamento: false }) }}
+            >
+              {recompensa.aliados.length > 0 ? 'Encerrar sem XP' : 'Encerrar'}
             </button>
-            <button className="btn-primary" onClick={pagarRecompensa}>
-              ✓ Distribuir o XP
-            </button>
+            {recompensa.aliados.length > 0 && (
+              <button className="btn-primary" onClick={pagarRecompensa}>
+                ✓ Distribuir o XP
+              </button>
+            )}
           </div>
         </Modal>
       )}
