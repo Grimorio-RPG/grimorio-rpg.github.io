@@ -37,18 +37,17 @@ function paraDataUrl(svg: string): string {
 const MASMORRA = moldura(
   `<defs>
     <pattern id="laje" width="100" height="100" patternUnits="userSpaceOnUse">
-      <rect width="100" height="100" fill="#3a3733"/>
-      <rect width="96" height="96" x="2" y="2" fill="#454039" rx="3"/>
-      <rect width="42" height="42" x="6" y="6" fill="#4b463e" rx="2" opacity=".5"/>
-      <rect width="42" height="42" x="52" y="52" fill="#403b34" rx="2" opacity=".5"/>
+      <rect width="100" height="100" fill="#8a8175"/>
+      <rect width="96" height="96" x="2" y="2" fill="#9a9184" rx="3"/>
+      <rect width="42" height="42" x="6" y="6" fill="#a69c8e" rx="2" opacity=".55"/>
+      <rect width="42" height="42" x="52" y="52" fill="#8f8578" rx="2" opacity=".55"/>
     </pattern>
   </defs>
   <rect x="60" y="60" width="1080" height="680" fill="url(#laje)"/>
-  <rect x="60" y="60" width="1080" height="680" fill="none" stroke="#26231f" stroke-width="24"/>
-  <rect x="60" y="60" width="1080" height="680" fill="none" stroke="#57504510" stroke-width="2"/>
-  <circle cx="600" cy="400" r="150" fill="#2f2b26" opacity=".45"/>
-  <circle cx="600" cy="400" r="96" fill="#585047" opacity=".25"/>`,
-  '#1c1a17',
+  <rect x="60" y="60" width="1080" height="680" fill="none" stroke="#4a443c" stroke-width="26"/>
+  <circle cx="600" cy="400" r="150" fill="#6f675c" opacity=".35"/>
+  <circle cx="600" cy="400" r="96" fill="#b8ae9e" opacity=".35"/>`,
+  '#3b3730',
 )
 
 const FLORESTA = moldura(
@@ -83,18 +82,18 @@ const FLORESTA = moldura(
 const CAVERNA = moldura(
   `<rect width="1200" height="800" fill="#17161a"/>
   <path d="M150 120 Q420 40 700 110 Q980 70 1080 180 Q1160 340 1090 520 Q1040 700 800 720
-           Q560 760 340 700 Q140 640 110 440 Q90 240 150 120 Z" fill="#3b3742"/>
+           Q560 760 340 700 Q140 640 110 440 Q90 240 150 120 Z" fill="#6d6678"/>
   <path d="M200 170 Q450 100 690 165 Q930 130 1020 230 Q1090 370 1030 510
            Q980 660 790 675 Q570 705 380 655 Q210 600 185 430 Q170 260 200 170 Z"
-        fill="#4a4552"/>
-  <g fill="#2b2833" opacity=".8">
+        fill="#847c92"/>
+  <g fill="#4e4859" opacity=".75">
     <ellipse cx="380" cy="290" rx="46" ry="30"/>
     <ellipse cx="820" cy="250" rx="38" ry="26"/>
     <ellipse cx="620" cy="560" rx="54" ry="32"/>
     <ellipse cx="950" cy="470" rx="34" ry="24"/>
   </g>
-  <ellipse cx="600" cy="400" rx="180" ry="120" fill="#5b5566" opacity=".35"/>`,
-  '#0f0e12',
+  <ellipse cx="600" cy="400" rx="180" ry="120" fill="#9d94ab" opacity=".3"/>`,
+  '#2a2732',
 )
 
 const TAVERNA = moldura(
@@ -136,9 +135,9 @@ const ESTRADA = moldura(
 )
 
 const VAZIO = moldura(
-  `<rect width="1200" height="800" fill="#26242a"/>
-  <rect x="30" y="30" width="1140" height="740" fill="#2e2c33" rx="8"/>`,
-  '#1b1a1e',
+  `<rect width="1200" height="800" fill="#585463"/>
+  <rect x="30" y="30" width="1140" height="740" fill="#67626f" rx="8"/>`,
+  '#45414d',
 )
 
 /**

@@ -167,11 +167,14 @@ const COR_PADRAO = { aliado: '#34d399', inimigo: '#f87171' } as const
  * obrigaria a arrastar os quatro antes de conseguir clicar em qualquer um.
  */
 export function posicaoDeEntrada(quantosJa: number, origem: 'aliado' | 'inimigo') {
-  const coluna = quantosJa % 6
-  const linha = Math.floor(quantosJa / 6) % 4
+  // Quatro por fileira, e não seis: com seis o passo tinha de ser tão curto que
+  // os tokens se sobrepunham. Num mapa de ~660px de largura, 0,05 são 33px — e
+  // o token tem 50. O espaço entre eles precisa ser MAIOR que eles.
+  const coluna = quantosJa % 4
+  const linha = Math.floor(quantosJa / 4) % 4
   // Os dois lados entram em cantos opostos, como numa mesa de verdade.
-  const base = origem === 'aliado' ? 0.08 : 0.62
-  return { x: base + coluna * 0.05, y: 0.12 + linha * 0.09 }
+  const base = origem === 'aliado' ? 0.08 : 0.60
+  return { x: base + coluna * 0.09, y: 0.14 + linha * 0.13 }
 }
 
 /** Tamanho em quadrados, lido do tamanho escrito na ficha da criatura. */

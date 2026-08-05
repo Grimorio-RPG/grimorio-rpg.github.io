@@ -55,6 +55,32 @@ checar('quem entra na batalha já tem lugar no mapa',
 const pontos = new Set(tres.map((c) => `${c.x},${c.y}`))
 checar('e não entram empilhados', pontos.size === 3, [...pontos].join(' | '))
 
+// Posições diferentes não bastam: o passo precisa ser maior que o token, senão
+// eles se sobrepõem. Foi o que aconteceu — três goblins viraram um borrão com
+// os nomes escritos por cima uns dos outros.
+//
+// A conta em pixels, com os padrões: o quadro do mapa mede cerca de 660px de
+// largura e o quadrado da grade 50px, que é o diâmetro do token médio.
+const LARGURA = 660
+const TOKEN = 50
+const oito = combatentesDeMonstro(goblin, 8)
+let sobrepostos = 0
+for (let i = 0; i < oito.length; i++) {
+  for (let j = i + 1; j < oito.length; j++) {
+    const dx = Math.abs(oito[i].x - oito[j].x) * LARGURA
+    const dy = Math.abs(oito[i].y - oito[j].y) * (LARGURA * 0.66)
+    if (Math.hypot(dx, dy) < TOKEN) sobrepostos++
+  }
+}
+checar('e não se sobrepõem', sobrepostos === 0, `${sobrepostos} pares encostados`)
+
+// E precisam caber dentro do mapa.
+checar(
+  'todos caem dentro do quadro',
+  oito.every((c) => c.x > 0.02 && c.x < 0.95 && c.y > 0.02 && c.y < 0.95),
+  JSON.stringify(oito.map((c) => [c.x.toFixed(2), c.y.toFixed(2)])),
+)
+
 const heroi = combatenteDePersonagem(ficha)
 checar('o personagem também entra posicionado', typeof heroi.x === 'number')
 checar('e em canto oposto ao dos inimigos', heroi.x < tres[0].x, `${heroi.x} vs ${tres[0].x}`)
