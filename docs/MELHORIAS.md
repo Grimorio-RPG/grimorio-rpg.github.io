@@ -238,11 +238,81 @@ funcionar. **Recomendo não mexer** enquanto a importação estiver funcionando.
 
 ---
 
+## Segunda leva
+
+Os níveis 1 a 4 saíram, e com eles saiu também o que não estava no plano: a
+fusão do mapa com a batalha, o desfazer, os mapas prontos e o corte de peso.
+O que segue foi levantado depois disso, olhando o app rodando.
+
+### A. O jogador só assiste
+
+**Hoje** a tela de batalha de quem joga é, no próprio comentário do código,
+"espelho, só leitura". O DM digita o PV de cinco pessoas, marca as condições de
+cinco pessoas e rola a iniciativa de cinco pessoas.
+
+Numa mesa de verdade isso faz do DM um digitador — e é a origem da divergência
+que passamos o dia consertando: quanto mais coisa passa por um só teclado, mais
+chance de o número na tela e o número na ficha se separarem.
+
+**O que seria:** o jogador aplica dano e cura no próprio combatente, marca as
+próprias condições e rola a própria iniciativa direto na fila do DM.
+
+**O que já está pronto para isso:** a ficha já é dele (`dono_id = auth.uid()`),
+o DM já escreve na ficha compartilhada, e o feed de rolagens já vai e volta. O
+encanamento existe.
+
+**O risco real:** dois teclados no mesmo PV. Precisa de uma regra de quem vence
+— provavelmente o mais recente, como no resto do app.
+
+**Custo:** médio. É o item de maior impacto na mesa.
+
+### B. Uma cena e uma batalha só
+
+`CHAVES.mapa` e `CHAVES.batalha` são chaves únicas: o app guarda **uma** cena e
+**uma** batalha. Preparar uma masmorra de quatro salas significa subir o mapa de
+novo e remontar o encontro a cada porta — no meio da sessão, com a mesa
+esperando.
+
+Isso sempre foi assim, mas passou a doer agora: o mapa virou a tela do combate,
+então trocar de sala é trocar a tela inteira.
+
+**O que seria:** cenas com nome e encontros salvos, com um seletor. Preparar
+antes, escolher na hora.
+
+**Custo:** médio, e mexe na sincronização — cada cena precisa da própria chave,
+ou de uma lista.
+
+### C. Reações e ações bônus dos personagens
+
+As ações de monstro ganharam tipo hoje. A ficha não: `Attack` continua sendo
+nome, bônus e dano. O personagem tem reação e ação bônus como qualquer criatura,
+e a ficha não sabe disso.
+
+**Custo:** baixo-médio, e reaproveita o que já foi feito no bestiário.
+
+### D. Decisões paradas
+
+Três coisas foram decididas por mim, sozinho, e continuam sem confirmação:
+
+- o prazo de condição de um inimigo **aparece** para o grupo;
+- o nome da magia que um inimigo concentra **não** aparece;
+- o contador de ações lendárias **não** aparece.
+
+E duas perguntas sem resposta: semear tabelas de fábrica (nomes de NPC,
+rumores), e se o painel do inimigo da vez deveria sobrepor o mapa em vez de
+ficar na coluna.
+
+---
+
 ## O que vem agora
 
-Os níveis 1 a 4 estão no ar. Do Nível 5 sobra só o item 10 (imagens no Supabase
-Storage), que **exige SQL seu** e só vale quando o bestiário crescer a ponto de
-doer; o item 11 continua com a recomendação de não mexer.
+Do plano original sobra só o item 10 (imagens no Supabase Storage), que **exige
+SQL seu** e só vale quando o bestiário crescer a ponto de doer; o item 11
+continua com a recomendação de não mexer.
+
+Da segunda leva, a ordem que eu seguiria é **A → B → C**: o jogador agir sozinho
+muda a mesa; várias cenas tiram o atrito da preparação; e as ações da ficha são
+acabamento.
 
 Nada disso vale mais do que **rodar uma sessão de verdade com o grupo**. As
 correções que mais importaram até aqui — a CA do Thorn, as manobras do
