@@ -24,6 +24,7 @@ const compilar = (entrada, saida) => {
 const {
   bonusDeEquipamento, atributoComEquipamento, equipar, desequipar,
   excedeSintonia, porSlot, itensAtivos, descreveEfeito, LIMITE_SINTONIA,
+  alvoCasa, bonusContra, temBonusContra,
 } = await compilar('src/lib/equipamento.ts', 'equipamento.js')
 const { armorClass, armorClassDetalhe, saveBonus, skillBonus, atributoEfetivo } =
   await compilar('src/lib/calc.ts', 'calc.js')
@@ -155,6 +156,59 @@ const flamejante = item('Espada Flamejante', 'maoPrincipal', [
 ], { sintonia: true, sintonizado: true })
 checar('dano em dado entra separado do plano',
   bonusDeEquipamento(com(flamejante)).danoExtra[0].dado === '2d6')
+
+// ---------------------------------------------------------------------------
+console.log('Casar o alvo')
+//
+// O item diz uma palavra; a criatura vem com a linha inteira do bloco de
+// estatísticas. Exigir igualdade faria o bônus nunca disparar — o mesmo que
+// não existir.
+
+checar('palavra do item dentro do tipo da criatura',
+  alvoCasa('goblinoide', 'Humanoide Pequeno (goblinoide), neutro e mau'))
+checar('ignora maiúscula', alvoCasa('Goblinoide', 'humanoide (goblinoide)'))
+checar('ignora acento', alvoCasa('dragao', 'Dragão Grande, caótico e mau'))
+checar('e no sentido contrário também', alvoCasa('Dragão vermelho', 'dragão'))
+checar('plural do item acha o singular da criatura',
+  alvoCasa('goblinoides', 'Humanoide (goblinoide)'))
+
+checar('tipo diferente não casa', !alvoCasa('goblinoide', 'Morto-vivo Médio'))
+checar('vazio não casa com nada', !alvoCasa('', 'Humanoide'))
+checar('nem o contrário', !alvoCasa('goblinoide', ''))
+// Duas letras não podem virar coringa: "or" não pode casar com "Morto-vivo".
+checar('pedaço curto demais não vira coringa', !alvoCasa('ors', 'Morto-vivo'))
+
+// ---------------------------------------------------------------------------
+console.log('O bônus chegando no alvo')
+
+const goblin = 'Humanoide Pequeno (goblinoide), neutro e mau'
+const contraGoblin = bonusContra(com(espada), goblin)
+checar('a espada soma contra goblinoide',
+  contraGoblin.ataque === 2 && contraGoblin.dano === 2, JSON.stringify(contraGoblin))
+checar('e diz de onde veio', contraGoblin.fontes.includes('Espada Matadora de Goblins'))
+checar('temBonusContra reconhece', temBonusContra(contraGoblin))
+
+const contraOutro = bonusContra(com(espada), 'Morto-vivo Médio')
+checar('não soma contra outro tipo', contraOutro.ataque === 0 && contraOutro.dano === 0)
+checar('e temBonusContra diz que não há', !temBonusContra(contraOutro))
+
+// Dois itens contra o mesmo tipo somam ao bater.
+const dois = bonusContra(com(espada, arco), goblin)
+checar('dois itens contra o mesmo tipo somam', dois.dano === 3, `deu ${dois.dano}`)
+
+// Dano em dado condicional — a Matadora de Gigantes.
+const matadora = item('Matadora de Gigantes', 'maoPrincipal', [
+  { tipo: 'ataque', valor: 1 },
+  { tipo: 'danoExtra', dado: '2d6', contra: 'gigante' },
+])
+const contraGigante = bonusContra(com(matadora), 'Gigante Enorme (gigante da colina)')
+checar('o dado extra condicional aparece', contraGigante.danoExtra[0] === '2d6')
+checar('o +1 comum não entra no condicional', contraGigante.ataque === 0)
+checar('mas continua no total geral', bonusDeEquipamento(com(matadora)).ataque === 1)
+
+// Sem equipamento nenhum, nada quebra.
+checar('ficha sem equipamento devolve zeros',
+  !temBonusContra(bonusContra({ ...BASE, equipamentos: undefined }, goblin)))
 
 // ---------------------------------------------------------------------------
 console.log('Vestir e tirar')

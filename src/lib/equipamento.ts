@@ -311,3 +311,67 @@ export function descreveEfeito(e: EfeitoDeItem): string {
       return `Ação: ${e.nome}`
   }
 }
+
+// ---------------------------------------------------------------------------
+// O bônus que só vale contra alguém
+//
+// A espada dá "+2 contra goblinoides". Na ficha isso fica separado do total,
+// porque somar mentiria. Mas na hora de bater num goblin de verdade o app tem
+// a informação dos dois lados — o item diz "goblinoide", o bestiário diz
+// "Humanoide (goblinoide)" — e pode juntar sozinho.
+// ---------------------------------------------------------------------------
+
+/** Minúsculas e sem acento, para "Dragão" casar com "dragao". */
+function normalizar(texto: string): string {
+  return texto.trim().toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '')
+}
+
+/**
+ * O tipo do alvo casa com o alvo do item?
+ *
+ * A comparação é frouxa nos dois sentidos de propósito. O item costuma dizer
+ * uma palavra ("goblinoide") e a criatura vem com a linha inteira do bloco
+ * ("Humanoide Pequeno (goblinoide), neutro e mau") — exigir igualdade faria o
+ * bônus nunca disparar, que é o mesmo que não existir.
+ */
+export function alvoCasa(alvoDoItem: string, tipoDaCriatura: string): boolean {
+  const item = normalizar(alvoDoItem)
+  const alvo = normalizar(tipoDaCriatura)
+  if (!item || !alvo) return false
+  if (alvo.includes(item) || item.includes(alvo)) return true
+
+  // Plural simples: o item escrito "goblinoides" tem de achar "goblinoide".
+  const semPlural = item.replace(/e?s$/, '')
+  return semPlural.length > 2 && alvo.includes(semPlural)
+}
+
+/** O que soma ao bater NESTA criatura. */
+export interface BonusContraAlvo {
+  ataque: number
+  dano: number
+  danoExtra: string[]
+  fontes: string[]
+}
+
+/**
+ * Junta os condicionais que valem contra um alvo.
+ *
+ * Devolve zeros quando nada casa — quem chama não precisa saber se havia
+ * condicional nenhum ou se nenhum se aplicava.
+ */
+export function bonusContra(char: Character, tipoDaCriatura: string): BonusContraAlvo {
+  const fora: BonusContraAlvo = { ataque: 0, dano: 0, danoExtra: [], fontes: [] }
+  for (const c of bonusDeEquipamento(char).condicionais) {
+    if (!alvoCasa(c.contra, tipoDaCriatura)) continue
+    fora.ataque += c.ataque
+    fora.dano += c.dano
+    fora.danoExtra.push(...c.danoExtra)
+    for (const f of c.fontes) if (!fora.fontes.includes(f)) fora.fontes.push(f)
+  }
+  return fora
+}
+
+/** Tem alguma coisa para somar? */
+export function temBonusContra(b: BonusContraAlvo): boolean {
+  return b.ataque !== 0 || b.dano !== 0 || b.danoExtra.length > 0
+}

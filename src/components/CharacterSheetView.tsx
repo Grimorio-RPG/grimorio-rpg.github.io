@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { PainelDeAcoes } from './acoes-ui'
 import type { Character } from '../types'
 import { PainelDeEquipamento } from './equipamento-ui'
+import { bonusDeEquipamento } from '../lib/equipamento'
 import { ABILITIES, CONDICOES, SKILLS, rotuloClasse } from '../data/rules'
 import { ACOES_GERAIS, ROTULO_TIPO, acoesDaClasse, type AcaoInfo } from '../data/actions'
 import { spellsDaClasse } from '../data/spells'
@@ -191,6 +192,12 @@ export default function CharacterSheetView({
       {char.ataques.length > 0 && (
         <section className="card p-5">
           <h3 className="mb-3 panel-title">Ataques & Ações</h3>
+
+          {/* O que o equipamento soma, dito antes da tabela. O bônus que vale
+              sempre já entra nos números; o condicional não pode entrar, então
+              fica aqui, com o alvo, para a pessoa somar sabendo por quê.
+              Na aba Batalha, escolher o alvo faz o app somar sozinho. */}
+          <BonusDoEquipamentoNosAtaques char={char} />
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead><tr className="text-left panel-title"><th className="pb-2 pr-3">Nome</th><th className="pb-2 pr-3">Bônus</th><th className="pb-2 pr-3">Dano</th><th className="pb-2">Notas</th></tr></thead>
@@ -537,5 +544,45 @@ function Texto({ titulo, texto }: { titulo: string; texto: string }) {
       <h3 className="mb-2 panel-title">{titulo}</h3>
       <p className="whitespace-pre-wrap text-sm leading-relaxed text-parchment-100">{texto}</p>
     </section>
+  )
+}
+
+/**
+ * O que o equipamento acrescenta aos ataques.
+ *
+ * O bônus que vale sempre a pessoa pode somar de uma vez; o condicional
+ * depende de quem está na frente, e por isso vem com o alvo escrito. Quem
+ * rola pela aba Batalha não precisa disto — lá o app escolhe o alvo e soma.
+ */
+function BonusDoEquipamentoNosAtaques({ char }: { char: Character }) {
+  const b = bonusDeEquipamento(char)
+  const temGeral = b.ataque !== 0 || b.dano !== 0 || b.danoExtra.length > 0
+  if (!temGeral && b.condicionais.length === 0) return null
+  const sinal = (n: number) => (n >= 0 ? `+${n}` : `${n}`)
+
+  return (
+    <div className="mb-3 space-y-1.5 rounded-lg border border-white/10 bg-white/[0.03] p-2.5">
+      {temGeral && (
+        <p className="text-xs text-parchment-200/75">
+          <b className="text-parchment-50">Do equipamento, sempre:</b>{' '}
+          {[
+            b.ataque ? `${sinal(b.ataque)} no ataque` : '',
+            b.dano ? `${sinal(b.dano)} no dano` : '',
+            ...b.danoExtra.map((d) => `+${d.dado} ${d.descricao}`),
+          ].filter(Boolean).join(' · ')}
+        </p>
+      )}
+      {b.condicionais.map((c) => (
+        <p key={c.contra} className="text-xs text-amber-200/90">
+          <b>Contra {c.contra}:</b>{' '}
+          {[
+            c.ataque ? `${sinal(c.ataque)} no ataque` : '',
+            c.dano ? `${sinal(c.dano)} no dano` : '',
+            ...c.danoExtra.map((d) => `+${d}`),
+          ].filter(Boolean).join(' · ')}
+          <span className="text-parchment-200/40"> — {c.fontes.join(', ')}</span>
+        </p>
+      ))}
+    </div>
   )
 }

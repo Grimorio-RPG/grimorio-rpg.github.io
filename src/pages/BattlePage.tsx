@@ -19,6 +19,7 @@ import {
   tokensDaCena,
 } from '../lib/battle'
 import { PartyBar } from '../components/party-bar'
+import { bonusContra, bonusDeEquipamento, temBonusContra } from '../lib/equipamento'
 import { alteracaoDe, desfazerUltimo, empilhar, proximoADesfazer } from '../lib/desfazer'
 import {
   FaixaDeIniciativa,
@@ -594,6 +595,14 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
             <TurnoDoInimigo
               combatente={atual}
               monstro={monstros.find((m) => m.id === atual.refId)}
+            />
+          )}
+
+          {atual?.origem === 'aliado' && (
+            <TurnoDoPersonagem
+              combatente={atual}
+              alvos={battle.combatentes.filter((c) => c.origem === 'inimigo' && c.pvAtual > 0)}
+              monstros={monstros}
             />
           )}
 
@@ -1957,6 +1966,165 @@ function PainelDeDano({
       >
         💚
       </button>
+    </div>
+  )
+}
+
+
+/**
+ * O turno de um personagem: os ataques dele e contra quem.
+ *
+ * Existe por causa do bônus condicional. A espada que dá "+2 contra
+ * goblinoides" aparecia na ficha e parava ali — na hora de bater, a pessoa
+ * somava de cabeça e lembrava (ou não). Aqui o app tem os dois lados: o item
+ * diz "goblinoide", o bestiu00e1rio diz "Humanoide (goblinoide)". Escolher o alvo
+ * junta os dois.
+ */
+function TurnoDoPersonagem({
+  combatente,
+  alvos,
+  monstros,
+}: {
+  combatente: Combatant
+  alvos: Combatant[]
+  monstros: Monster[]
+}) {
+  const [ultima, setUltima] = useState('')
+  const [alvoId, setAlvoId] = useState<string>('')
+
+  // A ficha viva, e não a cópia que entrou no combate: o equipamento pode ter
+  // mudado depois que a criatura entrou na iniciativa.
+  const ficha = useMemo(
+    () => loadCharacters().find((f) => f.id === combatente.refId),
+    [combatente.refId],
+  )
+  if (!ficha) return null
+
+  const alvo = alvos.find((a) => a.id === alvoId)
+  const tipoDoAlvo = alvo ? (monstros.find((m) => m.id === alvo.refId)?.tipo ?? '') : ''
+  const extra = bonusContra(ficha, tipoDoAlvo)
+  const geral = bonusDeEquipamento(ficha)
+  const vale = temBonusContra(extra)
+
+  function rolarAtaque(nome: string, bonusTexto: string) {
+    const base = parseInt((bonusTexto || '').replace(/[^\d+-]/g, ''), 10) || 0
+    const total = base + geral.ataque + extra.ataque
+    setUltima(
+      descreveRolagem(
+        rolarComModo(1, 20, total, `${ficha!.nome} · ${nome}${alvo ? ` → ${alvo.nome}` : ''}`),
+      ),
+    )
+  }
+
+  function rolarDano(nome: string, danoTexto: string) {
+    const m = notacaoDeDado(danoTexto)
+    if (!m) return
+    const mod = (m[3] ? parseInt(m[3].replace(/\s+/g, ''), 10) : 0) + geral.dano + extra.dano
+    const r = rolarComModo(Number(m[1]), Number(m[2]), mod, `${ficha!.nome} · ${nome} (dano)`)
+    let texto = descreveRolagem(r)
+
+    // Os dados extras rolam junto e são somados no relato — separar em duas
+    // rolagens obrigaria a pessoa a somar na mão, que é o que queremos tirar.
+    const dados = [...geral.danoExtra.map((d) => d.dado), ...extra.danoExtra]
+    for (const d of dados) {
+      const n = notacaoDeDado(d)
+      if (!n) continue
+      const e = rolarComModo(Number(n[1]), Number(n[2]), 0, `${ficha!.nome} · ${nome} (extra ${d})`)
+      texto += ` + ${e.total} (${d})`
+    }
+    setUltima(texto)
+  }
+
+  return (
+    <div className="card border-l-4 border-l-emerald-400/70 p-3">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <span className="panel-title">Turno de</span>
+        <b className="text-parchment-50">{combatente.nome}</b>
+        <span className="chip text-xs">CA {combatente.ca}</span>
+        <span className="chip text-xs">
+          PV {combatente.pvAtual}/{combatente.pvMax}
+        </span>
+      </div>
+
+      {/* Escolher o alvo é o que destrava o condicional. Sem alvo, o app
+          soma só o que vale sempre. */}
+      {alvos.length > 0 && (
+        <label className="mb-2 flex flex-wrap items-center gap-2 text-xs text-parchment-200/70">
+          Atacando
+          <select
+            className="stat-input w-auto py-1 text-xs"
+            value={alvoId}
+            onChange={(e) => setAlvoId(e.target.value)}
+          >
+            <option value="">— escolha o alvo —</option>
+            {alvos.map((a) => (
+              <option key={a.id} value={a.id}>{a.nome}</option>
+            ))}
+          </select>
+          {vale && (
+            <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-200">
+              {[
+                extra.ataque ? `+${extra.ataque} no ataque` : '',
+                extra.dano ? `+${extra.dano} no dano` : '',
+                ...extra.danoExtra.map((d) => `+${d}`),
+              ].filter(Boolean).join(' · ')} — {extra.fontes.join(', ')}
+            </span>
+          )}
+        </label>
+      )}
+
+      {ultima && (
+        <p className="mb-2 rounded-lg border border-emerald-400/30 bg-emerald-500/10 p-2 text-sm text-parchment-100">
+          🎲 {ultima}
+        </p>
+      )}
+
+      {ficha.ataques.length === 0 ? (
+        <p className="text-sm text-parchment-200/50">
+          Esta ficha não tem ataques cadastrados.
+        </p>
+      ) : (
+        <div className="space-y-1.5">
+          {ficha.ataques.map((a) => (
+            <div
+              key={a.id}
+              className="flex flex-wrap items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] p-2"
+            >
+              <span className="min-w-0 flex-1 text-sm text-parchment-50">{a.nome || 'Ataque'}</span>
+              {a.bonus && (
+                <button
+                  type="button"
+                  className="chip shrink-0 hover:border-emerald-400/60"
+                  onClick={() => rolarAtaque(a.nome || 'Ataque', a.bonus)}
+                >
+                  🎯 {a.bonus}
+                  {geral.ataque + extra.ataque !== 0 && (
+                    <b className="text-amber-300">
+                      {geral.ataque + extra.ataque > 0 ? '+' : ''}
+                      {geral.ataque + extra.ataque}
+                    </b>
+                  )}
+                </button>
+              )}
+              {a.dano && (
+                <button
+                  type="button"
+                  className="chip shrink-0 hover:border-dragon-400/60"
+                  onClick={() => rolarDano(a.nome || 'Ataque', a.dano)}
+                >
+                  🎲 {a.dano}
+                  {geral.dano + extra.dano !== 0 && (
+                    <b className="text-amber-300">
+                      {geral.dano + extra.dano > 0 ? '+' : ''}
+                      {geral.dano + extra.dano}
+                    </b>
+                  )}
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
