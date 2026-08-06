@@ -1,0 +1,209 @@
+// Verifica que o equipamento vestido MUDA a ficha.
+//
+// Os itens mágicos do app eram texto: "Anel de Proteção: +1 na CA e em todas as
+// salvaguardas". Ninguém somava por você, e a conta acabava na cabeça da
+// pessoa — foi assim que a CA do Thorn divergiu do D&D Beyond.
+//
+// O caso que mais importa aqui é o bônus CONDICIONAL: uma espada que dá +2
+// contra goblinoides não pode entrar no total, senão a ficha mente em toda luta
+// que não for contra goblinoide.
+
+import { mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
+import { execSync } from 'node:child_process'
+
+const dir = mkdtempSync(join(tmpdir(), 'equip-'))
+const compilar = (entrada, saida) => {
+  const alvo = join(dir, saida)
+  execSync(`npx esbuild ${entrada} --bundle --outfile=${alvo} --format=esm --log-level=error`)
+  return import(pathToFileURL(alvo).href)
+}
+
+const {
+  bonusDeEquipamento, atributoComEquipamento, equipar, desequipar,
+  excedeSintonia, porSlot, itensAtivos, descreveEfeito, LIMITE_SINTONIA,
+} = await compilar('src/lib/equipamento.ts', 'equipamento.js')
+const { armorClass, armorClassDetalhe, saveBonus, skillBonus, atributoEfetivo } =
+  await compilar('src/lib/calc.ts', 'calc.js')
+
+let falhas = 0
+let testes = 0
+function checar(nome, condicao, detalhe = '') {
+  testes++
+  if (condicao) return
+  falhas++
+  console.error(`  ✗ ${nome}${detalhe ? `\n      ${detalhe}` : ''}`)
+}
+
+const item = (nome, slot, efeitos, extra = {}) => ({
+  id: nome, nome, slot, efeitos, equipado: true, ...extra,
+})
+
+const BASE = {
+  id: 'c1', nome: 'Thorn', nivel: 5,
+  atributos: { for: 16, des: 14, con: 14, int: 10, sab: 12, car: 8 },
+  classeArmaduraManual: null, armaduraEquipada: '', escudoEquipado: false,
+  talentos: [], salvaguardasProficientes: ['for'], periciasProficientes: ['atletismo'],
+  periciasExpertise: [], pvMax: 40, pvAtual: 40, iniciativaBonus: 0,
+  atributoConjuracao: null, equipamentos: [],
+}
+const com = (...itens) => ({ ...BASE, equipamentos: itens })
+
+// ---------------------------------------------------------------------------
+console.log('Classe de Armadura')
+
+checar('sem nada: 10 + DES', armorClass(BASE) === 12, `deu ${armorClass(BASE)}`)
+
+const cota = item('Cota de Malha', 'corpo', [{ tipo: 'caBase', valor: 16, maxDes: 0 }])
+checar('armadura pesada zera a DES', armorClass(com(cota)) === 16, `deu ${armorClass(com(cota))}`)
+
+const couro = item('Couro Batido', 'corpo', [{ tipo: 'caBase', valor: 12, maxDes: null }])
+checar('armadura leve soma a DES toda', armorClass(com(couro)) === 14)
+
+const anel = item('Anel de Proteção', 'anel1', [
+  { tipo: 'ca', valor: 1 },
+  { tipo: 'salvaguarda', valor: 1 },
+], { sintonia: true, sintonizado: true })
+checar('o anel soma na CA', armorClass(com(couro, anel)) === 15)
+checar('e nas salvaguardas', saveBonus(com(anel), 'des') === 3, `deu ${saveBonus(com(anel), 'des')}`)
+checar('inclusive nas que já têm proficiência',
+  saveBonus(com(anel), 'for') === 3 + 3 + 1, `deu ${saveBonus(com(anel), 'for')}`)
+
+// Duas armaduras não somam: vestir uma tira a outra, mas se o dado vier torto
+// (importado, editado à mão) a maior vence em vez de somarem.
+const duas = { ...BASE, equipamentos: [cota, couro] }
+checar('duas bases não somam, vence a maior', armorClass(duas) === 16, `deu ${armorClass(duas)}`)
+
+checar('a CA continua explicável', armorClassDetalhe(com(couro, anel)).includes('Couro Batido'))
+
+// O campo antigo continua funcionando para quem já preencheu a ficha.
+checar('sem slots, o campo antigo ainda vale',
+  armorClass({ ...BASE, armaduraEquipada: 'Cota de Malha' }) === 16)
+// E o que a pessoa VESTE vence o campo antigo.
+checar('o slot vence o campo antigo',
+  armorClass({ ...BASE, armaduraEquipada: 'Cota de Malha', equipamentos: [couro] }) === 14)
+
+// ---------------------------------------------------------------------------
+console.log('Atributos')
+
+const cinto = item('Cinto de Força de Gigante', 'cinto', [
+  { tipo: 'atributoFixo', atributo: 'for', valor: 21 },
+], { sintonia: true, sintonizado: true })
+checar('o cinto DEFINE a Força', atributoComEquipamento(com(cinto), 'for') === 21)
+
+const bracadeira = item('Braçadeira', 'maos', [{ tipo: 'atributo', atributo: 'for', valor: 2 }])
+// Fixar e somar não se misturam: 21 continua sendo 21, não 23.
+checar('somar não empilha sobre o fixado',
+  atributoComEquipamento(com(cinto, bracadeira), 'for') === 21,
+  `deu ${atributoComEquipamento(com(cinto, bracadeira), 'for')}`)
+checar('mas sem o cinto, a soma vale',
+  atributoComEquipamento(com(bracadeira), 'for') === 18)
+
+// O que depende do atributo precisa mudar junto — foi por isso que a conta
+// virou uma função só.
+checar('a perícia acompanha o atributo',
+  skillBonus(com(cinto), 'atletismo') === 5 + 3, `deu ${skillBonus(com(cinto), 'atletismo')}`)
+checar('e a salvaguarda também',
+  saveBonus(com(cinto), 'for') === 5 + 3, `deu ${saveBonus(com(cinto), 'for')}`)
+checar('atributoEfetivo e atributoComEquipamento concordam',
+  atributoEfetivo(com(cinto), 'for') === atributoComEquipamento(com(cinto), 'for'))
+
+// ---------------------------------------------------------------------------
+console.log('O bônus que não vale sempre')
+//
+// A espada do exemplo: +2 para acertar e +2 de dano CONTRA goblinoides.
+
+const espada = item('Espada Matadora de Goblins', 'maoPrincipal', [
+  { tipo: 'ataque', valor: 2, contra: 'goblinoide' },
+  { tipo: 'dano', valor: 2, contra: 'goblinoide' },
+])
+const b = bonusDeEquipamento(com(espada))
+
+checar('não entra no ataque geral', b.ataque === 0, `entrou ${b.ataque}`)
+checar('nem no dano geral', b.dano === 0, `entrou ${b.dano}`)
+checar('e fica guardado como condicional', b.condicionais.length === 1)
+checar('com o alvo certo', b.condicionais[0].contra === 'goblinoide')
+checar('e os dois bônus juntos',
+  b.condicionais[0].ataque === 2 && b.condicionais[0].dano === 2,
+  JSON.stringify(b.condicionais[0]))
+checar('dizendo de qual item veio',
+  b.condicionais[0].fontes.includes('Espada Matadora de Goblins'))
+
+// Uma espada +1 comum entra no total; a condicional continua à parte.
+const maisUm = item('Espada +1', 'maoSecundaria', [
+  { tipo: 'ataque', valor: 1 },
+  { tipo: 'dano', valor: 1 },
+])
+const b2 = bonusDeEquipamento(com(espada, maisUm))
+checar('o bônus incondicional entra no total', b2.ataque === 1 && b2.dano === 1)
+checar('e o condicional continua separado', b2.condicionais[0].ataque === 2)
+
+// Dois itens contra o mesmo tipo somam entre si.
+const arco = item('Arco Caçador', 'maoSecundaria', [
+  { tipo: 'dano', valor: 1, contra: 'Goblinoide' },
+])
+const b3 = bonusDeEquipamento(com(espada, arco))
+checar('mesmo alvo escrito diferente vira um só',
+  b3.condicionais.length === 1 && b3.condicionais[0].dano === 3,
+  JSON.stringify(b3.condicionais))
+
+// Dano extra em dado — a Espada Flamejante.
+const flamejante = item('Espada Flamejante', 'maoPrincipal', [
+  { tipo: 'danoExtra', dado: '2d6', descricao: 'de fogo' },
+], { sintonia: true, sintonizado: true })
+checar('dano em dado entra separado do plano',
+  bonusDeEquipamento(com(flamejante)).danoExtra[0].dado === '2d6')
+
+// ---------------------------------------------------------------------------
+console.log('Vestir e tirar')
+
+const guardado = { ...anel, id: 'a2', nome: 'Anel de Fogo', equipado: false }
+const lista = [anel, { ...guardado, slot: 'anel1' }]
+
+// Vestir o segundo anel no mesmo dedo tira o primeiro — senão dois anéis
+// somariam CA para sempre.
+const trocado = equipar(lista, 'a2')
+checar('vestir tira o que ocupava o lugar',
+  trocado.find((e) => e.id === 'a2').equipado && !trocado.find((e) => e.id === 'Anel de Proteção').equipado)
+
+checar('tirar não mexe no resto',
+  desequipar(lista, 'a2').find((e) => e.id === 'Anel de Proteção').equipado)
+
+checar('o mapa por slot mostra o que está vestido',
+  porSlot(com(couro, anel)).corpo?.nome === 'Couro Batido')
+
+// Guardado na mochila não conta.
+checar('item não equipado não vale',
+  bonusDeEquipamento(com({ ...anel, equipado: false })).ca === 0)
+
+// Sintonia não feita não vale — é o erro de regra que a mesa mais deixa passar.
+checar('item de sintonia sem sintonizar não vale',
+  bonusDeEquipamento(com({ ...anel, sintonizado: false })).ca === 0)
+checar('e nem aparece entre os ativos',
+  itensAtivos(com({ ...anel, sintonizado: false })).length === 0)
+
+// ---------------------------------------------------------------------------
+console.log('Limite de sintonia')
+
+const tres = [1, 2, 3].map((n) => ({ ...anel, id: `s${n}`, nome: `Item ${n}`, slot: `anel${n}` }))
+checar('três sintonizados cabem', excedeSintonia(com(...tres)) === 0)
+const quatro = [...tres, { ...anel, id: 's4', nome: 'Item 4', slot: 'cinto' }]
+checar('o quarto excede', excedeSintonia(com(...quatro)) === 1)
+checar('o limite é o da regra', LIMITE_SINTONIA === 3)
+
+// ---------------------------------------------------------------------------
+console.log('Texto dos efeitos')
+
+checar('CA', descreveEfeito({ tipo: 'ca', valor: 1 }) === '+1 de CA')
+checar('condicional diz contra o quê',
+  descreveEfeito({ tipo: 'dano', valor: 2, contra: 'goblinoide' }) === '+2 no dano contra goblinoide')
+checar('atributo fixo é dito como definição, não soma',
+  descreveEfeito({ tipo: 'atributoFixo', atributo: 'for', valor: 21 }).includes('passa a 21'))
+
+if (falhas > 0) {
+  console.error(`\n✗ ${falhas} de ${testes} verificações de equipamento falharam`)
+  process.exit(1)
+}
+console.log(`✓ ${testes} verificações de equipamento passaram`)

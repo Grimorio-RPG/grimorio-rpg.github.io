@@ -2,10 +2,29 @@ import type { AbilityKey, Character, SkillKey } from '../types'
 import { CLASSES, SKILLS } from '../data/rules'
 import { ESCUDO_CA, acharArmadura } from '../data/equipment'
 import { defesaSemArmadura } from './features'
+import { bonusDeEquipamento } from './equipamento'
 
 /** Modificador de atributo: floor((valor - 10) / 2). */
 export function abilityMod(score: number): number {
   return Math.floor((score - 10) / 2)
+}
+
+/**
+ * O atributo da pessoa já com o que ela veste.
+ *
+ * Existe porque um Cinto de Força muda TUDO que depende de Força — CA sem
+ * armadura, ataque, Atletismo, carga. Espalhar essa soma por cada conta seria
+ * garantir que uma delas ficasse para trás.
+ */
+export function atributoEfetivo(char: Character, chave: AbilityKey): number {
+  const bonus = bonusDeEquipamento(char)
+  const somado = char.atributos[chave] + (bonus.atributos[chave] ?? 0)
+  return Math.max(somado, bonus.atributosFixos[chave] ?? 0)
+}
+
+/** Modificador do atributo já com o equipamento. */
+export function modEfetivo(char: Character, chave: AbilityKey): number {
+  return abilityMod(atributoEfetivo(char, chave))
 }
 
 /** Formata um modificador com sinal, ex: 3 -> "+3", -1 -> "-1". */
@@ -20,20 +39,21 @@ export function proficiencyBonus(nivel: number): number {
 
 /** Bônus de uma salvaguarda, considerando proficiência. */
 export function saveBonus(char: Character, key: AbilityKey): number {
-  const base = abilityMod(char.atributos[key])
+  const base = modEfetivo(char, key)
   const prof = char.salvaguardasProficientes.includes(key) ? proficiencyBonus(char.nivel) : 0
-  return base + prof
+  const item = bonusDeEquipamento(char)
+  return base + prof + item.salvaguardaGeral + (item.salvaguardas[key] ?? 0)
 }
 
 /** Bônus de uma perícia, considerando proficiência e expertise. */
 export function skillBonus(char: Character, key: SkillKey): number {
   const skill = SKILLS.find((s) => s.key === key)!
-  const base = abilityMod(char.atributos[skill.atributo])
+  const base = modEfetivo(char, skill.atributo)
   const pb = proficiencyBonus(char.nivel)
   let prof = 0
   if (char.periciasExpertise.includes(key)) prof = pb * 2
   else if (char.periciasProficientes.includes(key)) prof = pb
-  return base + prof
+  return base + prof + (bonusDeEquipamento(char).pericias[key] ?? 0)
 }
 
 /**
@@ -60,8 +80,8 @@ function basesDeTraco(char: Character): ParteCa[] {
   // diferença entre o Bárbaro (mantém com escudo) e o Monge (perde).
   const atributo = defesaSemArmadura(char)
   if (!atributo) return []
-  const des = abilityMod(char.atributos.des)
-  const extra = abilityMod(char.atributos[atributo])
+  const des = modEfetivo(char, 'des')
+  const extra = modEfetivo(char, atributo)
   return [
     {
       valor: 10 + des + extra,
@@ -71,24 +91,45 @@ function basesDeTraco(char: Character): ParteCa[] {
 }
 
 /** Bônus que somam à CA, venham de onde vierem. */
-function bonusDeCa(char: Character): ParteCa[] {
+function bonusDeCa(char: Character, vesteArmadura: boolean): ParteCa[] {
   const extras: ParteCa[] = []
   // Estilo de luta Defesa: +1 só enquanto se usa armadura.
-  if (char.armaduraEquipada && char.talentos.includes('Defesa')) {
+  if (vesteArmadura && char.talentos.includes('Defesa')) {
     extras.push({ valor: 1, rotulo: '+1 (Defesa)' })
   }
   if (char.escudoEquipado) {
     extras.push({ valor: ESCUDO_CA, rotulo: `+${ESCUDO_CA} (escudo)` })
   }
+  // Anel de Proteção, Manto de Proteção, armadura +1: somam por cima de tudo.
+  const item = bonusDeEquipamento(char)
+  if (item.ca !== 0) {
+    extras.push({ valor: item.ca, rotulo: `${fmtMod(item.ca)} (equipamento)` })
+  }
   return extras
 }
 
 function composicaoCa(char: Character): { base: ParteCa; extras: ParteCa[] } {
-  const modDes = abilityMod(char.atributos.des)
+  const modDes = modEfetivo(char, 'des')
+  const item = bonusDeEquipamento(char)
+
+  // A armadura vestida no slot vence o campo antigo: se a pessoa preencheu os
+  // dois, o que ela está VESTINDO é o que vale.
   const armadura = char.armaduraEquipada ? acharArmadura(char.armaduraEquipada) : undefined
+  const doSlot = item.caBase
 
   let base: ParteCa
-  if (!armadura) {
+  if (doSlot) {
+    const limite = doSlot.maxDes
+    const desAplicado = limite == null ? modDes : Math.min(modDes, limite)
+    base = {
+      valor: doSlot.valor + desAplicado,
+      rotulo: `${doSlot.valor} (${doSlot.fonte})${
+        desAplicado !== 0 || limite !== 0
+          ? ` ${fmtMod(desAplicado)} (DES${limite != null && modDes > limite ? `, máx ${limite}` : ''})`
+          : ''
+      }`,
+    }
+  } else if (!armadura) {
     base = { valor: 10 + modDes, rotulo: `10 ${fmtMod(modDes)} (DES)` }
   } else {
     const limite = armadura.maxDes
@@ -104,7 +145,7 @@ function composicaoCa(char: Character): { base: ParteCa; extras: ParteCa[] } {
     if (alternativa.valor > base.valor) base = alternativa
   }
 
-  return { base, extras: bonusDeCa(char) }
+  return { base, extras: bonusDeCa(char, !!doSlot || !!armadura) }
 }
 
 /**
@@ -128,19 +169,19 @@ export function armorClassDetalhe(char: Character): string {
 
 /** Bônus de iniciativa: mod DES + bônus manual. */
 export function initiative(char: Character): number {
-  return abilityMod(char.atributos.des) + char.iniciativaBonus
+  return modEfetivo(char, 'des') + char.iniciativaBonus
 }
 
 /** CD de magia: 8 + PB + mod do atributo de conjuração. */
 export function spellSaveDC(char: Character): number | null {
   if (!char.atributoConjuracao) return null
-  return 8 + proficiencyBonus(char.nivel) + abilityMod(char.atributos[char.atributoConjuracao])
+  return 8 + proficiencyBonus(char.nivel) + modEfetivo(char, char.atributoConjuracao)
 }
 
 /** Bônus de ataque com magia: PB + mod do atributo de conjuração. */
 export function spellAttackBonus(char: Character): number | null {
   if (!char.atributoConjuracao) return null
-  return proficiencyBonus(char.nivel) + abilityMod(char.atributos[char.atributoConjuracao])
+  return proficiencyBonus(char.nivel) + modEfetivo(char, char.atributoConjuracao)
 }
 
 /** Valor passivo de uma perícia: 10 + bônus da perícia. */

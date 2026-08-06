@@ -52,6 +52,90 @@ export interface SpellSlot {
   usados: number
 }
 
+// ---------------------------------------------------------------------------
+// Equipamento
+//
+// O que muda em relação ao inventário: um item de inventário é uma linha de
+// texto com peso. Um equipamento é vestido num lugar do corpo e MUDA a ficha —
+// a CA, o ataque, o dano, um atributo, uma perícia.
+//
+// Os efeitos são estruturados de propósito. "Anel de Proteção: +1 na CA e nas
+// salvaguardas" escrito como frase é bonito e inútil: ninguém soma por você, e
+// a pessoa acaba mantendo a conta na cabeça — que foi exatamente como a CA do
+// Thorn divergiu do D&D Beyond.
+// ---------------------------------------------------------------------------
+
+/**
+ * Onde o item é vestido.
+ *
+ * D&D não tem slots no livro, mas tem as regras que os produzem: não se usa
+ * dois elmos, anéis são dois, e o DMG diz que vestir duas coisas iguais não
+ * acumula. Slot é essa regra, escrita de um jeito que a tela entende.
+ */
+export type SlotEquipamento =
+  | 'cabeca'
+  | 'pescoco'
+  | 'corpo'
+  | 'capa'
+  | 'maos'
+  | 'anel1'
+  | 'anel2'
+  | 'cinto'
+  | 'pes'
+  | 'maoPrincipal'
+  | 'maoSecundaria'
+
+/**
+ * O que um item faz, em forma que o app consegue somar.
+ *
+ * `contra` é o que sustenta a espada que dá "+2 contra goblinoides": o bônus
+ * não entra no total, porque não vale sempre — ele aparece na hora de rolar
+ * contra aquele tipo de criatura.
+ */
+export type EfeitoDeItem =
+  /** Soma na Classe de Armadura. */
+  | { tipo: 'ca'; valor: number }
+  /** Substitui a base da CA — é o que uma armadura faz. */
+  | { tipo: 'caBase'; valor: number; maxDes?: number | null }
+  | { tipo: 'ataque'; valor: number; contra?: string }
+  | { tipo: 'dano'; valor: number; contra?: string }
+  /** Dano extra em dado, ex: "2d6" de fogo da Espada Flamejante. */
+  | { tipo: 'danoExtra'; dado: string; descricao?: string; contra?: string }
+  /** Soma no valor do atributo. */
+  | { tipo: 'atributo'; atributo: AbilityKey; valor: number }
+  /** Define o atributo, se for maior — Cinto de Força, Amuleto de Saúde. */
+  | { tipo: 'atributoFixo'; atributo: AbilityKey; valor: number }
+  /** Sem atributo, vale para todas as salvaguardas. */
+  | { tipo: 'salvaguarda'; valor: number; atributo?: AbilityKey }
+  | { tipo: 'pericia'; pericia: SkillKey; valor: number }
+  | { tipo: 'vantagem'; em: string }
+  | { tipo: 'resistencia'; a: string }
+  | { tipo: 'deslocamento'; metros: number }
+  /** Visão no escuro, percepção às cegas: texto, porque não entra em conta. */
+  | { tipo: 'sentido'; texto: string }
+  /** O que o item deixa VOCÊ fazer — vira botão na ficha. */
+  | { tipo: 'acao'; nome: string; descricao: string; usos?: string }
+
+export type RaridadeItem = 'Comum' | 'Incomum' | 'Raro' | 'Muito raro' | 'Lendário'
+
+export interface Equipamento {
+  id: string
+  nome: string
+  slot: SlotEquipamento
+  /** Emoji ou data URL. O visual do item na boneca. */
+  icone?: string
+  imagemUrl?: string
+  raridade?: RaridadeItem
+  /** Exige sintonia. O 5.5e limita a três por personagem. */
+  sintonia?: boolean
+  sintonizado?: boolean
+  /** Vestido agora. Guardado sem estar vestido continua na mochila. */
+  equipado?: boolean
+  efeitos: EfeitoDeItem[]
+  descricao?: string
+  peso?: number
+}
+
 export interface InventoryItem {
   id: string
   nome: string
@@ -155,6 +239,14 @@ export interface Character {
   // Inventário
   moedas: Moedas
   inventario: InventoryItem[]
+  /**
+   * O que a pessoa veste, e o que carrega mas não veste.
+   *
+   * Ausente em fichas antigas. Enquanto estiver ausente valem
+   * `armaduraEquipada` e `escudoEquipado`, que continuam existindo para não
+   * quebrar quem já preencheu a ficha.
+   */
+  equipamentos?: Equipamento[]
 
   // Recursos & Diversos
   inspiracaoHeroica: boolean

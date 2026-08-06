@@ -1,0 +1,313 @@
+// O que o equipamento faz com a ficha.
+//
+// Os itens mágicos do app eram texto: "Anel de Proteção: +1 na CA e em todas as
+// salvaguardas". Bonito e inútil — ninguém somava por você, e a conta acabava
+// na cabeça da pessoa. Foi exatamente assim que a CA do Thorn divergiu do
+// D&D Beyond.
+//
+// Aqui os efeitos viram números. E os que NÃO valem sempre — "+2 contra
+// goblinoides" — ficam separados de propósito: somá-los ao total mentiria em
+// toda luta que não fosse contra goblinoide.
+
+import type {
+  AbilityKey,
+  Character,
+  EfeitoDeItem,
+  Equipamento,
+  SkillKey,
+  SlotEquipamento,
+} from '../types'
+import { uid } from './character'
+
+/** Quantos itens de sintonia uma pessoa suporta. Regra de 5.5e. */
+export const LIMITE_SINTONIA = 3
+
+/** Os lugares do corpo, na ordem em que a boneca os desenha. */
+export const SLOTS: { slot: SlotEquipamento; nome: string; icone: string }[] = [
+  { slot: 'cabeca', nome: 'Cabeça', icone: '🪖' },
+  { slot: 'pescoco', nome: 'Pescoço', icone: '📿' },
+  { slot: 'capa', nome: 'Capa', icone: '🧣' },
+  { slot: 'corpo', nome: 'Corpo', icone: '🥋' },
+  { slot: 'maos', nome: 'Mãos', icone: '🧤' },
+  { slot: 'cinto', nome: 'Cinto', icone: '🎗️' },
+  { slot: 'pes', nome: 'Pés', icone: '🥾' },
+  { slot: 'anel1', nome: 'Anel I', icone: '💍' },
+  { slot: 'anel2', nome: 'Anel II', icone: '💍' },
+  { slot: 'maoPrincipal', nome: 'Mão principal', icone: '⚔️' },
+  { slot: 'maoSecundaria', nome: 'Mão secundária', icone: '🛡️' },
+]
+
+export function nomeDoSlot(slot: SlotEquipamento): string {
+  return SLOTS.find((s) => s.slot === slot)?.nome ?? slot
+}
+
+export function novoEquipamento(slot: SlotEquipamento = 'corpo'): Equipamento {
+  return { id: uid(), nome: '', slot, efeitos: [], equipado: false }
+}
+
+/**
+ * Um bônus que só vale contra certo tipo de criatura.
+ *
+ * Fica de fora do total porque somá-lo mentiria: a espada que dá +2 contra
+ * goblinoides não dá +2 contra um dragão. A tela mostra na hora de rolar.
+ */
+export interface BonusCondicional {
+  contra: string
+  ataque: number
+  dano: number
+  danoExtra: string[]
+  fontes: string[]
+}
+
+export interface BonusDeEquipamento {
+  ca: number
+  /** A base que a armadura vestida impõe, quando houver. */
+  caBase: { valor: number; maxDes: number | null; fonte: string } | null
+  ataque: number
+  dano: number
+  danoExtra: { dado: string; descricao: string }[]
+  atributos: Partial<Record<AbilityKey, number>>
+  atributosFixos: Partial<Record<AbilityKey, number>>
+  salvaguardaGeral: number
+  salvaguardas: Partial<Record<AbilityKey, number>>
+  pericias: Partial<Record<SkillKey, number>>
+  vantagens: string[]
+  resistencias: string[]
+  deslocamento: number
+  sentidos: string[]
+  acoes: { nome: string; descricao: string; usos?: string; fonte: string }[]
+  condicionais: BonusCondicional[]
+  /** Quantos itens sintonizados estão vestidos. */
+  sintonizados: number
+}
+
+function vazio(): BonusDeEquipamento {
+  return {
+    ca: 0,
+    caBase: null,
+    ataque: 0,
+    dano: 0,
+    danoExtra: [],
+    atributos: {},
+    atributosFixos: {},
+    salvaguardaGeral: 0,
+    salvaguardas: {},
+    pericias: {},
+    vantagens: [],
+    resistencias: [],
+    deslocamento: 0,
+    sentidos: [],
+    acoes: [],
+    condicionais: [],
+    sintonizados: 0,
+  }
+}
+
+/** Os itens que estão de fato valendo: vestidos, e sintonizados se exigirem. */
+export function itensAtivos(char: Character): Equipamento[] {
+  const todos = char.equipamentos ?? []
+  return todos.filter((e) => e.equipado && (!e.sintonia || e.sintonizado))
+}
+
+function acharCondicional(acc: BonusDeEquipamento, contra: string): BonusCondicional {
+  const chave = contra.trim().toLowerCase()
+  let alvo = acc.condicionais.find((c) => c.contra.toLowerCase() === chave)
+  if (!alvo) {
+    alvo = { contra: contra.trim(), ataque: 0, dano: 0, danoExtra: [], fontes: [] }
+    acc.condicionais.push(alvo)
+  }
+  return alvo
+}
+
+function aplicar(acc: BonusDeEquipamento, efeito: EfeitoDeItem, fonte: string): void {
+  switch (efeito.tipo) {
+    case 'ca':
+      acc.ca += efeito.valor
+      break
+
+    case 'caBase':
+      // Bases competem em vez de somar — vestir duas armaduras não é somar
+      // duas. Vence a maior, que é como a regra resolve quando há escolha.
+      if (!acc.caBase || efeito.valor > acc.caBase.valor) {
+        acc.caBase = { valor: efeito.valor, maxDes: efeito.maxDes ?? null, fonte }
+      }
+      break
+
+    case 'ataque':
+      if (efeito.contra) {
+        const c = acharCondicional(acc, efeito.contra)
+        c.ataque += efeito.valor
+        if (!c.fontes.includes(fonte)) c.fontes.push(fonte)
+      } else acc.ataque += efeito.valor
+      break
+
+    case 'dano':
+      if (efeito.contra) {
+        const c = acharCondicional(acc, efeito.contra)
+        c.dano += efeito.valor
+        if (!c.fontes.includes(fonte)) c.fontes.push(fonte)
+      } else acc.dano += efeito.valor
+      break
+
+    case 'danoExtra':
+      if (efeito.contra) {
+        const c = acharCondicional(acc, efeito.contra)
+        c.danoExtra.push(efeito.dado)
+        if (!c.fontes.includes(fonte)) c.fontes.push(fonte)
+      } else acc.danoExtra.push({ dado: efeito.dado, descricao: efeito.descricao ?? fonte })
+      break
+
+    case 'atributo':
+      acc.atributos[efeito.atributo] = (acc.atributos[efeito.atributo] ?? 0) + efeito.valor
+      break
+
+    case 'atributoFixo':
+      // Dois itens que fixam o mesmo atributo não somam: vale o maior.
+      acc.atributosFixos[efeito.atributo] = Math.max(
+        acc.atributosFixos[efeito.atributo] ?? 0,
+        efeito.valor,
+      )
+      break
+
+    case 'salvaguarda':
+      if (efeito.atributo) {
+        acc.salvaguardas[efeito.atributo] = (acc.salvaguardas[efeito.atributo] ?? 0) + efeito.valor
+      } else acc.salvaguardaGeral += efeito.valor
+      break
+
+    case 'pericia':
+      acc.pericias[efeito.pericia] = (acc.pericias[efeito.pericia] ?? 0) + efeito.valor
+      break
+
+    case 'vantagem':
+      if (!acc.vantagens.includes(efeito.em)) acc.vantagens.push(efeito.em)
+      break
+
+    case 'resistencia':
+      if (!acc.resistencias.includes(efeito.a)) acc.resistencias.push(efeito.a)
+      break
+
+    case 'deslocamento':
+      acc.deslocamento += efeito.metros
+      break
+
+    case 'sentido':
+      if (!acc.sentidos.includes(efeito.texto)) acc.sentidos.push(efeito.texto)
+      break
+
+    case 'acao':
+      acc.acoes.push({ ...efeito, fonte })
+      break
+  }
+}
+
+/** Soma tudo o que a pessoa está vestindo. */
+export function bonusDeEquipamento(char: Character): BonusDeEquipamento {
+  const acc = vazio()
+  for (const item of itensAtivos(char)) {
+    if (item.sintonia) acc.sintonizados++
+    for (const efeito of item.efeitos) aplicar(acc, efeito, item.nome || 'item')
+  }
+  return acc
+}
+
+/**
+ * O valor do atributo já com o equipamento.
+ *
+ * Somar e fixar não se misturam: o Cinto de Força de Gigante DEFINE a Força, e
+ * um item que soma +2 em cima disso não é como a regra funciona. Vence o maior
+ * entre o fixado e o somado.
+ */
+export function atributoComEquipamento(char: Character, chave: AbilityKey): number {
+  const bonus = bonusDeEquipamento(char)
+  const somado = char.atributos[chave] + (bonus.atributos[chave] ?? 0)
+  const fixo = bonus.atributosFixos[chave] ?? 0
+  return Math.max(somado, fixo)
+}
+
+/** A ficha como se os atributos já viessem com o equipamento. */
+export function comAtributosDoEquipamento(char: Character): Character {
+  const bonus = bonusDeEquipamento(char)
+  const temAlgo =
+    Object.keys(bonus.atributos).length > 0 || Object.keys(bonus.atributosFixos).length > 0
+  if (!temAlgo) return char
+
+  const atributos = { ...char.atributos }
+  for (const chave of Object.keys(atributos) as AbilityKey[]) {
+    atributos[chave] = atributoComEquipamento(char, chave)
+  }
+  return { ...char, atributos }
+}
+
+/**
+ * Quantos itens de sintonia passam do limite.
+ *
+ * A regra existe e a mesa esquece: três é o teto, e o quarto simplesmente não
+ * funciona. Melhor a ficha avisar do que descobrir no meio da luta.
+ */
+export function excedeSintonia(char: Character): number {
+  return Math.max(0, bonusDeEquipamento(char).sintonizados - LIMITE_SINTONIA)
+}
+
+/**
+ * Equipa um item, tirando o que ocupava o mesmo lugar.
+ *
+ * É o que faz a troca ser um clique: vestir o elmo novo tira o velho sozinho,
+ * em vez de deixar dois elmos somando CA.
+ */
+export function equipar(lista: Equipamento[], id: string): Equipamento[] {
+  const alvo = lista.find((e) => e.id === id)
+  if (!alvo) return lista
+  return lista.map((e) => {
+    if (e.id === id) return { ...e, equipado: true }
+    if (e.equipado && e.slot === alvo.slot) return { ...e, equipado: false }
+    return e
+  })
+}
+
+export function desequipar(lista: Equipamento[], id: string): Equipamento[] {
+  return lista.map((e) => (e.id === id ? { ...e, equipado: false } : e))
+}
+
+/** O que está vestido em cada lugar do corpo. */
+export function porSlot(char: Character): Partial<Record<SlotEquipamento, Equipamento>> {
+  const mapa: Partial<Record<SlotEquipamento, Equipamento>> = {}
+  for (const e of char.equipamentos ?? []) if (e.equipado) mapa[e.slot] = e
+  return mapa
+}
+
+/** Uma linha curta descrevendo o efeito, para a tela não precisar saber a forma. */
+export function descreveEfeito(e: EfeitoDeItem): string {
+  const sinal = (n: number) => (n >= 0 ? `+${n}` : `${n}`)
+  const contra = (c?: string) => (c ? ` contra ${c}` : '')
+  switch (e.tipo) {
+    case 'ca':
+      return `${sinal(e.valor)} de CA`
+    case 'caBase':
+      return `CA base ${e.valor}${e.maxDes != null ? ` (DES até ${e.maxDes})` : ''}`
+    case 'ataque':
+      return `${sinal(e.valor)} no ataque${contra(e.contra)}`
+    case 'dano':
+      return `${sinal(e.valor)} no dano${contra(e.contra)}`
+    case 'danoExtra':
+      return `+${e.dado} de dano${e.descricao ? ` ${e.descricao}` : ''}${contra(e.contra)}`
+    case 'atributo':
+      return `${sinal(e.valor)} de ${e.atributo.toUpperCase()}`
+    case 'atributoFixo':
+      return `${e.atributo.toUpperCase()} passa a ${e.valor}`
+    case 'salvaguarda':
+      return `${sinal(e.valor)} nas salvaguardas${e.atributo ? ` de ${e.atributo.toUpperCase()}` : ''}`
+    case 'pericia':
+      return `${sinal(e.valor)} em ${e.pericia}`
+    case 'vantagem':
+      return `Vantagem em ${e.em}`
+    case 'resistencia':
+      return `Resistência a ${e.a}`
+    case 'deslocamento':
+      return `${sinal(e.metros)} m de deslocamento`
+    case 'sentido':
+      return e.texto
+    case 'acao':
+      return `Ação: ${e.nome}`
+  }
+}
