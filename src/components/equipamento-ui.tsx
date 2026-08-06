@@ -10,6 +10,9 @@ import {
   LIMITE_SINTONIA,
   SLOTS,
   bonusDeEquipamento,
+  CORES_RARIDADE,
+  PRECO_POR_RARIDADE,
+  coresDe,
   descreveEfeito,
   desequipar,
   equipar,
@@ -130,6 +133,7 @@ export function PainelDeEquipamento({
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
         {SLOTS.map(({ slot, nome, icone }) => {
           const item = vestidos[slot]
+          const cor = coresDe(item?.raridade)
           return (
             <button
               key={slot}
@@ -137,7 +141,7 @@ export function PainelDeEquipamento({
               onClick={() => item && setEditando(item)}
               className={`rounded-lg border p-2 text-center transition ${
                 item
-                  ? 'border-arcane-400/50 bg-arcane-500/10 hover:border-arcane-400'
+                  ? `${cor.anel} ${cor.fundo} hover:brightness-125`
                   : 'border-dashed border-white/15 text-parchment-200/35 hover:border-white/30'
               }`}
               title={item ? `${item.nome} — toque para ver` : `${nome}: vazio`}
@@ -145,7 +149,7 @@ export function PainelDeEquipamento({
               <span className="block text-2xl">{item?.icone || icone}</span>
               <span className="mt-0.5 block truncate text-[11px] text-parchment-200/60">{nome}</span>
               {item && (
-                <span className="mt-0.5 block truncate text-xs font-medium text-parchment-50">
+                <span className={`mt-0.5 block truncate text-xs font-medium ${cor.texto}`}>
                   {item.nome}
                 </span>
               )}
@@ -185,10 +189,11 @@ export function PainelDeEquipamento({
           <ul className="space-y-1.5">
             {guardados.map((item) => {
               const mudancas = espiando === item.id ? previa(item) : null
+              const cor = coresDe(item.raridade)
               return (
                 <li
                   key={item.id}
-                  className="rounded-lg border border-white/10 bg-white/[0.03] p-2"
+                  className={`rounded-lg border p-2 ${cor.anel} ${cor.fundo}`}
                   onMouseEnter={() => setEspiando(item.id)}
                   onMouseLeave={() => setEspiando(null)}
                 >
@@ -198,11 +203,12 @@ export function PainelDeEquipamento({
                       className="min-w-0 flex-1 text-left"
                       onClick={() => setEditando(item)}
                     >
-                      <span className="block truncate text-sm text-parchment-50">
+                      <span className={`block truncate text-sm font-medium ${cor.texto}`}>
                         {item.nome || 'Sem nome'}
                       </span>
                       <span className="block truncate text-[11px] text-parchment-200/50">
                         {SLOTS.find((s) => s.slot === item.slot)?.nome}
+                        {item.raridade ? ` · ${item.raridade.toLowerCase()}` : ''}
                         {item.sintonia ? ' · sintonia' : ''}
                       </span>
                     </button>
@@ -441,8 +447,8 @@ function EditorDeItem({
     >
       <div className="card my-8 w-full max-w-2xl p-5" onClick={(e) => e.stopPropagation()}>
         <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-lg text-parchment-50">
-            {inicial.nome || 'Item novo'}
+          <h3 className={`text-lg font-semibold ${coresDe(item.raridade).texto}`}>
+            {item.nome || 'Item novo'}
           </h3>
           <button className="text-sm text-parchment-200/50 hover:text-parchment-100" onClick={onFechar}>
             fechar ✕
@@ -472,6 +478,30 @@ function EditorDeItem({
             placeholder="⚔️"
             title="Um emoji para o item aparecer na boneca"
           />
+        </div>
+
+        {/* A raridade não é enfeite: ela dá a cor e, na loja, o preço. */}
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          <span className="text-xs text-parchment-200/50">Raridade</span>
+          {(['Comum', 'Incomum', 'Raro', 'Muito raro', 'Lendário'] as const).map((r) => (
+            <button
+              key={r}
+              type="button"
+              onClick={() => set({ raridade: item.raridade === r ? undefined : r })}
+              className={`rounded-full border px-2 py-0.5 text-xs transition ${
+                item.raridade === r
+                  ? `${CORES_RARIDADE[r].anel} ${CORES_RARIDADE[r].fundo} ${CORES_RARIDADE[r].texto}`
+                  : 'border-white/10 text-parchment-200/40 hover:border-white/25'
+              }`}
+            >
+              {r}
+            </button>
+          ))}
+          {item.raridade && (
+            <span className="text-[11px] text-parchment-200/40">
+              vale {PRECO_POR_RARIDADE[item.raridade].toLocaleString('pt-BR')} PO
+            </span>
+          )}
         </div>
 
         <label className="mt-2 flex items-center gap-2 text-sm text-parchment-200/80">

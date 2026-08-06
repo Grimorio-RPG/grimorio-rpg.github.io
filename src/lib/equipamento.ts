@@ -15,9 +15,48 @@ import type {
   EfeitoDeItem,
   Equipamento,
   SkillKey,
+  RaridadeItem,
   SlotEquipamento,
 } from '../types'
 import { uid } from './character'
+
+/**
+ * A cor de cada raridade.
+ *
+ * É a convenção que veio dos RPGs de saque — branco, verde, azul, roxo,
+ * laranja — e que quase todo jogador já lê sem precisar de legenda. Serve para
+ * bater o olho numa mochila cheia e ver o que importa.
+ *
+ * Comum fica sem cor de propósito: colorir tudo é o mesmo que não colorir
+ * nada, e a maior parte do que se carrega é comum.
+ */
+export const CORES_RARIDADE: Record<RaridadeItem, { texto: string; anel: string; fundo: string }> = {
+  'Comum': { texto: 'text-parchment-50', anel: 'border-white/15', fundo: 'bg-white/[0.03]' },
+  'Incomum': { texto: 'text-emerald-300', anel: 'border-emerald-400/40', fundo: 'bg-emerald-500/[0.07]' },
+  'Raro': { texto: 'text-sky-300', anel: 'border-sky-400/40', fundo: 'bg-sky-500/[0.07]' },
+  'Muito raro': { texto: 'text-violet-300', anel: 'border-violet-400/45', fundo: 'bg-violet-500/[0.08]' },
+  'Lendário': { texto: 'text-amber-300', anel: 'border-amber-400/50', fundo: 'bg-amber-500/[0.09]' },
+}
+
+/**
+ * Quanto vale um item, por raridade.
+ *
+ * O SRD não dá preço item a item — dá esta tabela, e é o bastante para uma
+ * loja. Armadura e arma valem isto MAIS o preço do item base: uma Armadura de
+ * Placas +1 Rara vale 4.000 + 1.500.
+ */
+export const PRECO_POR_RARIDADE: Record<RaridadeItem, number> = {
+  'Comum': 100,
+  'Incomum': 400,
+  'Raro': 4000,
+  'Muito raro': 40000,
+  'Lendário': 200000,
+}
+
+/** As cores de um item. Sem raridade vale como comum. */
+export function coresDe(raridade?: RaridadeItem) {
+  return CORES_RARIDADE[raridade ?? 'Comum']
+}
 
 /** Quantos itens de sintonia uma pessoa suporta. Regra de 5.5e. */
 export const LIMITE_SINTONIA = 3
