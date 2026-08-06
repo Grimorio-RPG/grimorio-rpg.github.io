@@ -10,6 +10,7 @@ import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf'
 import 'pdfjs-dist/legacy/build/pdf.worker.entry'
 import type { AbilityKey, Attack, Character, InventoryItem, SkillKey, SpellRef } from '../types'
 import { novaFicha, uid } from './character'
+import { reconhecerEquipaveis } from './reconhecerEquipamento'
 import { abilityMod } from './calc'
 
 function garantirWorker() {
@@ -92,6 +93,8 @@ export interface ImportResumo {
   antecedente: string
   pericias: number
   ataques: number
+  /** Quantos itens viraram equipamento com efeito, e não linha de texto. */
+  equipamentos: number
   magias: number
   itens: number
   origem: string
@@ -209,7 +212,12 @@ export async function importarFichaDdb(file: File): Promise<{ char: Character; r
       notas: '',
     })
   }
-  ficha.inventario = inv
+  // O que for equipável vira equipamento de verdade, com os efeitos traçados.
+  // O resto continua na mochila de texto — inventar um efeito para "Corda de
+  // Cânhamo" seria pior do que deixá-la como está.
+  const { equipamentos, inventario } = reconhecerEquipaveis(inv)
+  ficha.inventario = inventario
+  if (equipamentos.length > 0) ficha.equipamentos = equipamentos
 
   // Conjuração
   const abrevConj = get('spellCastingAbility0').toUpperCase()
@@ -285,6 +293,7 @@ export async function importarFichaDdb(file: File): Promise<{ char: Character; r
     ataques: ficha.ataques.length,
     magias: ficha.magias.length,
     itens: ficha.inventario.length,
+    equipamentos: ficha.equipamentos?.length ?? 0,
     origem: classLevel,
   }
 

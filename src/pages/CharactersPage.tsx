@@ -250,6 +250,7 @@ function ImportPreview({
     ['Ataques', String(resumo.ataques)],
     ['Magias', String(resumo.magias)],
     ['Itens no inventário', String(resumo.itens)],
+    ['Equipáveis reconhecidos', String(resumo.equipamentos)],
   ]
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 backdrop-blur-sm" onClick={onCancel}>
