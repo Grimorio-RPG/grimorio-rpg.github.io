@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { PainelDeAcoes } from './acoes-ui'
 import type { Character } from '../types'
+import { PainelDeEquipamento } from './equipamento-ui'
 import { ABILITIES, CONDICOES, SKILLS, rotuloClasse } from '../data/rules'
 import { ACOES_GERAIS, ROTULO_TIPO, acoesDaClasse, type AcaoInfo } from '../data/actions'
 import { spellsDaClasse } from '../data/spells'
@@ -283,6 +284,19 @@ export default function CharacterSheetView({
 
       {/* Feitiços disponíveis para a classe */}
       <FeiticosDaClasse classe={char.classe} />
+
+      {/* Equipamento fica na visão de LEITURA, e não na de edição: é a coisa
+          que mais se troca DURANTE o jogo. Escondê-lo atrás de "Editar ficha"
+          faria a pessoa entrar em modo de edição no meio da luta para trocar
+          de arma. */}
+      <section className="card p-5">
+        <h3 className="mb-1 panel-title">Equipamento</h3>
+        <p className="mb-3 text-xs text-parchment-200/50">
+          O que você veste muda a ficha. Passe o olho num item guardado para ver a diferença
+          antes de vestir.
+        </p>
+        <PainelDeEquipamento char={char} onChange={update} />
+      </section>
 
 
       {/* Textos e inventário */}
