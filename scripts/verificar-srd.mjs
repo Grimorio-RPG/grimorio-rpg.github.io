@@ -94,8 +94,13 @@ checar('toda raridade é uma das cinco', raridadeInvalida.length === 0,
   raridadeInvalida.map((i) => `${i.nome}: ${i.raridades}`).join(' | '))
 
 // Raridade é preço: um item sem ela vai para a loja de graça.
+//
+// Os que sobram são os de "Rarity Varies" — Cinto de Força de Gigante, Poção de
+// Força de Gigante, Pergaminho de Magia: a raridade depende da variante e está
+// dentro de uma tabela. Precisam de leitura à mão, e o teto existe para essa
+// lista não crescer sem alguém reparar.
 const semRaridade = ITENS_SRD.filter((i) => i.raridades.length === 0)
-checar('quase todos têm raridade', semRaridade.length <= 5,
+checar('quase todos têm raridade', semRaridade.length <= 10,
   `${semRaridade.length} sem: ${semRaridade.map((i) => i.nome).join(', ')}`)
 checar('sem raridade também é sem preço',
   semRaridade.every((i) => i.precoPO === null))

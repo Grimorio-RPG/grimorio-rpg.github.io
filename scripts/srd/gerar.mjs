@@ -23,7 +23,11 @@ const CATEGORIAS = [
 ]
 const reTipo = new RegExp(`^(${CATEGORIAS.join('|')})\\b(.*)$`, 'i')
 
-const RARIDADE_QUALQUER = /\b(Common|Uncommon|Rare|Very Rare|Legendary)\b/i
+// "Rarity Varies" e "Artifact" também são cabeçalho. Sem eles, a linha
+// "Wondrous Item, Rarity Varies" não era reconhecida e o Feather Token inteiro
+// sumia dentro do texto do item anterior.
+const RARIDADE_QUALQUER =
+  /\b(Common|Uncommon|Rare|Very Rare|Legendary|Rarity Varies|Artifact)\b/i
 
 /**
  * Esta linha é o cabeçalho de tipo de um item?
