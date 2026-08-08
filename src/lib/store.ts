@@ -20,6 +20,7 @@ export const CHAVES = {
   batalha: 'grimorio55e.battle.v1',
   mapa: 'grimorio55e.mapscene.v1',
   mundo: 'grimorio55e.mundo.v1',
+  loja: 'grimorio55e.loja.v1',
   // As imagens dos mapas ficam à parte: salvar um ponto não pode reescrever
   // megabytes de imagem.
   mundoImagens: 'grimorio55e.mundo.imagens.v1',

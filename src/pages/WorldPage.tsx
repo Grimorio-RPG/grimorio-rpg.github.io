@@ -19,6 +19,7 @@ import {
 import { imageToDataUrl } from '../lib/bestiary'
 import { EmptyState, Modal } from '../components/layout-ui'
 import { Field, SectionCard, SelectField, TextArea, TextField } from '../components/ui'
+import { PainelDaLoja } from '../components/loja-ui'
 
 export default function WorldPage() {
   const { mesa, souJogador } = useMesa()
@@ -309,6 +310,10 @@ function MundoDoMestre() {
           }}
         />
       )}
+
+      {/* A loja fica aqui porque loja é lugar, e lugar é o que esta aba trata.
+          Só o DM a vê: o estoque e a margem são decisão dele. */}
+      <PainelDaLoja />
     </div>
   )
 }

@@ -152,6 +152,14 @@ export interface Equipamento {
    * desvantagem em Furtividade e exige Força 13.
    */
   armadura?: string
+  /**
+   * Quanto o item vale, em peças de ouro.
+   *
+   * Guardado no item porque a raridade não basta: uma poção Rara e uma espada
+   * Rara têm a mesma raridade e não valem a mesma coisa. Sem isto, revender uma
+   * poção comprada por 2.000 devolveria 2.000.
+   */
+  precoPO?: number
 }
 
 export interface InventoryItem {
