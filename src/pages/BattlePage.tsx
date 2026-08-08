@@ -72,6 +72,7 @@ import { rolarComModo } from '../components/dice-ui'
 import { useEstadoMesa, useMesa } from '../hooks/useSync'
 import { CHAVES_MESA } from '../lib/sync/config'
 import { SelosDaMesa } from '../components/mesa-ui'
+import { aoMudar, passouNoTeste, semConcentracao } from '../lib/concentracao'
 
 type Modo = 'dm' | 'jogadores'
 type UpdateFn = (patch: Partial<Battle>) => void
@@ -159,6 +160,22 @@ function BatalhaDaMesa({ mesaId }: { mesaId: string }) {
 // ---------------------------------------------------------------------------
 function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateFn; ordenados: Combatant[] }) {
   const atual = battle.emAndamento ? ordenados[battle.turnoIndex] : null
+
+  /**
+   * O teste de concentração esperando resposta.
+   *
+   * Fica em estado, e não some sozinho, porque é justamente o que a mesa
+   * esquece: o mago leva a flechada, a conversa segue, e a Teia continua de pé
+   * por três turnos porque nada apontou para ela. Enquanto ninguém disser se
+   * passou ou falhou, isto fica na tela.
+   */
+  const [testeDeConcentracao, setTesteDeConcentracao] = useState<{
+    id: string
+    nome: string
+    magia: string
+    cd: number
+    dano: number
+  } | null>(null)
   const { mesa: mesaDoDm, souDm: ehDm } = useMesa()
   const mesaId = ehDm && mesaDoDm ? mesaDoDm.id : null
 
@@ -217,6 +234,14 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
   function patchC(id: string, p: Partial<Combatant>, rotulo?: string) {
     const alvo = battle.combatentes.find((c) => c.id === id)
 
+    // A concentração antes de qualquer outra coisa: cair a 0 ou ficar
+    // Incapacitado derruba a magia sem teste, e nesse caso pedir uma rolagem
+    // seria pedir um dado cujo resultado não muda nada.
+    const consequencia = alvo ? aoMudar(alvo, p) : null
+    if (consequencia?.caiu) {
+      p = { ...p, ...semConcentracao() }
+    }
+
     // O registro nasce aqui porque é aqui que a mudança acontece de verdade —
     // por botão de dano, por campo de PV ou por condição marcada.
     let registro = battle.registro
@@ -242,6 +267,16 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
       ...(registro !== battle.registro ? { registro } : {}),
       ...(desfazer !== battle.desfazer ? { desfazer } : {}),
     })
+
+    if (alvo && consequencia?.teste) {
+      setTesteDeConcentracao({
+        id,
+        nome: alvo.nome,
+        magia: alvo.concentracao ?? '',
+        cd: consequencia.teste.cd,
+        dano: consequencia.teste.dano,
+      })
+    }
 
     if (alvo?.origem !== 'aliado' || !alvo.refId) return
     if (p.pvAtual == null && p.condicoes == null && p.inspiracaoHeroica == null) return
@@ -475,6 +510,24 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
 
   return (
     <div className="space-y-5">
+      {/* O teste de concentração fica aqui em cima e não sai sozinho: é
+          exatamente o que a mesa esquece. */}
+      {testeDeConcentracao && (
+        <TesteDeConcentracao
+          teste={testeDeConcentracao}
+          onResolver={(manteve) => {
+            if (!manteve) {
+              patchC(
+                testeDeConcentracao.id,
+                semConcentracao(),
+                `${testeDeConcentracao.nome} perdeu a concentração`,
+              )
+            }
+            setTesteDeConcentracao(null)
+          }}
+        />
+      )}
+
       {recompensa && (
         <Modal titulo="⚔️ Encontro vencido" onClose={() => setRecompensa(null)}>
           <p className="text-sm text-parchment-200/80">
@@ -1227,6 +1280,71 @@ function MinhasCondicoes({
           ))}
         </div>
       )}
+    </div>
+  )
+}
+
+/**
+ * O teste de concentração, com o dado dentro.
+ *
+ * O registro já anunciava "role um teste, CD 12" e parava aí — anunciar é o que
+ * o app já fazia de graça. O que faltava era alguém rolar e alguma coisa
+ * acontecer: sem isso, a magia continuava de pé porque ninguém a tirou.
+ *
+ * A rolagem é de Constituição, e o bônus é digitado porque o combatente pode
+ * não ter ficha neste aparelho — o mago da mesa costuma estar no celular dele.
+ * Quem preferir rolar no dado de verdade responde direto nos dois botões.
+ */
+function TesteDeConcentracao({
+  teste,
+  onResolver,
+}: {
+  teste: { id: string; nome: string; magia: string; cd: number; dano: number }
+  onResolver: (manteve: boolean) => void
+}) {
+  const [bonus, setBonus] = useState('')
+
+  function rolar() {
+    const d20 = rolarComModo(1, 20, 0, `${teste.nome} — concentração (CD ${teste.cd})`)
+    const mod = parseInt(bonus, 10)
+    onResolver(passouNoTeste(d20.total, Number.isFinite(mod) ? mod : 0, teste.cd))
+  }
+
+  return (
+    <div className="card border-arcane-400/50 bg-arcane-500/[0.07] p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="panel-title text-arcane-300">🧿 Teste de concentração</p>
+          <p className="mt-1 text-sm text-parchment-100">
+            <b>{teste.nome}</b> sofreu {teste.dano} de dano segurando{' '}
+            <b className="text-arcane-300">{teste.magia || 'uma magia'}</b>. Salvaguarda de
+            Constituição <b>CD {teste.cd}</b>.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="flex items-center gap-1 text-xs text-parchment-200/60">
+            CON
+            <input
+              type="number"
+              value={bonus}
+              onChange={(e) => setBonus(e.target.value)}
+              placeholder="+0"
+              className="w-14 rounded-md border border-white/10 bg-ink-900/70 px-1 py-1 text-center text-sm outline-none focus:border-arcane-400"
+            />
+          </label>
+          <button className="btn-primary py-1 text-xs" onClick={rolar}>
+            🎲 Rolar
+          </button>
+          <span className="text-xs text-parchment-200/40">ou</span>
+          <button className="btn-ghost py-1 text-xs text-emerald-300" onClick={() => onResolver(true)}>
+            Passou
+          </button>
+          <button className="btn-ghost py-1 text-xs text-dragon-300" onClick={() => onResolver(false)}>
+            Falhou
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
