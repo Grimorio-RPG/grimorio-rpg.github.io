@@ -637,6 +637,26 @@ function LinhaDeArma({ ataque }: { ataque: AtaqueDeArma }) {
         </RollTextButton>
       </div>
       {ataque.notas && <p className="mt-1 text-xs text-parchment-200/50">{ataque.notas}</p>}
+      {/* O ataque extra de duas armas. Sem o estilo, o dano sai sem o
+          modificador de atributo — mostrar o dano cheio aqui daria de graça o
+          que o estilo custa uma escolha de nível. */}
+      {ataque.ataqueExtra && (
+        <p className="mt-1 text-xs text-emerald-300/90">
+          <b>Ataque extra (duas armas):</b>{' '}
+          <RollTextButton
+            texto={ataque.ataqueExtra.dano}
+            rotulo={`${ataque.nome} (ataque extra)`}
+            className="text-emerald-300/90"
+          >
+            {ataque.ataqueExtra.dano}
+          </RollTextButton>
+          {!ataque.ataqueExtra.comEstilo && (
+            <span className="text-parchment-200/40">
+              {' '}— sem o modificador no dano; o estilo Combate com Duas Armas o acrescenta
+            </span>
+          )}
+        </p>
+      )}
       {/* O condicional não entra nos números: somá-lo mentiria em toda luta que
           não fosse contra aquele tipo. Na aba Batalha, escolher o alvo faz o
           app somar sozinho. */}

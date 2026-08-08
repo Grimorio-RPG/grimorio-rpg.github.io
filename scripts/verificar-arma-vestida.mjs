@@ -20,19 +20,27 @@ import { execSync } from 'node:child_process'
 // cada um a SUA cópia dos outros, e `equipar` de uma cópia não conversaria com
 // `ataquesDeArmas` da outra.
 const dir = mkdtempSync(join(tmpdir(), 'arma-'))
-const ENTRADAS = ['lib/weapons', 'lib/equipamento', 'lib/calc', 'lib/character', 'lib/features']
+const ENTRADAS = [
+  'lib/weapons', 'lib/equipamento', 'lib/calc', 'lib/character', 'lib/features',
+  'data/itens-equipaveis',
+]
 execSync(
   `npx esbuild ${ENTRADAS.map((e) => `src/${e}.ts`).join(' ')} ` +
     `--bundle --splitting --outdir=${dir} --format=esm --log-level=error`,
 )
+// Com entradas de pastas diferentes o esbuild espelha a estrutura:
+// `src/lib/weapons.ts` sai em `lib/weapons.js`.
 const carregar = (n) => import(pathToFileURL(join(dir, `${n}.js`)).href)
 
-const { ataquesDeArmas } = await carregar('weapons')
-const { equipar, ocupaDuasMaos, itensAtivos, usaEscudo, vesteArmadura, bonusForaDasArmas } =
-  await carregar('equipamento')
-const { armorClass } = await carregar('calc')
-const { normalizeCharacter } = await carregar('character')
-const { defesaSemArmadura } = await carregar('features')
+const { ataquesDeArmas } = await carregar('lib/weapons')
+const {
+  equipar, equiparEm, ocupaDuasMaos, itensAtivos, usaEscudo, vesteArmadura,
+  bonusForaDasArmas, ehDeUmaMao, ehLeve, duasArmasLeves, slotsPossiveis,
+} = await carregar('lib/equipamento')
+const { armorClass } = await carregar('lib/calc')
+const { normalizeCharacter } = await carregar('lib/character')
+const { defesaSemArmadura } = await carregar('lib/features')
+const { doCatalogo, ITENS_EQUIPAVEIS } = await carregar('data/itens-equipaveis')
 
 let falhas = 0
 let testes = 0
@@ -167,6 +175,74 @@ checar('trocar na mesma mão guarda a anterior',
   trocado.find((e) => e.id === 'Espada Longa')?.equipado === false)
 
 // ---------------------------------------------------------------------------
+console.log('As duas mãos')
+//
+// As regras não exigem NADA para segurar uma arma na mão secundária: qualquer
+// um empunha duas adagas. O que exige é o ataque EXTRA, que pede a propriedade
+// Leve nas duas armas. O app escolhia a mão pela pessoa, e duas adagas eram
+// impossíveis.
+
+const adaga = arma('Adaga', 'Adaga')
+checar('a adaga é de uma mão', ehDeUmaMao(adaga) === true)
+checar('o arco longo não', ehDeUmaMao(arco) === false)
+checar('o escudo também não', ehDeUmaMao(escudo) === false)
+checar('a adaga cabe nas duas mãos',
+  slotsPossiveis(adaga).length === 2, JSON.stringify(slotsPossiveis(adaga)))
+checar('o arco só na principal',
+  JSON.stringify(slotsPossiveis(arco)) === JSON.stringify(['maoPrincipal']))
+
+const duas = [
+  { ...adaga, id: 'a1', equipado: false },
+  { ...adaga, id: 'a2', nome: 'Adaga curva', equipado: false },
+]
+const comDuas = equiparEm(equiparEm(duas, 'a1', 'maoPrincipal'), 'a2', 'maoSecundaria')
+checar('dá para empunhar duas adagas',
+  comDuas.filter((e) => e.equipado).length === 2,
+  JSON.stringify(comDuas.map((e) => [e.id, e.slot, e.equipado])))
+checar('cada uma na sua mão',
+  comDuas.find((e) => e.id === 'a1').slot === 'maoPrincipal' &&
+  comDuas.find((e) => e.id === 'a2').slot === 'maoSecundaria')
+
+// Pedir um lugar que a peça não aceita não pode pôr o elmo na mão.
+const elmo = { id: 'h', nome: 'Elmo', slot: 'cabeca', efeitos: [], equipado: false }
+checar('lugar impossível não muda nada',
+  equiparEm([elmo], 'h', 'maoPrincipal')[0].equipado !== true)
+
+const ataquesComDuas = ataquesDeArmas({ ...BASE, equipamentos: comDuas })
+checar('as duas armas rendem dois ataques', ataquesComDuas.length === 2)
+
+// ---------------------------------------------------------------------------
+console.log('O ataque extra de duas armas')
+
+const espadaCurta = { ...arma('Espada Curta', 'Espada Curta'), id: 'ec', slot: 'maoSecundaria' }
+const comLeves = { ...BASE, equipamentos: [{ ...adaga, id: 'a1' }, espadaCurta] }
+checar('a adaga é Leve', ehLeve(adaga) === true)
+checar('a espada longa não é', ehLeve(espada) === false)
+checar('duas Leves dão o ataque extra', duasArmasLeves(comLeves) === true)
+
+const semLeve = { ...BASE, equipamentos: [espada, { ...espadaCurta }] }
+checar('com arma não Leve na principal, não dá', duasArmasLeves(semLeve) === false)
+checar('e com uma mão só, também não',
+  duasArmasLeves({ ...BASE, equipamentos: [{ ...adaga, id: 'a1' }] }) === false)
+
+const [, secundaria] = ataquesDeArmas(comLeves)
+checar('o ataque extra aparece na arma secundária', !!secundaria?.ataqueExtra)
+checar('e não na principal', !ataquesDeArmas(comLeves)[0].ataqueExtra)
+// FOR 16 = +3. Sem o estilo, o dano extra sai sem o modificador.
+checar('sem o estilo, sai sem o modificador no dano',
+  secundaria?.ataqueExtra?.dano?.startsWith('1d6 '),
+  `deu ${secundaria?.ataqueExtra?.dano}`)
+checar('e o ataque normal dela continua com o modificador',
+  secundaria?.dano?.startsWith('1d6+3'), `deu ${secundaria?.dano}`)
+
+const comEstilo = { ...comLeves, talentos: ['Combate com Duas Armas'] }
+const [, comEstiloSec] = ataquesDeArmas(comEstilo)
+checar('com o estilo, o modificador entra',
+  comEstiloSec?.ataqueExtra?.dano?.startsWith('1d6+3'),
+  `deu ${comEstiloSec?.ataqueExtra?.dano}`)
+checar('e a tela sabe disso', comEstiloSec?.ataqueExtra?.comEstilo === true)
+
+// ---------------------------------------------------------------------------
 console.log('Uma só verdade para a CA')
 //
 // Os campos antigos viravam uma SEGUNDA fonte: marcar a caixa de escudo E
@@ -218,6 +294,58 @@ checar('de armadura no slot, perde', defesaSemArmadura(mongeBlindado) === null)
 
 const mongeComEscudo = { ...monge, equipamentos: [escudo] }
 checar('de escudo no slot, também perde', defesaSemArmadura(mongeComEscudo) === null)
+
+// ---------------------------------------------------------------------------
+console.log('Armadura encantada é armadura')
+//
+// Existia uma "Armadura +1" solta no catálogo: um +1 flutuante, sem base de CA.
+// Quem a equipava não estava vestindo armadura nenhuma — a CA subia 1 e mais
+// nada. Num Monge o estrago era maior, porque a Defesa sem Armadura continuava
+// valendo e o número saía do jeito que ninguém conseguiria explicar.
+
+const semBase = ITENS_EQUIPAVEIS.filter(
+  (i) => i.slot === 'corpo' && !i.efeitos.some((e) => e.tipo === 'caBase'),
+)
+checar('nenhum item de corpo é só um bônus solto', semBase.length === 0,
+  semBase.map((i) => i.nome).join(', '))
+
+const cotaMais1 = doCatalogo('Cota de Malha +1', 'x')
+checar('a armadura encantada existe no catálogo', !!cotaMais1)
+checar('e traz a base da armadura de verdade',
+  cotaMais1?.efeitos.some((e) => e.tipo === 'caBase' && e.valor === 16),
+  JSON.stringify(cotaMais1?.efeitos))
+checar('além do encantamento',
+  cotaMais1?.efeitos.some((e) => e.tipo === 'ca' && e.valor === 1))
+checar('e sabe qual armadura é', cotaMais1?.armadura === 'Cota de Malha')
+
+// O Monge: Defesa sem Armadura 10 + DES + SAB. Com DES 14 e SAB 14, dá 14.
+const monge14 = {
+  ...BASE, classe: 'Monge',
+  atributos: { for: 12, des: 14, con: 14, int: 10, sab: 14, car: 8 },
+  equipamentos: [],
+}
+checar('o Monge desarmado usa a Defesa sem Armadura',
+  armorClass(monge14) === 14, `deu ${armorClass(monge14)}`)
+
+// De Cota de Malha +1: 16 de base (a DES não conta) + 1 do encantamento = 17.
+// Antes o número era 15 — a Defesa sem Armadura mais o +1 solto.
+const mongeDeCota = { ...monge14, equipamentos: [{ ...cotaMais1, equipado: true }] }
+checar('de armadura encantada, a base da armadura vence',
+  armorClass(mongeDeCota) === 17, `deu ${armorClass(mongeDeCota)}`)
+checar('e a Defesa sem Armadura para de valer',
+  defesaSemArmadura(mongeDeCota) === null)
+checar('a CA subiu 3, não 1',
+  armorClass(mongeDeCota) - armorClass(monge14) === 3,
+  `subiu ${armorClass(mongeDeCota) - armorClass(monge14)}`)
+
+// Todo grau existe para toda armadura, e a conta bate em todas.
+for (const grau of [1, 2, 3]) {
+  const item = doCatalogo(`Placas +${grau}`, 'y')
+  checar(`Placas +${grau} existe`, !!item)
+  if (!item) continue
+  const comEla = { ...BASE, atributos: { ...BASE.atributos, des: 10 }, equipamentos: [{ ...item, equipado: true }] }
+  checar(`e dá CA ${18 + grau}`, armorClass(comEla) === 18 + grau, `deu ${armorClass(comEla)}`)
+}
 
 // ---------------------------------------------------------------------------
 console.log('Sintonia')

@@ -4,8 +4,10 @@ import { fmtMod, modEfetivo, proficiencyBonus } from './calc'
 import { uid } from './character'
 import {
   type BonusCondicional,
+  ESTILO_DUAS_ARMAS,
   armaBase,
   bonusParaArma,
+  duasArmasLeves,
   itensAtivos,
   ocupaDuasMaos,
 } from './equipamento'
@@ -68,6 +70,14 @@ export interface AtaqueDeArma extends Attack {
   itemId: string
   /** O que só vale contra certos alvos, para a tela mostrar sem somar. */
   condicionais: BonusCondicional[]
+  /**
+   * O ataque extra de duas armas, quando esta é a arma da mão secundária.
+   *
+   * Fica separado do ataque normal porque o dano é outro: no 2024, o ataque
+   * extra sai SEM o modificador de atributo, a não ser que a pessoa tenha o
+   * estilo Combate com Duas Armas.
+   */
+  ataqueExtra?: { dano: string; comEstilo: boolean }
 }
 
 /**
@@ -84,13 +94,38 @@ export function ataquesDeArmas(char: Character): AtaqueDeArma[] {
     (e) => e.slot === 'maoPrincipal' || e.slot === 'maoSecundaria',
   ).length
 
+  // O ataque extra do 2024: com arma Leve nas duas mãos, a ação Atacar rende um
+  // ataque a mais com a outra arma Leve. Não precisa de talento nem de estilo —
+  // o estilo só acrescenta o modificador ao dano.
+  const comExtra = duasArmasLeves(char)
+  const temEstilo = char.talentos.includes(ESTILO_DUAS_ARMAS)
+
   return armas.map((item) => {
     const arma = armaBase(item)!
     // Uma mão livre: a versátil rende o dado maior. Uma arma de duas mãos já
     // usa as duas, então nunca há mão livre para contar duas vezes.
     const duasMaos = ocupaDuasMaos(item) || maosOcupadas === 1
-    return ataqueDoItem(char, item, arma, duasMaos)
+    const ataque = ataqueDoItem(char, item, arma, duasMaos)
+    if (!comExtra || item.slot !== 'maoSecundaria') return ataque
+    return {
+      ...ataque,
+      ataqueExtra: {
+        dano: temEstilo ? ataque.dano : semModificador(ataque.dano),
+        comEstilo: temEstilo,
+      },
+    }
   })
+}
+
+/**
+ * O dano sem o modificador de atributo.
+ *
+ * "1d6+3 perfurante" vira "1d6 perfurante". É o ataque extra de duas armas sem
+ * o estilo: mostrar o dano cheio ali seria dar de graça o que o estilo custa
+ * uma escolha de nível.
+ */
+function semModificador(dano: string): string {
+  return dano.replace(/^(\d+d\d+)[+-]\d+/, '$1')
 }
 
 function ataqueDoItem(

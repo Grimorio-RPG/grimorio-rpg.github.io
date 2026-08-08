@@ -8,6 +8,8 @@ import { useMemo, useState } from 'react'
 import type { AbilityKey, Character, EfeitoDeItem, Equipamento, SkillKey, SlotEquipamento } from '../types'
 import {
   BONECA,
+  ehDeUmaMao,
+  equiparEm,
   LIMITE_SINTONIA,
   SLOTS,
   bonusDeEquipamento,
@@ -173,6 +175,12 @@ export function PainelDeEquipamento({
         onAbrir={setEditando}
       />
 
+      {/* Um item de corpo que não define base de CA só soma por cima da defesa
+          que a pessoa já tinha. Era o que a antiga "Armadura +1" fazia em
+          silêncio: num Monge, a Defesa sem Armadura continuava valendo e a CA
+          subia 1 em vez de virar a da armadura. */}
+      <AvisoDeCorpoSemBase char={char} />
+
       {/* O que o conjunto está dando */}
       <ResumoDoConjunto char={char} />
 
@@ -230,14 +238,42 @@ export function PainelDeEquipamento({
                         {item.sintonia ? ' · sintonia' : ''}
                       </span>
                     </button>
-                    <button
-                      className="chip shrink-0 text-xs hover:border-emerald-400/60"
-                      onClick={() => setLista(equipar(lista, item.id))}
-                      onFocus={() => setEspiando(item.id)}
-                      onBlur={() => setEspiando(null)}
-                    >
-                      Equipar
-                    </button>
+                    {/* Arma de uma mão cabe nas duas — inclusive a adaga. As
+                        regras não exigem nada para segurar uma arma na mão
+                        secundária; o que exige é o ataque EXTRA, que pede a
+                        propriedade Leve nas duas. Antes o app escolhia a mão
+                        pela pessoa, e duas adagas eram impossíveis. */}
+                    {ehDeUmaMao(item) ? (
+                      <span className="flex shrink-0 gap-1">
+                        <button
+                          className="chip text-xs hover:border-emerald-400/60"
+                          title="Equipar na mão principal"
+                          onClick={() => setLista(equiparEm(lista, item.id, 'maoPrincipal'))}
+                          onFocus={() => setEspiando(item.id)}
+                          onBlur={() => setEspiando(null)}
+                        >
+                          Mão principal
+                        </button>
+                        <button
+                          className="chip text-xs hover:border-emerald-400/60"
+                          title="Equipar na mão secundária"
+                          onClick={() => setLista(equiparEm(lista, item.id, 'maoSecundaria'))}
+                          onFocus={() => setEspiando(item.id)}
+                          onBlur={() => setEspiando(null)}
+                        >
+                          Secundária
+                        </button>
+                      </span>
+                    ) : (
+                      <button
+                        className="chip shrink-0 text-xs hover:border-emerald-400/60"
+                        onClick={() => setLista(equipar(lista, item.id))}
+                        onFocus={() => setEspiando(item.id)}
+                        onBlur={() => setEspiando(null)}
+                      >
+                        Equipar
+                      </button>
+                    )}
                   </div>
 
                   {/* A diferença, antes de vestir. É o ponto da tela. */}
@@ -383,6 +419,18 @@ function Silhueta() {
         <path d="M53 92h11l2 34-2 30h-9l-2-30z" />
       </g>
     </svg>
+  )
+}
+
+function AvisoDeCorpoSemBase({ char }: { char: Character }) {
+  const corpo = (char.equipamentos ?? []).find((e) => e.equipado && e.slot === 'corpo')
+  if (!corpo || corpo.efeitos.some((e) => e.tipo === 'caBase')) return null
+  return (
+    <p className="rounded-lg border border-amber-400/30 bg-amber-500/[0.07] p-2.5 text-xs text-amber-200/90">
+      <b>{corpo.nome || 'O item de corpo'}</b> não define uma base de Classe de Armadura — ele só
+      soma por cima do que você já tinha. Se for uma armadura de verdade, abra o item e acrescente
+      o efeito <b>CA base</b>, ou troque pela versão do catálogo (Cota de Malha +1, Placas +2…).
+    </p>
   )
 }
 

@@ -401,26 +401,87 @@ export function excedeSintonia(char: Character): number {
  * É o que faz a troca ser um clique: vestir o elmo novo tira o velho sozinho,
  * em vez de deixar dois elmos somando CA.
  */
-export function equipar(lista: Equipamento[], id: string): Equipamento[] {
+const MAOS: SlotEquipamento[] = ['maoPrincipal', 'maoSecundaria']
+
+/**
+ * É uma arma de uma mão?
+ *
+ * O que decide se a peça pode ir para qualquer das duas mãos. Uma adaga vai,
+ * um arco longo não — e não é por falta de talento: as regras não exigem nada
+ * para segurar uma arma na mão secundária. O que exige é o ataque EXTRA, que
+ * pede a propriedade Leve nas duas armas.
+ */
+export function ehDeUmaMao(item: Equipamento): boolean {
+  return !!armaBase(item) && !ocupaDuasMaos(item)
+}
+
+/** Os lugares em que esta peça pode ser equipada. */
+export function slotsPossiveis(item: Equipamento): SlotEquipamento[] {
+  return ehDeUmaMao(item) ? [...MAOS] : [item.slot]
+}
+
+/**
+ * Equipa a peça no lugar pedido, tirando o que conflita.
+ *
+ * O lugar é um argumento, e não o `slot` do item, porque uma arma de uma mão
+ * cabe nas duas — e o app antes escolhia por ela. Quem quisesse duas adagas
+ * simplesmente não conseguia.
+ */
+export function equiparEm(
+  lista: Equipamento[],
+  id: string,
+  slot: SlotEquipamento,
+): Equipamento[] {
   const alvo = lista.find((e) => e.id === id)
   if (!alvo) return lista
+  // Pedir um lugar que a peça não aceita não faz nada: melhor não mexer do que
+  // pôr o elmo na mão.
+  if (!slotsPossiveis(alvo).includes(slot)) return lista
 
-  const MAOS: SlotEquipamento[] = ['maoPrincipal', 'maoSecundaria']
   const duasMaos = ocupaDuasMaos(alvo)
 
   return lista.map((e) => {
-    if (e.id === id) return { ...e, equipado: true }
+    if (e.id === id) return { ...e, slot, equipado: true }
     if (!e.equipado) return e
-    if (e.slot === alvo.slot) return { ...e, equipado: false }
+    if (e.slot === slot) return { ...e, equipado: false }
     // Uma arma de duas mãos esvazia a outra mão; e ocupar uma das mãos guarda
     // a arma de duas mãos que estava lá.
     if (duasMaos && MAOS.includes(e.slot)) return { ...e, equipado: false }
-    if (MAOS.includes(alvo.slot) && MAOS.includes(e.slot) && ocupaDuasMaos(e)) {
+    if (MAOS.includes(slot) && MAOS.includes(e.slot) && ocupaDuasMaos(e)) {
       return { ...e, equipado: false }
     }
     return e
   })
 }
+
+/** Equipa no lugar natural da peça. */
+export function equipar(lista: Equipamento[], id: string): Equipamento[] {
+  const alvo = lista.find((e) => e.id === id)
+  return alvo ? equiparEm(lista, id, alvo.slot) : lista
+}
+
+/**
+ * As duas mãos com arma Leve?
+ *
+ * É a condição do ataque extra do 2024: ao usar a ação Atacar com uma arma
+ * Leve, você faz um ataque a mais com OUTRA arma Leve. Não precisa de talento
+ * nem de estilo — o estilo Combate com Duas Armas só acrescenta o modificador
+ * de atributo ao dano desse ataque extra.
+ */
+export function duasArmasLeves(char: Character): boolean {
+  const mapa = porSlot(char)
+  const principal = mapa.maoPrincipal
+  const secundaria = mapa.maoSecundaria
+  if (!principal || !secundaria) return false
+  return ehLeve(principal) && ehLeve(secundaria)
+}
+
+export function ehLeve(item: Equipamento): boolean {
+  return armaBase(item)?.propriedades.includes('Leve') ?? false
+}
+
+/** O estilo que acrescenta o modificador ao dano do ataque extra. */
+export const ESTILO_DUAS_ARMAS = 'Combate com Duas Armas'
 
 export function desequipar(lista: Equipamento[], id: string): Equipamento[] {
   return lista.map((e) => (e.id === id ? { ...e, equipado: false } : e))

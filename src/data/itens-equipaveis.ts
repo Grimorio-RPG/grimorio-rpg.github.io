@@ -236,17 +236,48 @@ const MAGICOS: ItemDeCatalogo[] = [
     peso: 3,
     efeitos: [{ tipo: 'ca', valor: 2 }],
   },
-  {
-    nome: 'Armadura +1',
-    slot: 'corpo',
-    icone: '✨',
-    raridade: 'Raro',
-    efeitos: [{ tipo: 'ca', valor: 1 }],
-    descricao: 'Some ao lado da armadura que você já veste.',
-  },
 ]
 
-export const ITENS_EQUIPAVEIS: ItemDeCatalogo[] = [...MAGICOS, ...DE_ARMADURA, ...DE_ARMA]
+/**
+ * As armaduras encantadas, uma entrada por armadura e por grau.
+ *
+ * Existiam como uma "Armadura +1" solta, um +1 flutuante sem base de CA — e era
+ * uma armadilha silenciosa. Quem a equipava não estava vestindo armadura
+ * nenhuma: a CA subia 1 e mais nada. Num Monge o estrago era maior, porque a
+ * Defesa sem Armadura continuava valendo, e o número saía do jeito que ninguém
+ * conseguiria explicar.
+ *
+ * Agora cada uma tem a base da armadura de verdade E o encantamento, que é o
+ * que o SRD diz: "Armor, +1, +2, or +3 — Armor (Any Light, Medium, or Heavy)".
+ */
+const GRAUS: { mais: number; raridade: RaridadeItem }[] = [
+  { mais: 1, raridade: 'Raro' },
+  { mais: 2, raridade: 'Muito raro' },
+  { mais: 3, raridade: 'Lendário' },
+]
+
+const DE_ARMADURA_MAGICA: ItemDeCatalogo[] = ARMADURAS.flatMap((a) =>
+  GRAUS.map(({ mais, raridade }) => ({
+    nome: `${a.nome} +${mais}`,
+    slot: 'corpo' as const,
+    icone: '✨',
+    armadura: a.nome,
+    raridade,
+    peso: a.peso,
+    efeitos: [
+      { tipo: 'caBase' as const, valor: a.ca, maxDes: a.maxDes },
+      { tipo: 'ca' as const, valor: mais },
+    ],
+    descricao: `Armadura ${a.categoria.toLowerCase()} encantada. CA ${a.ca + mais}.`,
+  })),
+)
+
+export const ITENS_EQUIPAVEIS: ItemDeCatalogo[] = [
+  ...MAGICOS,
+  ...DE_ARMADURA,
+  ...DE_ARMADURA_MAGICA,
+  ...DE_ARMA,
+]
 
 /** Cria uma cópia editável do item do catálogo, para a mochila da pessoa. */
 export function doCatalogo(nome: string, id: string): Equipamento | null {
