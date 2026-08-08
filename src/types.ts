@@ -136,6 +136,22 @@ export interface Equipamento {
   peso?: number
   /** Quantas peças. Ausente vale 1. A loja também vai precisar disto. */
   qtd?: number
+  /**
+   * Nome da arma do catálogo em que este item se baseia.
+   *
+   * É o que liga vestir a rolar: sem isto o item sabe que dá "+2 no ataque" mas
+   * não sabe que é 1d8 cortante com Acuidade, então nunca conseguiria virar uma
+   * linha de ataque — e a pessoa continuaria digitando o ataque à mão ao lado da
+   * espada que ela acabou de vestir.
+   */
+  arma?: string
+  /**
+   * Nome da armadura do catálogo em que este item se baseia.
+   *
+   * O par de `arma`: é por ele que a ficha sabe avisar que a Cota de Malha dá
+   * desvantagem em Furtividade e exige Força 13.
+   */
+  armadura?: string
 }
 
 export interface InventoryItem {

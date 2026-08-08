@@ -1,15 +1,22 @@
-import type { Attack, Character } from '../types'
+import type { Attack, Character, Equipamento } from '../types'
 import type { Arma } from '../data/equipment'
-import { abilityMod, fmtMod, proficiencyBonus } from './calc'
+import { fmtMod, modEfetivo, proficiencyBonus } from './calc'
 import { uid } from './character'
+import {
+  type BonusCondicional,
+  armaBase,
+  bonusParaArma,
+  itensAtivos,
+  ocupaDuasMaos,
+} from './equipamento'
 
 /**
  * Qual atributo a arma usa: Força por padrão, Destreza para armas à distância,
  * e o melhor dos dois quando a arma tem Acuidade.
  */
 export function atributoDaArma(char: Character, arma: Arma): 'for' | 'des' {
-  const forMod = abilityMod(char.atributos.for)
-  const desMod = abilityMod(char.atributos.des)
+  const forMod = modEfetivo(char, 'for')
+  const desMod = modEfetivo(char, 'des')
   if (arma.alcanceTipo === 'À distância') return 'des'
   if (arma.propriedades.includes('Acuidade')) return desMod > forMod ? 'des' : 'for'
   return 'for'
@@ -21,7 +28,7 @@ export function atributoDaArma(char: Character, arma: Arma): 'for' | 'des' {
  */
 export function ataqueDaArma(char: Character, arma: Arma, duasMaos = false): Attack {
   const chave = atributoDaArma(char, arma)
-  const mod = abilityMod(char.atributos[chave])
+  const mod = modEfetivo(char, chave)
   const bonus = mod + proficiencyBonus(char.nivel)
   const dadoDano = duasMaos && arma.versatil ? arma.versatil : arma.dano
   const dano = `${dadoDano}${mod !== 0 ? fmtMod(mod) : ''} ${arma.tipoDano}`
@@ -39,4 +46,91 @@ export function ataqueDaArma(char: Character, arma: Arma, duasMaos = false): Att
     dano,
     notas,
   }
+}
+
+// ---------------------------------------------------------------------------
+// A arma vestida virando ataque
+//
+// O painel de equipamento sabia que a espada dá "+2 no ataque contra
+// goblinoides" e o painel de Ataques sabia rolar — e os dois não se falavam.
+// Vestir a espada não mudava nada na hora de bater: a pessoa continuava
+// digitando o ataque à mão, com os bônus do item somados de cabeça. Era a
+// mesma conta na cabeça que o equipamento em números veio resolver.
+//
+// Os ataques são DERIVADOS, não guardados. Guardar precisaria de um caminho de
+// volta para cada mudança — tirar a espada, editar o efeito, desfazer a
+// sintonia — e algum deles ficaria para trás, deixando na ficha um ataque de
+// uma arma que a pessoa não carrega mais.
+// ---------------------------------------------------------------------------
+
+export interface AtaqueDeArma extends Attack {
+  /** De qual item vestido este ataque saiu. */
+  itemId: string
+  /** O que só vale contra certos alvos, para a tela mostrar sem somar. */
+  condicionais: BonusCondicional[]
+}
+
+/**
+ * Os ataques das armas que a pessoa está de fato empunhando.
+ *
+ * Uma arma versátil rolada com as duas mãos quando a outra mão está livre — é a
+ * regra, e é o tipo de detalhe que ninguém lembra de ajustar: a Espada Longa
+ * sozinha faz 1d10, com escudo faz 1d8.
+ */
+export function ataquesDeArmas(char: Character): AtaqueDeArma[] {
+  const ativos = itensAtivos(char)
+  const armas = ativos.filter((e) => armaBase(e))
+  const maosOcupadas = ativos.filter(
+    (e) => e.slot === 'maoPrincipal' || e.slot === 'maoSecundaria',
+  ).length
+
+  return armas.map((item) => {
+    const arma = armaBase(item)!
+    // Uma mão livre: a versátil rende o dado maior. Uma arma de duas mãos já
+    // usa as duas, então nunca há mão livre para contar duas vezes.
+    const duasMaos = ocupaDuasMaos(item) || maosOcupadas === 1
+    return ataqueDoItem(char, item, arma, duasMaos)
+  })
+}
+
+function ataqueDoItem(
+  char: Character,
+  item: Equipamento,
+  arma: Arma,
+  duasMaos: boolean,
+): AtaqueDeArma {
+  const base = ataqueDaArma(char, arma, duasMaos)
+  const bonus = bonusParaArma(char, item)
+
+  const acerto = (parseInt(base.bonus, 10) || 0) + bonus.ataque
+  const extras = bonus.danoExtra.map((d) => `+${d.dado}${d.descricao ? ` ${d.descricao}` : ''}`)
+  const dano = [somarNoDano(base.dano, bonus.dano), ...extras].join(' ')
+
+  return {
+    ...base,
+    // O id acompanha o item: a linha de ataque é o item, não uma cópia dele.
+    id: `arma-${item.id}`,
+    itemId: item.id,
+    nome: item.nome || arma.nome,
+    bonus: fmtMod(acerto),
+    dano,
+    notas: base.notas,
+    condicionais: bonus.condicionais,
+  }
+}
+
+/**
+ * Soma o bônus do item dentro da expressão de dano.
+ *
+ * "1d8+3 cortante" com +1 do item tem de virar "1d8+4 cortante", e não
+ * "1d8+3 cortante +1" — a segunda forma o rolador de dados não entende, e o
+ * dano rolado sairia menor do que o da ficha.
+ */
+function somarNoDano(dano: string, mais: number): string {
+  if (mais === 0) return dano
+  const m = dano.match(/^(\d+d\d+)([+-]\d+)?(.*)$/)
+  if (!m) return `${dano} ${fmtMod(mais)}`
+  const atual = m[2] ? Number(m[2]) : 0
+  const total = atual + mais
+  return `${m[1]}${total !== 0 ? fmtMod(total) : ''}${m[3]}`
 }

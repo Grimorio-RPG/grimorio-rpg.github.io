@@ -21,12 +21,17 @@ export interface ItemDeCatalogo {
   efeitos: EfeitoDeItem[]
   descricao?: string
   peso?: number
+  /** A arma do catálogo comum em que se baseia — o que faz virar ataque. */
+  arma?: string
+  /** A armadura do catálogo comum em que se baseia. */
+  armadura?: string
 }
 
 /** Armaduras do catálogo comum, já como equipamento de corpo. */
 const DE_ARMADURA: ItemDeCatalogo[] = ARMADURAS.map((a) => ({
   nome: a.nome,
   slot: 'corpo' as const,
+  armadura: a.nome,
   icone: a.categoria === 'Pesada' ? '🛡️' : a.categoria === 'Média' ? '🥋' : '🎽',
   peso: a.peso,
   efeitos: [{ tipo: 'caBase', valor: a.ca, maxDes: a.maxDes }],
@@ -37,6 +42,7 @@ const DE_ARMADURA: ItemDeCatalogo[] = ARMADURAS.map((a) => ({
 const DE_ARMA: ItemDeCatalogo[] = ARMAS.map((a) => ({
   nome: a.nome,
   slot: 'maoPrincipal' as const,
+  arma: a.nome,
   icone: /arco|besta|funda/i.test(a.nome) ? '🏹' : /machado/i.test(a.nome) ? '🪓' : '⚔️',
   peso: a.peso,
   efeitos: [],
@@ -185,6 +191,7 @@ const MAGICOS: ItemDeCatalogo[] = [
     nome: 'Espada Flamejante',
     slot: 'maoPrincipal',
     icone: '🔥',
+    arma: 'Espada Longa',
     raridade: 'Raro',
     sintonia: true,
     efeitos: [{ tipo: 'danoExtra', dado: '2d6', descricao: 'de fogo' }],
@@ -193,6 +200,7 @@ const MAGICOS: ItemDeCatalogo[] = [
     nome: 'Matadora de Gigantes',
     slot: 'maoPrincipal',
     icone: '🗡️',
+    arma: 'Espada Grande',
     raridade: 'Raro',
     efeitos: [
       { tipo: 'ataque', valor: 1 },
@@ -205,6 +213,7 @@ const MAGICOS: ItemDeCatalogo[] = [
     nome: 'Matadora de Dragões',
     slot: 'maoPrincipal',
     icone: '🐲',
+    arma: 'Espada Longa',
     raridade: 'Raro',
     efeitos: [
       { tipo: 'ataque', valor: 1 },
@@ -249,6 +258,8 @@ export function doCatalogo(nome: string, id: string): Equipamento | null {
     slot: c.slot,
     icone: c.icone,
     raridade: c.raridade,
+    arma: c.arma,
+    armadura: c.armadura,
     sintonia: c.sintonia,
     sintonizado: false,
     equipado: false,

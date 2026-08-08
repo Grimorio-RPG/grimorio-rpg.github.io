@@ -99,6 +99,11 @@ const dano = espada?.efeitos.find((e) => e.tipo === 'dano')
 checar('o +1 vira bônus de ataque', ataque?.valor === 1, JSON.stringify(espada?.efeitos))
 checar('e de dano', dano?.valor === 1)
 
+// Sem a arma base, o item importado nunca vira linha de ataque: a pessoa
+// veste a espada e o painel de Ataques continua vazio.
+checar('o item importado sabe qual arma é', espada?.arma === 'Espada Longa', `veio ${espada?.arma}`)
+checar('e a armadura, qual armadura', cotaBase()?.armadura === 'Cota de Malha')
+
 // Numa armadura, o +1 é CA e não ataque.
 const { equipamentos: comArmadura } = reconhecerEquipaveis([linha('Plate Armor +1')])
 const ca = comArmadura[0]?.efeitos.filter((e) => e.tipo === 'ca')
@@ -106,7 +111,10 @@ checar('numa armadura o +1 vira CA', ca?.some((e) => e.valor === 1), JSON.string
 checar('e não vira ataque', !comArmadura[0]?.efeitos.some((e) => e.tipo === 'ataque'))
 
 // A armadura importada precisa trazer a base, senão a CA não sai do lugar.
-const cota = equipamentos.find((e) => e.nome === 'Chain Mail')
+function cotaBase() {
+  return equipamentos.find((e) => e.nome === 'Chain Mail')
+}
+const cota = cotaBase()
 checar('a armadura traz a base de CA',
   cota?.efeitos.some((e) => e.tipo === 'caBase' && e.valor === 16),
   JSON.stringify(cota?.efeitos))

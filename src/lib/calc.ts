@@ -1,8 +1,7 @@
 import type { AbilityKey, Character, SkillKey } from '../types'
 import { CLASSES, SKILLS } from '../data/rules'
-import { ESCUDO_CA, acharArmadura } from '../data/equipment'
 import { defesaSemArmadura } from './features'
-import { bonusDeEquipamento } from './equipamento'
+import { bonusDeEquipamento, vesteArmadura } from './equipamento'
 
 /** Modificador de atributo: floor((valor - 10) / 2). */
 export function abilityMod(score: number): number {
@@ -97,9 +96,9 @@ function bonusDeCa(char: Character, vesteArmadura: boolean): ParteCa[] {
   if (vesteArmadura && char.talentos.includes('Defesa')) {
     extras.push({ valor: 1, rotulo: '+1 (Defesa)' })
   }
-  if (char.escudoEquipado) {
-    extras.push({ valor: ESCUDO_CA, rotulo: `+${ESCUDO_CA} (escudo)` })
-  }
+  // O escudo não aparece aqui: ele é um item vestido como qualquer outro, e os
+  // +2 dele já vêm em `item.ca`. Somar de novo era o que dava +4 em quem tinha
+  // marcado a caixa antiga E vestido o escudo.
   // Anel de Proteção, Manto de Proteção, armadura +1: somam por cima de tudo.
   const item = bonusDeEquipamento(char)
   if (item.ca !== 0) {
@@ -110,12 +109,7 @@ function bonusDeCa(char: Character, vesteArmadura: boolean): ParteCa[] {
 
 function composicaoCa(char: Character): { base: ParteCa; extras: ParteCa[] } {
   const modDes = modEfetivo(char, 'des')
-  const item = bonusDeEquipamento(char)
-
-  // A armadura vestida no slot vence o campo antigo: se a pessoa preencheu os
-  // dois, o que ela está VESTINDO é o que vale.
-  const armadura = char.armaduraEquipada ? acharArmadura(char.armaduraEquipada) : undefined
-  const doSlot = item.caBase
+  const doSlot = bonusDeEquipamento(char).caBase
 
   let base: ParteCa
   if (doSlot) {
@@ -129,23 +123,15 @@ function composicaoCa(char: Character): { base: ParteCa; extras: ParteCa[] } {
           : ''
       }`,
     }
-  } else if (!armadura) {
-    base = { valor: 10 + modDes, rotulo: `10 ${fmtMod(modDes)} (DES)` }
   } else {
-    const limite = armadura.maxDes
-    const desAplicado = limite == null ? modDes : Math.min(modDes, limite)
-    const parteDes =
-      desAplicado !== 0 || limite !== 0
-        ? ` ${fmtMod(desAplicado)} (DES${limite != null && modDes > limite ? `, máx ${limite}` : ''})`
-        : ''
-    base = { valor: armadura.ca + desAplicado, rotulo: `${armadura.ca} (${armadura.nome})${parteDes}` }
+    base = { valor: 10 + modDes, rotulo: `10 ${fmtMod(modDes)} (DES)` }
   }
 
   for (const alternativa of basesDeTraco(char)) {
     if (alternativa.valor > base.valor) base = alternativa
   }
 
-  return { base, extras: bonusDeCa(char, !!doSlot || !!armadura) }
+  return { base, extras: bonusDeCa(char, vesteArmadura(char)) }
 }
 
 /**

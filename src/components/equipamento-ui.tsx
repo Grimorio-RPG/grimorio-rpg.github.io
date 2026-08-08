@@ -24,7 +24,7 @@ import { reconhecerEquipaveis } from '../lib/reconhecerEquipamento'
 import { armorClass, passivePerception, saveBonus, skillBonus } from '../lib/calc'
 import { ABILITIES, SKILLS } from '../data/rules'
 import { uid } from '../lib/character'
-import { atributoComEquipamento } from '../lib/equipamento'
+import { atributoComEquipamento, ocupaDuasMaos } from '../lib/equipamento'
 
 /**
  * O retrato da ficha que interessa numa troca.
@@ -103,6 +103,10 @@ export function PainelDeEquipamento({
 }) {
   const lista = char.equipamentos ?? []
   const vestidos = porSlot(char)
+  const maoPrincipalDeDuasMaos =
+    vestidos.maoPrincipal && ocupaDuasMaos(vestidos.maoPrincipal)
+      ? vestidos.maoPrincipal
+      : null
   const bonus = useMemo(() => bonusDeEquipamento(char), [char])
   const [editando, setEditando] = useState<Equipamento | null>(null)
   const [espiando, setEspiando] = useState<string | null>(null)
@@ -165,6 +169,10 @@ export function PainelDeEquipamento({
         {SLOTS.map(({ slot, nome, icone }) => {
           const item = vestidos[slot]
           const cor = coresDe(item?.raridade)
+          // A mão vazia por causa de uma arma de duas mãos não é uma mão livre.
+          // Sem dizer isso, vestir o escudo e ver o arco sumir parece defeito.
+          const tomadaPelasDuasMaos =
+            !item && slot === 'maoSecundaria' && !!maoPrincipalDeDuasMaos
           return (
             <button
               key={slot}
@@ -175,13 +183,24 @@ export function PainelDeEquipamento({
                   ? `${cor.anel} ${cor.fundo} hover:brightness-125`
                   : 'border-dashed border-white/15 text-parchment-200/35 hover:border-white/30'
               }`}
-              title={item ? `${item.nome} — toque para ver` : `${nome}: vazio`}
+              title={
+                item
+                  ? `${item.nome} — toque para ver`
+                  : tomadaPelasDuasMaos
+                    ? `${maoPrincipalDeDuasMaos?.nome} ocupa as duas mãos`
+                    : `${nome}: vazio`
+              }
             >
               <span className="block text-2xl">{item?.icone || icone}</span>
               <span className="mt-0.5 block truncate text-[11px] text-parchment-200/60">{nome}</span>
               {item && (
                 <span className={`mt-0.5 block truncate text-xs font-medium ${cor.texto}`}>
                   {item.nome}
+                </span>
+              )}
+              {tomadaPelasDuasMaos && (
+                <span className="mt-0.5 block truncate text-[11px] text-parchment-200/40">
+                  ocupada
                 </span>
               )}
             </button>

@@ -28,6 +28,7 @@ const {
 } = await compilar('src/lib/equipamento.ts', 'equipamento.js')
 const { armorClass, armorClassDetalhe, saveBonus, skillBonus, atributoEfetivo } =
   await compilar('src/lib/calc.ts', 'calc.js')
+const { normalizeCharacter } = await compilar('src/lib/character.ts', 'character.js')
 
 let falhas = 0
 let testes = 0
@@ -79,12 +80,18 @@ checar('duas bases não somam, vence a maior', armorClass(duas) === 16, `deu ${a
 
 checar('a CA continua explicável', armorClassDetalhe(com(couro, anel)).includes('Couro Batido'))
 
-// O campo antigo continua funcionando para quem já preencheu a ficha.
-checar('sem slots, o campo antigo ainda vale',
-  armorClass({ ...BASE, armaduraEquipada: 'Cota de Malha' }) === 16)
+// Os campos antigos não chegam mais até aqui: viram item na entrada da ficha.
+// Continuam funcionando para quem já preencheu — só que por conversão, e não
+// por uma segunda conta que podia discordar da primeira.
+checar('o campo antigo vira item e a CA sai igual',
+  armorClass(normalizeCharacter({ ...BASE, armaduraEquipada: 'Cota de Malha' })) === 16)
 // E o que a pessoa VESTE vence o campo antigo.
 checar('o slot vence o campo antigo',
-  armorClass({ ...BASE, armaduraEquipada: 'Cota de Malha', equipamentos: [couro] }) === 14)
+  armorClass(normalizeCharacter({ ...BASE, armaduraEquipada: 'Cota de Malha', equipamentos: [couro] })) === 14)
+// Sem passar pela entrada, o campo antigo é só um campo — é o que garante que
+// existe UMA fonte, e não duas concordando por acaso.
+checar('e sozinho, sem converter, não mexe na CA',
+  armorClass({ ...BASE, armaduraEquipada: 'Cota de Malha' }) === 12)
 
 // ---------------------------------------------------------------------------
 console.log('Atributos')

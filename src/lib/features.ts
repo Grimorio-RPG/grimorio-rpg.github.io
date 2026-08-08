@@ -8,6 +8,7 @@ import type { AbilityKey, Character } from '../types'
 import { TRACOS_DE_CLASSE, type EfeitoTraco, type TracoClasse } from '../data/features'
 import { tracosDaSubclasse } from '../data/subclasses'
 import { TRACO_ANTECEDENTE, tracosDaEspecie } from '../data/species'
+import { usaEscudo, vesteArmadura } from './equipamento'
 
 /** De onde um traço veio — a ficha agrupa por isso. */
 export type Origem = 'classe' | 'subclasse' | 'especie' | 'antecedente'
@@ -67,9 +68,10 @@ export function dadosDeAtaqueFurtivo(char: Character): number {
  * — a diferença entre o Bárbaro (mantém) e o Monge (perde).
  */
 export function defesaSemArmadura(char: Character): AbilityKey | null {
-  if (char.armaduraEquipada) return null
+  if (vesteArmadura(char)) return null
+  const escudo = usaEscudo(char)
   for (const e of efeitos(char, 'defesaSemArmadura')) {
-    if (char.escudoEquipado && !e.permiteEscudo) continue
+    if (escudo && !e.permiteEscudo) continue
     return e.atributo
   }
   return null
@@ -77,7 +79,7 @@ export function defesaSemArmadura(char: Character): AbilityKey | null {
 
 /** Deslocamento extra por traço (só sem armadura). */
 export function bonusDeslocamento(char: Character): number {
-  if (char.armaduraEquipada) return 0
+  if (vesteArmadura(char)) return 0
   return efeitos(char, 'movimentoSemArmadura').reduce((maior, e) => Math.max(maior, e.metros), 0)
 }
 

@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react'
 import { PainelDeAcoes } from './acoes-ui'
-import type { Character } from '../types'
+import type { Attack, Character } from '../types'
 import { PainelDeEquipamento } from './equipamento-ui'
-import { bonusDeEquipamento } from '../lib/equipamento'
+import { bonusForaDasArmas, itensAtivos } from '../lib/equipamento'
+import { ataquesDeArmas, type AtaqueDeArma } from '../lib/weapons'
 import { ABILITIES, CONDICOES, SKILLS, rotuloClasse } from '../data/rules'
 import { ACOES_GERAIS, ROTULO_TIPO, acoesDaClasse, type AcaoInfo } from '../data/actions'
 import { spellsDaClasse } from '../data/spells'
@@ -78,7 +79,7 @@ export default function CharacterSheetView({
         <Big
           label="Classe de Armadura"
           valor={armorClass(char)}
-          sub={[char.armaduraEquipada, char.escudoEquipado ? 'escudo' : ''].filter(Boolean).join(' + ') || undefined}
+          sub={fonteDaCa(char)}
         />
         <Big
           label="Iniciativa"
@@ -189,45 +190,7 @@ export default function CharacterSheetView({
       </section>
 
       {/* Ataques */}
-      {char.ataques.length > 0 && (
-        <section className="card p-5">
-          <h3 className="mb-3 panel-title">Ataques & Ações</h3>
-
-          {/* O que o equipamento soma, dito antes da tabela. O bônus que vale
-              sempre já entra nos números; o condicional não pode entrar, então
-              fica aqui, com o alvo, para a pessoa somar sabendo por quê.
-              Na aba Batalha, escolher o alvo faz o app somar sozinho. */}
-          <BonusDoEquipamentoNosAtaques char={char} />
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead><tr className="text-left panel-title"><th className="pb-2 pr-3">Nome</th><th className="pb-2 pr-3">Bônus</th><th className="pb-2 pr-3">Dano</th><th className="pb-2">Notas</th></tr></thead>
-              <tbody>
-                {char.ataques.map((a) => {
-                  const bonusNum = parseInt((a.bonus || '').replace(/[^\d+-]/g, ''), 10)
-                  return (
-                    <tr key={a.id} className="border-t border-white/5">
-                      <td className="py-1.5 pr-3 font-medium text-parchment-50">{a.nome || '—'}</td>
-                      <td className="py-1.5 pr-3 tabular-nums text-parchment-100">
-                        {Number.isNaN(bonusNum) ? a.bonus : (
-                          <RollButton bonus={bonusNum} rotulo={`${a.nome || 'Ataque'} (acerto)`} className="font-semibold text-arcane-400">
-                            {a.bonus} 🎲
-                          </RollButton>
-                        )}
-                      </td>
-                      <td className="py-1.5 pr-3 text-parchment-100">
-                        <RollTextButton texto={a.dano} rotulo={`${a.nome || 'Ataque'} (dano)`} className="text-parchment-100">
-                          {a.dano}
-                        </RollTextButton>
-                      </td>
-                      <td className="py-1.5 text-xs text-parchment-200/60">{a.notas}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
+      <PainelDeAtaques char={char} />
 
       {/* Talentos */}
       {char.talentos.length > 0 && (
@@ -547,18 +510,149 @@ function Texto({ titulo, texto }: { titulo: string; texto: string }) {
   )
 }
 
+/** De onde vem a CA, dito em uma linha embaixo do número. */
+function fonteDaCa(char: Character): string | undefined {
+  const nomes = itensAtivos(char)
+    .filter((e) => e.efeitos.some((f) => f.tipo === 'caBase' || f.tipo === 'ca'))
+    .map((e) => e.nome)
+  return nomes.length > 0 ? nomes.join(' + ') : undefined
+}
+
+const sinal = (n: number) => (n >= 0 ? `+${n}` : `${n}`)
+
 /**
- * O que o equipamento acrescenta aos ataques.
+ * Ataques.
  *
- * O bônus que vale sempre a pessoa pode somar de uma vez; o condicional
- * depende de quem está na frente, e por isso vem com o alvo escrito. Quem
- * rola pela aba Batalha não precisa disto — lá o app escolhe o alvo e soma.
+ * As armas que a pessoa está empunhando aparecem sozinhas, com os bônus do
+ * item já dentro dos números — vestir a espada +1 muda o acerto na hora. O que
+ * está escrito à mão continua embaixo: golpe desarmado, ataque de magia, e
+ * tudo que o catálogo de armas não cobre.
+ */
+function PainelDeAtaques({ char }: { char: Character }) {
+  const daArma = ataquesDeArmas(char)
+  const manuais = char.ataques
+  if (daArma.length === 0 && manuais.length === 0) return null
+
+  return (
+    <section className="card p-5">
+      <h3 className="mb-3 panel-title">Ataques & Ações</h3>
+
+      {daArma.length > 0 && (
+        <div className="mb-4 space-y-2">
+          {daArma.map((a) => (
+            <LinhaDeArma key={a.id} ataque={a} />
+          ))}
+        </div>
+      )}
+
+      {manuais.length > 0 && (
+        <>
+          {/* O bônus que vale sempre já está dentro dos números das armas
+              vestidas. Aqui embaixo não está: estes ataques foram digitados, e
+              o app não sabe se quem digitou já somou. */}
+          <BonusDoEquipamentoNosAtaques char={char} />
+          <TabelaDeAtaques ataques={manuais} />
+        </>
+      )}
+    </section>
+  )
+}
+
+
+/** Os ataques escritos à mão, como sempre foram. */
+function TabelaDeAtaques({ ataques }: { ataques: Attack[] }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-left panel-title">
+            <th className="pb-2 pr-3">Nome</th>
+            <th className="pb-2 pr-3">Bônus</th>
+            <th className="pb-2 pr-3">Dano</th>
+            <th className="pb-2">Notas</th>
+          </tr>
+        </thead>
+        <tbody>
+          {ataques.map((a) => {
+            const bonusNum = parseInt((a.bonus || '').replace(/[^\d+-]/g, ''), 10)
+            return (
+              <tr key={a.id} className="border-t border-white/5">
+                <td className="py-1.5 pr-3 font-medium text-parchment-50">{a.nome || '—'}</td>
+                <td className="py-1.5 pr-3 tabular-nums text-parchment-100">
+                  {Number.isNaN(bonusNum) ? a.bonus : (
+                    <RollButton bonus={bonusNum} rotulo={`${a.nome || 'Ataque'} (acerto)`} className="font-semibold text-arcane-400">
+                      {a.bonus} 🎲
+                    </RollButton>
+                  )}
+                </td>
+                <td className="py-1.5 pr-3 text-parchment-100">
+                  <RollTextButton texto={a.dano} rotulo={`${a.nome || 'Ataque'} (dano)`} className="text-parchment-100">
+                    {a.dano}
+                  </RollTextButton>
+                </td>
+                <td className="py-1.5 text-xs text-parchment-200/60">{a.notas}</td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+/** Uma arma vestida: acerto e dano a um clique, condicional escrito ao lado. */
+function LinhaDeArma({ ataque }: { ataque: AtaqueDeArma }) {
+  const acerto = parseInt(ataque.bonus, 10)
+  return (
+    <div className="rounded-lg border border-white/10 bg-white/[0.03] p-2.5">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span className="text-sm font-medium text-parchment-50">{ataque.nome}</span>
+        <RollButton
+          bonus={Number.isNaN(acerto) ? 0 : acerto}
+          rotulo={`${ataque.nome} (acerto)`}
+          className="text-sm font-semibold text-arcane-400"
+        >
+          {ataque.bonus} 🎲
+        </RollButton>
+        <RollTextButton
+          texto={ataque.dano}
+          rotulo={`${ataque.nome} (dano)`}
+          className="text-sm text-parchment-100"
+        >
+          {ataque.dano}
+        </RollTextButton>
+      </div>
+      {ataque.notas && <p className="mt-1 text-xs text-parchment-200/50">{ataque.notas}</p>}
+      {/* O condicional não entra nos números: somá-lo mentiria em toda luta que
+          não fosse contra aquele tipo. Na aba Batalha, escolher o alvo faz o
+          app somar sozinho. */}
+      {ataque.condicionais.map((c) => (
+        <p key={c.contra} className="mt-1 text-xs text-amber-200/90">
+          <b>Contra {c.contra}:</b>{' '}
+          {[
+            c.ataque ? `${sinal(c.ataque)} no ataque` : '',
+            c.dano ? `${sinal(c.dano)} no dano` : '',
+            ...c.danoExtra.map((d) => `+${d}`),
+          ].filter(Boolean).join(' · ')}
+        </p>
+      ))}
+    </div>
+  )
+}
+
+/**
+ * O que o equipamento acrescenta aos ataques escritos à mão.
+ *
+ * O condicional depende de quem está na frente, e por isso vem com o alvo
+ * escrito. Quem rola pela aba Batalha não precisa disto — lá o app escolhe o
+ * alvo e soma.
  */
 function BonusDoEquipamentoNosAtaques({ char }: { char: Character }) {
-  const b = bonusDeEquipamento(char)
+  // Só o que não é arma: o +1 da espada não vale para o golpe desarmado, e a
+  // arma que o concede já mostra o dela na própria linha.
+  const b = bonusForaDasArmas(char)
   const temGeral = b.ataque !== 0 || b.dano !== 0 || b.danoExtra.length > 0
   if (!temGeral && b.condicionais.length === 0) return null
-  const sinal = (n: number) => (n >= 0 ? `+${n}` : `${n}`)
 
   return (
     <div className="mb-3 space-y-1.5 rounded-lg border border-white/10 bg-white/[0.03] p-2.5">

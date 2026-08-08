@@ -15,12 +15,18 @@ import { execSync } from 'node:child_process'
 const dir = mkdtempSync(join(tmpdir(), 'regras-'))
 const saida = join(dir, 'calc.js')
 const saidaFeatures = join(dir, 'features.js')
+const saidaChar = join(dir, 'character.js')
 // --bundle: estes módulos puxam os catálogos de regras, que são dados puros —
 // nada de DOM, então rodam no Node sem adaptação.
 execSync(`npx esbuild src/lib/calc.ts --bundle --outfile=${saida} --format=esm --log-level=error`)
 execSync(
   `npx esbuild src/lib/features.ts --bundle --outfile=${saidaFeatures} --format=esm --log-level=error`,
 )
+execSync(
+  `npx esbuild src/lib/character.ts --bundle --outfile=${saidaChar} --format=esm --log-level=error`,
+)
+
+const { normalizeCharacter } = await import(pathToFileURL(saidaChar).href)
 
 const { armorClass, armorClassDetalhe } = await import(pathToFileURL(saida).href)
 const {
@@ -44,8 +50,11 @@ function checar(nome, obtido, esperado) {
   console.error(`  ✗ ${nome}\n      esperado: ${esperado}\n      obtido:   ${obtido}`)
 }
 
+// Passa por `normalizeCharacter` de propósito: é por onde entra toda ficha do
+// app, e é lá que a armadura e o escudo antigos viram equipamento vestido.
+// Montar o objeto à mão testaria um personagem que nenhum caminho produz.
 function ficha(p = {}) {
-  return {
+  return normalizeCharacter({
     classe: '',
     subclasse: '',
     especie: '',
@@ -58,7 +67,7 @@ function ficha(p = {}) {
     escudoEquipado: false,
     talentos: [],
     ...p,
-  }
+  })
 }
 
 console.log('\nClasse de Armadura')
@@ -105,10 +114,10 @@ const barbaro = ficha({
   atributos: { for: 16, des: 14, con: 16, int: 10, sab: 10, car: 10 },
 })
 checar('Bárbaro sem armadura: 10 + DES + CON', armorClass(barbaro), 15)
-checar('Bárbaro mantém a Defesa sem Armadura com escudo', armorClass({ ...barbaro, escudoEquipado: true }), 17)
+checar('Bárbaro mantém a Defesa sem Armadura com escudo', armorClass(ficha({ ...barbaro, escudoEquipado: true })), 17)
 checar(
   'Bárbaro de armadura usa a armadura',
-  armorClass({ ...barbaro, armaduraEquipada: 'Cota de Malha' }),
+  armorClass(ficha({ ...barbaro, armaduraEquipada: 'Cota de Malha' })),
   16,
 )
 
@@ -118,7 +127,7 @@ const monge = ficha({
 })
 checar('Monge sem armadura: 10 + DES + SAB', armorClass(monge), 16)
 // O Monge, diferente do Bárbaro, perde o traço ao usar escudo: 10 + DES + 2.
-checar('Monge perde a Defesa sem Armadura com escudo', armorClass({ ...monge, escudoEquipado: true }), 15)
+checar('Monge perde a Defesa sem Armadura com escudo', armorClass(ficha({ ...monge, escudoEquipado: true })), 15)
 
 // --- Valor manual ----------------------------------------------------------
 checar(
@@ -146,7 +155,7 @@ checar('quem não é Ladino não tem', dadosDeAtaqueFurtivo(ficha({ classe: 'Gue
 // Movimento sem Armadura
 const monge10 = ficha({ classe: 'Monge', nivel: 10 })
 checar('Monge 10 anda 15 m', deslocamentoEfetivo(monge10), 15)
-checar('Monge de armadura perde o bônus', deslocamentoEfetivo({ ...monge10, armaduraEquipada: 'Couro' }), 9)
+checar('Monge de armadura perde o bônus', deslocamentoEfetivo(ficha({ ...monge10, armaduraEquipada: 'Couro' })), 9)
 checar('Bárbaro 5 anda 12 m', deslocamentoEfetivo(ficha({ classe: 'Bárbaro', nivel: 5 })), 12)
 
 // Escolhas por nível — o "não apareceu pra ele"

@@ -18,6 +18,7 @@ import type {
   RaridadeItem,
   SlotEquipamento,
 } from '../types'
+import { acharArma, acharArmadura, type Arma, type Armadura } from '../data/equipment'
 import { uid } from './character'
 
 /**
@@ -142,10 +143,68 @@ function vazio(): BonusDeEquipamento {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Uma só verdade
+//
+// Antes havia duas: `armaduraEquipada`/`escudoEquipado` (os campos antigos, de
+// quando não existia slot) e os itens vestidos. Cada conta escolhia uma —
+// `bonusDeCa` somava os +2 do campo antigo E os +2 do item de escudo, então
+// marcar a caixa e vestir o escudo dava +4; e `defesaSemArmadura` olhava só o
+// campo antigo, então um Monge de Cota de Malha no slot continuava ganhando
+// Defesa sem Armadura.
+//
+// A conversão dos campos antigos acontece em `normalizeCharacter`, por onde
+// passa toda ficha que entra — do armazenamento, do grupo salvo e da nuvem.
+// Daqui para baixo só existem itens.
+// ---------------------------------------------------------------------------
+
 /** Os itens que estão de fato valendo: vestidos, e sintonizados se exigirem. */
 export function itensAtivos(char: Character): Equipamento[] {
-  const todos = char.equipamentos ?? []
-  return todos.filter((e) => e.equipado && (!e.sintonia || e.sintonizado))
+  return (char.equipamentos ?? []).filter((e) => e.equipado && (!e.sintonia || e.sintonizado))
+}
+
+/** Veste armadura? */
+export function vesteArmadura(char: Character): boolean {
+  return itensAtivos(char).some((e) => e.efeitos.some((f) => f.tipo === 'caBase'))
+}
+
+/**
+ * Usa escudo?
+ *
+ * Pelo nome, porque escudo não tem efeito próprio que o distinga: um Escudo +1
+ * é só "+3 de CA na mão secundária", igual a uma braçadeira seria.
+ */
+export function usaEscudo(char: Character): boolean {
+  return itensAtivos(char).some((e) => e.slot === 'maoSecundaria' && /escudo/i.test(e.nome))
+}
+
+/** A arma do catálogo em que o item se baseia, se houver. */
+export function armaBase(item: Equipamento): Arma | undefined {
+  return item.arma ? acharArma(item.arma) : undefined
+}
+
+/** A armadura do catálogo em que o item se baseia, se houver. */
+export function armaduraBase(item: Equipamento): Armadura | undefined {
+  return item.armadura ? acharArmadura(item.armadura) : undefined
+}
+
+/** A armadura que a pessoa está vestindo, para os avisos de Furtividade e Força. */
+export function armaduraVestida(char: Character): Armadura | undefined {
+  for (const e of itensAtivos(char)) {
+    const a = armaduraBase(e)
+    if (a) return a
+  }
+  return undefined
+}
+
+/**
+ * O item precisa das duas mãos?
+ *
+ * Sem isto dava para vestir arco longo E escudo, que é um personagem com três
+ * mãos. A propriedade já estava no catálogo de armas e ninguém a lia.
+ */
+export function ocupaDuasMaos(item: Equipamento): boolean {
+  return armaBase(item)?.propriedades.includes('Duas mãos') ?? false
 }
 
 function acharCondicional(acc: BonusDeEquipamento, contra: string): BonusCondicional {
@@ -240,14 +299,47 @@ function aplicar(acc: BonusDeEquipamento, efeito: EfeitoDeItem, fonte: string): 
   }
 }
 
-/** Soma tudo o que a pessoa está vestindo. */
-export function bonusDeEquipamento(char: Character): BonusDeEquipamento {
+/** Soma um conjunto de itens. */
+export function bonusDeItens(itens: Equipamento[]): BonusDeEquipamento {
   const acc = vazio()
-  for (const item of itensAtivos(char)) {
+  for (const item of itens) {
     if (item.sintonia) acc.sintonizados++
     for (const efeito of item.efeitos) aplicar(acc, efeito, item.nome || 'item')
   }
   return acc
+}
+
+/** Soma tudo o que a pessoa está vestindo. */
+export function bonusDeEquipamento(char: Character): BonusDeEquipamento {
+  return bonusDeItens(itensAtivos(char))
+}
+
+/**
+ * O que soma NESTA arma.
+ *
+ * Não é o total do personagem: uma espada +1 na mão principal não pode
+ * emprestar o +1 para o machado da outra mão. Vale o que a própria arma tem,
+ * mais o que vem de itens que não são armas — um Anel de Proteção vale para as
+ * duas, e "Arma +1" genérico existe justamente para ser o encantamento de
+ * qualquer uma.
+ */
+export function bonusParaArma(char: Character, item: Equipamento): BonusDeEquipamento {
+  return bonusDeItens([item, ...naoArmas(char, item.id)])
+}
+
+/**
+ * O que vale para um ataque que NÃO vem de uma arma vestida.
+ *
+ * Golpe desarmado, ataque de magia, o que a pessoa digitou à mão: o Anel de
+ * Proteção conta, a espada não. Dizer que o +1 da espada vale para o golpe
+ * desarmado é a mesma mentira que o condicional somado ao total.
+ */
+export function bonusForaDasArmas(char: Character): BonusDeEquipamento {
+  return bonusDeItens(naoArmas(char))
+}
+
+function naoArmas(char: Character, exceto?: string): Equipamento[] {
+  return itensAtivos(char).filter((e) => !e.arma && e.id !== exceto)
 }
 
 /**
@@ -297,9 +389,20 @@ export function excedeSintonia(char: Character): number {
 export function equipar(lista: Equipamento[], id: string): Equipamento[] {
   const alvo = lista.find((e) => e.id === id)
   if (!alvo) return lista
+
+  const MAOS: SlotEquipamento[] = ['maoPrincipal', 'maoSecundaria']
+  const duasMaos = ocupaDuasMaos(alvo)
+
   return lista.map((e) => {
     if (e.id === id) return { ...e, equipado: true }
-    if (e.equipado && e.slot === alvo.slot) return { ...e, equipado: false }
+    if (!e.equipado) return e
+    if (e.slot === alvo.slot) return { ...e, equipado: false }
+    // Uma arma de duas mãos esvazia a outra mão; e ocupar uma das mãos guarda
+    // a arma de duas mãos que estava lá.
+    if (duasMaos && MAOS.includes(e.slot)) return { ...e, equipado: false }
+    if (MAOS.includes(alvo.slot) && MAOS.includes(e.slot) && ocupaDuasMaos(e)) {
+      return { ...e, equipado: false }
+    }
     return e
   })
 }

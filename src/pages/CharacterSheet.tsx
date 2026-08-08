@@ -13,7 +13,8 @@ import {
   SKILLS,
 } from '../data/rules'
 import { SPELLS } from '../data/spells'
-import { ARMADURAS, ARMAS, ESCUDO_CA, ITENS_MAGICOS, acharArma, acharArmadura } from '../data/equipment'
+import { ARMAS, ITENS_MAGICOS, acharArma } from '../data/equipment'
+import { armaduraVestida } from '../lib/equipamento'
 import { TALENTOS } from '../data/feats'
 import { ataqueDaArma } from '../lib/weapons'
 import {
@@ -957,50 +958,59 @@ function SpellSlots({ char, update }: { char: Character; update: (p: Partial<Cha
 }
 
 // ---------------------------------------------------------------------------
+/**
+ * Armadura e escudo saíram daqui.
+ *
+ * Eram dois campos próprios — uma lista de armaduras e uma caixa de escudo —
+ * que descreviam a mesma coisa que os itens vestidos. Duas verdades sobre a
+ * mesma CA: marcar a caixa E vestir o escudo somava +2 duas vezes, e um Monge
+ * de Cota de Malha no slot continuava recebendo Defesa sem Armadura, porque o
+ * traço olhava só o campo antigo.
+ *
+ * Agora se veste na boneca, no modo de leitura. O que sobra aqui é o que esta
+ * tela sabe fazer melhor: mostrar a conta e deixar sobrescrever.
+ */
 function EquipSection({ char, update }: { char: Character; update: (p: Partial<Character>) => void }) {
-  const armadura = char.armaduraEquipada ? acharArmadura(char.armaduraEquipada) : undefined
+  const armadura = armaduraVestida(char)
   const usandoManual = char.classeArmaduraManual != null
   return (
     <SectionCard
-      title="Armadura & Escudo"
-      hint="Escolha a armadura e o app calcula sua Classe de Armadura sozinho, respeitando o limite de Destreza de cada tipo."
+      title="Classe de Armadura"
+      hint="A armadura e o escudo são vestidos no painel de Equipamento, fechando a ficha. Aqui você confere a conta."
     >
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Armadura equipada">
-          <SelectField
-            value={char.armaduraEquipada}
-            onChange={(v) => update({ armaduraEquipada: v, classeArmaduraManual: null })}
-            options={ARMADURAS.map((a) => ({ value: a.nome, label: `${a.nome} (${a.categoria}, CA ${a.ca})` }))}
-            placeholder="Sem armadura"
-          />
-        </Field>
-        <div className="flex flex-col justify-end gap-2">
-          <label className="flex cursor-pointer items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={char.escudoEquipado}
-              onChange={(e) => update({ escudoEquipado: e.target.checked, classeArmaduraManual: null })}
-              className="h-4 w-4 accent-dragon-500"
-            />
-            <span className="text-parchment-100">Usando escudo (+{ESCUDO_CA} de CA)</span>
-          </label>
-          <p className="text-xs text-parchment-200/60">
-            CA atual: <b className="text-parchment-50">{armorClass(char)}</b>{' '}
-            <span className="text-parchment-200/40">— {armorClassDetalhe(char)}</span>
-          </p>
-          {usandoManual && (
-            <button className="text-left text-[11px] text-arcane-400 hover:underline" onClick={() => update({ classeArmaduraManual: null })}>
-              Voltar a calcular automaticamente
-            </button>
-          )}
-        </div>
-      </div>
+      <p className="text-sm text-parchment-100">
+        CA atual: <b className="text-lg text-parchment-50">{armorClass(char)}</b>
+      </p>
+      <p className="mt-1 text-xs text-parchment-200/50">{armorClassDetalhe(char)}</p>
+
       {armadura && (armadura.furtividadeRuim || armadura.forcaMinima) && (
         <p className="mt-3 text-xs text-amber-400">
           ⚠ {armadura.furtividadeRuim && 'Desvantagem em testes de Furtividade. '}
           {armadura.forcaMinima && `Exige Força ${armadura.forcaMinima} (senão seu deslocamento cai 3 m).`}
         </p>
       )}
+
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <Field label="Sobrescrever">
+          <input
+            type="number"
+            className="input w-24"
+            value={char.classeArmaduraManual ?? ''}
+            placeholder="auto"
+            onChange={(e) =>
+              update({ classeArmaduraManual: e.target.value === '' ? null : Number(e.target.value) })
+            }
+          />
+        </Field>
+        {usandoManual && (
+          <button
+            className="text-left text-[11px] text-arcane-400 hover:underline"
+            onClick={() => update({ classeArmaduraManual: null })}
+          >
+            Voltar a calcular automaticamente
+          </button>
+        )}
+      </div>
     </SectionCard>
   )
 }
