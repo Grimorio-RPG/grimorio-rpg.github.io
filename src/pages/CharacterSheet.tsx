@@ -12,7 +12,8 @@ import {
   ESPECIES,
   SKILLS,
 } from '../data/rules'
-import { SPELLS } from '../data/spells'
+import { EscolherMagias } from '../components/magias-ui'
+import { oQueFalta, usaGrimorio } from '../lib/conjuracao'
 import { ARMAS, ITENS_MAGICOS, acharArma } from '../data/equipment'
 import { armaduraVestida } from '../lib/equipamento'
 import { TALENTOS } from '../data/feats'
@@ -766,30 +767,20 @@ function SpellsSection({
   update: (p: Partial<Character>) => void
   info: ReturnType<typeof classInfo>
 }) {
-  const [busca, setBusca] = useState('')
   const dc = spellSaveDC(char)
   const atk = spellAttackBonus(char)
+  const falta = useMemo(() => oQueFalta(char), [char])
+  const [escolhendo, setEscolhendo] = useState<0 | 1 | null>(null)
 
-  const sugestoes = useMemo(() => {
-    const q = busca.trim().toLowerCase()
-    if (!q) return []
-    const jaTem = new Set(char.magias.map((m) => m.nome.toLowerCase()))
-    return SPELLS
-      .filter((s) => s.nome.toLowerCase().includes(q) && !jaTem.has(s.nome.toLowerCase()))
-      // magias da própria classe aparecem primeiro
-      .sort((a, b) => {
-        const aTem = a.classes.includes(char.classe) ? 0 : 1
-        const bTem = b.classes.includes(char.classe) ? 0 : 1
-        return aTem - bTem || a.nivel - b.nivel
-      })
-      .slice(0, 8)
-  }, [busca, char.magias, char.classe])
+  const jaTem = useMemo(
+    () => new Set(char.magias.map((m) => m.nome.toLowerCase())),
+    [char.magias],
+  )
 
-  function addMagia(nome: string, nivel: number) {
-    if (!nome.trim()) return
-    const nova: SpellRef = { id: uid(), nome: nome.trim(), nivel, preparada: false }
+  function addMagia(nome: string, nivel: number, preparada: boolean) {
+    if (!nome.trim() || jaTem.has(nome.trim().toLowerCase())) return
+    const nova: SpellRef = { id: uid(), nome: nome.trim(), nivel, preparada }
     update({ magias: [...char.magias, nova] })
-    setBusca('')
   }
   function patch(id: string, p: Partial<SpellRef>) {
     update({ magias: char.magias.map((m) => (m.id === id ? { ...m, ...p } : m)) })
@@ -809,6 +800,7 @@ function SpellsSection({
   }, [char.magias])
 
   const conjura = info?.conjuracao != null || char.atributoConjuracao != null
+  const livro = usaGrimorio(char.classe)
 
   return (
     <SectionCard
@@ -829,58 +821,107 @@ function SpellsSection({
 
       <SpellSlots char={char} update={update} />
 
-      {/* Busca / adicionar */}
-      <div className="relative mb-4">
-        <input
-          className="stat-input"
-          value={busca}
-          placeholder="Buscar feitiço no catálogo ou digitar um nome…"
-          onChange={(e) => setBusca(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && busca.trim()) addMagia(busca, sugestoes[0]?.nivel ?? 0)
-          }}
-        />
-        {sugestoes.length > 0 && (
-          <ul className="absolute z-10 mt-1 w-full overflow-hidden rounded-lg border border-white/10 bg-ink-900 shadow-xl">
-            {sugestoes.map((s) => (
-              <li key={s.id}>
-                <button
-                  className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-white/5"
-                  onClick={() => addMagia(s.nome, s.nivel)}
-                >
-                  <span className="flex items-center gap-2 text-parchment-100">
-                    {s.nome}
-                    {s.classes.includes(char.classe) && (
-                      <span className="rounded-full bg-arcane-500/25 px-1.5 py-0.5 text-[10px] text-arcane-400">{char.classe}</span>
-                    )}
-                  </span>
-                  <span className="text-xs text-parchment-200/50">{s.nivel === 0 ? 'Truque' : `Nível ${s.nivel}`}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+      {/* O que a classe permite carregar, e o que falta. Sem esta conta o app
+          não tinha o que perguntar: um mago subia quatro níveis, chegava na
+          mesa com a ficha vazia, e nada em lugar nenhum reclamava. */}
+      {falta && (
+        <div className="mb-4 rounded-lg border border-white/10 bg-ink-900/40 p-3">
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <span className="panel-title">O que você carrega</span>
+            <Cota rotulo="Truques" tem={falta.tem.truques} de={falta.quota.truques} />
+            {livro && <Cota rotulo="Grimório" tem={falta.tem.anotadas} de={falta.quota.grimorio} />}
+            <Cota rotulo="Preparadas" tem={falta.tem.preparadas} de={falta.quota.preparadas} />
+            <span className="text-[11px] text-parchment-200/45">
+              até o {falta.quota.maiorCirculo}º círculo
+            </span>
+          </div>
+
+          {falta.excedeu > 0 && (
+            <p className="mb-2 text-xs text-dragon-400">
+              {falta.excedeu} magia(s) preparada(s) além do limite. Desmarque alguma antes de jogar.
+            </p>
+          )}
+          {falta.algo && falta.excedeu === 0 && (
+            <p className="mb-2 text-xs text-amber-300">
+              Falta escolher:{' '}
+              {[
+                falta.truques > 0 && `${falta.truques} truque(s)`,
+                falta.grimorio > 0 && `${falta.grimorio} magia(s) para o grimório`,
+                falta.preparadas > 0 && `${falta.preparadas} para preparar`,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+              .
+            </p>
+          )}
+
+          <div className="flex flex-wrap gap-2">
+            <button
+              className="btn-ghost py-1 text-xs"
+              onClick={() => setEscolhendo(escolhendo === 0 ? null : 0)}
+            >
+              {escolhendo === 0 ? '× Fechar' : '+ Truques'}
+            </button>
+            <button
+              className="btn-ghost py-1 text-xs"
+              onClick={() => setEscolhendo(escolhendo === 1 ? null : 1)}
+            >
+              {escolhendo === 1 ? '× Fechar' : livro ? '+ Magias para o grimório' : '+ Magias'}
+            </button>
+          </div>
+
+          {escolhendo !== null && (
+            <div className="mt-3 border-t border-white/10 pt-3">
+              <EscolherMagias
+                classe={char.classe}
+                circulo={escolhendo}
+                maiorCirculo={falta.quota.maiorCirculo}
+                jaTem={jaTem}
+                faltam={
+                  escolhendo === 0
+                    ? falta.truques
+                    : livro
+                      ? falta.grimorio
+                      : falta.preparadas
+                }
+                onEscolher={(m) =>
+                  // Fora do grimório, anotar é preparar: não há livro por trás
+                  // de onde tirar depois. No Mago a magia entra no livro
+                  // desmarcada — preparar é a decisão de cada manhã.
+                  addMagia(m.nomePt, m.nivel, m.nivel === 0 ? false : !livro)
+                }
+              />
+            </div>
+          )}
+        </div>
+      )}
 
       {char.magias.length === 0 ? (
         <p className="py-2 text-center text-sm text-parchment-200/50">
-          Nenhuma magia ainda. Busque acima (tente “bola de fogo”) ou consulte a aba Feitiços.
+          Nenhuma magia ainda. Use os botões acima ou consulte a aba Feitiços.
         </p>
       ) : (
         <div className="space-y-4">
           {porNivel.map(([nivel, magias]) => (
             <div key={nivel}>
-              <h3 className="mb-1.5 panel-title">{nivel === 0 ? 'Truques' : `Nível ${nivel}`}</h3>
+              <h3 className="mb-1.5 panel-title">{nivel === 0 ? 'Truques' : `${nivel}º círculo`}</h3>
               <ul className="space-y-1">
                 {magias.map((m) => (
                   <li key={m.id} className="flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-white/5">
-                    <input
-                      type="checkbox"
-                      checked={m.preparada}
-                      onChange={(e) => patch(m.id, { preparada: e.target.checked })}
-                      title="Preparada"
-                      className="h-4 w-4 accent-arcane-500"
-                    />
+                    {/* Truque não se prepara: ele está sempre lá. A caixa de
+                        seleção existia para eles também, e dizia que a regra é
+                        outra do que é. */}
+                    {nivel === 0 ? (
+                      <span className="w-4 text-center text-xs text-parchment-200/30" title="Truques estão sempre disponíveis">∞</span>
+                    ) : (
+                      <input
+                        type="checkbox"
+                        checked={m.preparada}
+                        onChange={(e) => patch(m.id, { preparada: e.target.checked })}
+                        title="Preparada"
+                        className="h-4 w-4 accent-arcane-500"
+                      />
+                    )}
                     <span className="flex-1 text-sm text-parchment-100">{m.nome}</span>
                     <select
                       value={m.nivel}
@@ -900,6 +941,16 @@ function SpellsSection({
         </div>
       )}
     </SectionCard>
+  )
+}
+
+/** Um contador "3/4" que fica âmbar quando falta e vermelho quando passa. */
+function Cota({ rotulo, tem, de }: { rotulo: string; tem: number; de: number }) {
+  const cor = tem > de ? 'text-dragon-400' : tem < de ? 'text-amber-300' : 'text-emerald-400'
+  return (
+    <span className="chip">
+      {rotulo} <b className={`ml-1 ${cor}`}>{tem}/{de}</b>
+    </span>
   )
 }
 

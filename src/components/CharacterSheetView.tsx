@@ -11,6 +11,7 @@ import { spellsDaClasse } from '../data/spells'
 import { acharTalento } from '../data/feats'
 import { RollButton, RollTextButton, rolarComModo } from './dice-ui'
 import { LevelUpModal, RestPanel } from './rest-levelup'
+import { oQueFalta, usaGrimorio } from '../lib/conjuracao'
 import {
   abilityMod,
   armorClass,
@@ -47,6 +48,7 @@ export default function CharacterSheetView({
   const temEstado = char.condicoes.length > 0 || char.exaustao > 0 || char.testesMorte.sucessos > 0 || char.testesMorte.falhas > 0
   const espacos = char.espacosMagia.map((s, i) => ({ nivel: i + 1, ...s })).filter((s) => s.total > 0)
   const magiasPorNivel = [...new Set(char.magias.map((m) => m.nivel))].sort((a, b) => a - b)
+  const faltaMagia = useMemo(() => oQueFalta(char), [char])
 
   return (
     <GlossarioProvider>
@@ -228,7 +230,7 @@ export default function CharacterSheetView({
       <AcoesCheatSheet char={char} />
 
       {/* Magias */}
-      {(char.magias.length > 0 || espacos.length > 0 || char.atributoConjuracao) && (
+      {(char.magias.length > 0 || espacos.length > 0 || char.atributoConjuracao || faltaMagia) && (
         <section className="card p-5">
           <h3 className="mb-3 panel-title">Magias</h3>
           <div className="mb-3 flex flex-wrap gap-2 text-sm">
@@ -250,9 +252,50 @@ export default function CharacterSheetView({
               ))}
             </div>
           )}
+          {/* A conta que faltava. Um mago de nível 4 com a ficha vazia tinha
+              tudo certo na tela — CA, perícias, salvaguardas — e nada dizia
+              que ele estava sem as doze magias que a classe lhe dá. */}
+          {faltaMagia && (
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <span className="chip">
+                Truques{' '}
+                <b className={`ml-1 ${faltaMagia.truques > 0 ? 'text-amber-300' : 'text-emerald-400'}`}>
+                  {faltaMagia.tem.truques}/{faltaMagia.quota.truques}
+                </b>
+              </span>
+              {usaGrimorio(char.classe) && (
+                <span className="chip">
+                  Grimório{' '}
+                  <b className={`ml-1 ${faltaMagia.grimorio > 0 ? 'text-amber-300' : 'text-emerald-400'}`}>
+                    {faltaMagia.tem.anotadas}/{faltaMagia.quota.grimorio}
+                  </b>
+                </span>
+              )}
+              <span className="chip">
+                Preparadas{' '}
+                <b
+                  className={`ml-1 ${
+                    faltaMagia.excedeu > 0
+                      ? 'text-dragon-400'
+                      : faltaMagia.preparadas > 0
+                        ? 'text-amber-300'
+                        : 'text-emerald-400'
+                  }`}
+                >
+                  {faltaMagia.tem.preparadas}/{faltaMagia.quota.preparadas}
+                </b>
+              </span>
+              {faltaMagia.algo && (
+                <span className="text-xs text-amber-300/80">
+                  Falta escolher — abra <b>Editar ficha</b>, seção Magias.
+                </span>
+              )}
+            </div>
+          )}
+
           {magiasPorNivel.map((nivel) => (
             <div key={nivel} className="mt-2">
-              <h4 className="panel-title">{nivel === 0 ? 'Truques' : `Nível ${nivel}`}</h4>
+              <h4 className="panel-title">{nivel === 0 ? 'Truques' : `${nivel}º círculo`}</h4>
               <div className="mt-1 flex flex-wrap gap-1.5">
                 {char.magias.filter((m) => m.nivel === nivel).map((m) => (
                   <span key={m.id} className={`chip ${m.preparada ? 'border-arcane-400/50' : ''}`}>{m.nome}</span>

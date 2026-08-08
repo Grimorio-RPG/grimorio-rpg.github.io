@@ -1,88 +1,38 @@
 // Progressão por nível: espaços de magia e marcos de cada classe.
+//
+// As tabelas vinham escritas à mão daqui. Agora vêm do SRD 5.2.1, extraídas do
+// PDF por `scripts/srd/classes.mjs` — e a primeira coisa que a extração fez foi
+// apontar um erro nosso: no 2024, Paladino e Patrulheiro conjuram desde o nível
+// 1. A tabela à mão ainda seguia o 2014, onde a magia deles só começava no 2, e
+// o app tirava dois espaços de todo meio-conjurador de nível 1 sem que nada
+// reclamasse.
 
 import type { SpellSlot } from '../types'
+import { PROGRESSAO_SRD } from './srd/classes-srd'
 
-type Linha = number[] // espaços dos níveis 1..9
-
-const VAZIO: Linha = [0, 0, 0, 0, 0, 0, 0, 0, 0]
-
-// Conjuradores completos: Bardo, Clérigo, Druida, Feiticeiro, Mago
-const COMPLETO: Linha[] = [
-  [2, 0, 0, 0, 0, 0, 0, 0, 0], // 1
-  [3, 0, 0, 0, 0, 0, 0, 0, 0], // 2
-  [4, 2, 0, 0, 0, 0, 0, 0, 0], // 3
-  [4, 3, 0, 0, 0, 0, 0, 0, 0], // 4
-  [4, 3, 2, 0, 0, 0, 0, 0, 0], // 5
-  [4, 3, 3, 0, 0, 0, 0, 0, 0], // 6
-  [4, 3, 3, 1, 0, 0, 0, 0, 0], // 7
-  [4, 3, 3, 2, 0, 0, 0, 0, 0], // 8
-  [4, 3, 3, 3, 1, 0, 0, 0, 0], // 9
-  [4, 3, 3, 3, 2, 0, 0, 0, 0], // 10
-  [4, 3, 3, 3, 2, 1, 0, 0, 0], // 11
-  [4, 3, 3, 3, 2, 1, 0, 0, 0], // 12
-  [4, 3, 3, 3, 2, 1, 1, 0, 0], // 13
-  [4, 3, 3, 3, 2, 1, 1, 0, 0], // 14
-  [4, 3, 3, 3, 2, 1, 1, 1, 0], // 15
-  [4, 3, 3, 3, 2, 1, 1, 1, 0], // 16
-  [4, 3, 3, 3, 2, 1, 1, 1, 1], // 17
-  [4, 3, 3, 3, 3, 1, 1, 1, 1], // 18
-  [4, 3, 3, 3, 3, 2, 1, 1, 1], // 19
-  [4, 3, 3, 3, 3, 2, 2, 1, 1], // 20
-]
-
-// Meio conjuradores: Paladino e Patrulheiro
-const MEIO: Linha[] = [
-  VAZIO, // 1
-  [2, 0, 0, 0, 0, 0, 0, 0, 0], // 2
-  [3, 0, 0, 0, 0, 0, 0, 0, 0], // 3
-  [3, 0, 0, 0, 0, 0, 0, 0, 0], // 4
-  [4, 2, 0, 0, 0, 0, 0, 0, 0], // 5
-  [4, 2, 0, 0, 0, 0, 0, 0, 0], // 6
-  [4, 3, 0, 0, 0, 0, 0, 0, 0], // 7
-  [4, 3, 0, 0, 0, 0, 0, 0, 0], // 8
-  [4, 3, 2, 0, 0, 0, 0, 0, 0], // 9
-  [4, 3, 2, 0, 0, 0, 0, 0, 0], // 10
-  [4, 3, 3, 0, 0, 0, 0, 0, 0], // 11
-  [4, 3, 3, 0, 0, 0, 0, 0, 0], // 12
-  [4, 3, 3, 1, 0, 0, 0, 0, 0], // 13
-  [4, 3, 3, 1, 0, 0, 0, 0, 0], // 14
-  [4, 3, 3, 2, 0, 0, 0, 0, 0], // 15
-  [4, 3, 3, 2, 0, 0, 0, 0, 0], // 16
-  [4, 3, 3, 3, 1, 0, 0, 0, 0], // 17
-  [4, 3, 3, 3, 1, 0, 0, 0, 0], // 18
-  [4, 3, 3, 3, 2, 0, 0, 0, 0], // 19
-  [4, 3, 3, 3, 2, 0, 0, 0, 0], // 20
-]
-
-// Bruxo (Magia de Pacto): poucos espaços, todos do mesmo nível, recarregam
-// em descanso curto. [quantidade, nível do espaço]
-const PACTO: [number, number][] = [
-  [1, 1], [2, 1], [2, 2], [2, 2], [2, 3], [2, 3], [2, 4], [2, 4], [2, 5], [2, 5],
-  [3, 5], [3, 5], [3, 5], [3, 5], [3, 5], [3, 5], [4, 5], [4, 5], [4, 5], [4, 5],
-]
-
-const COMPLETOS = ['Bardo', 'Clérigo', 'Druida', 'Feiticeiro', 'Mago']
-const MEIOS = ['Paladino', 'Patrulheiro']
+const nivelValido = (n: number) => Math.max(1, Math.min(20, n))
 
 /** Espaços de magia esperados para a classe naquele nível. */
 export function espacosPorNivel(classe: string, nivel: number): SpellSlot[] {
-  const n = Math.max(1, Math.min(20, nivel))
-  const vazio = (): SpellSlot[] => Array.from({ length: 9 }, () => ({ total: 0, usados: 0 }))
-
-  if (classe === 'Bruxo') {
-    const [qtd, nv] = PACTO[n - 1]
-    const out = vazio()
-    out[nv - 1] = { total: qtd, usados: 0 }
-    return out
-  }
-  const tabela = COMPLETOS.includes(classe) ? COMPLETO : MEIOS.includes(classe) ? MEIO : null
-  if (!tabela) return vazio()
-  return tabela[n - 1].map((total) => ({ total, usados: 0 }))
+  const linha = PROGRESSAO_SRD[classe]?.[nivelValido(nivel) - 1]
+  const espacos = linha ? linha[2] : []
+  return Array.from({ length: 9 }, (_, i) => ({ total: espacos[i] ?? 0, usados: 0 }))
 }
 
 /** A classe conjura magias com espaços? */
 export function temEspacos(classe: string): boolean {
-  return classe === 'Bruxo' || COMPLETOS.includes(classe) || MEIOS.includes(classe)
+  return classe in PROGRESSAO_SRD
+}
+
+/** O maior círculo que a classe alcança naquele nível. 0 = nenhum. */
+export function maiorCirculo(classe: string, nivel: number): number {
+  if (nivel < 1) return 0
+  const espacos = PROGRESSAO_SRD[classe]?.[nivelValido(nivel) - 1]?.[2] ?? []
+  let maior = 0
+  espacos.forEach((qtd, i) => {
+    if (qtd > 0) maior = i + 1
+  })
+  return maior
 }
 
 const NIVEIS_ASI = [4, 8, 12, 16, 19]
@@ -102,8 +52,16 @@ export function marcosDoNivel(classe: string, nivel: number): string[] {
   if (nivel === 5 && ['Guerreiro', 'Bárbaro', 'Paladino', 'Patrulheiro', 'Monge'].includes(classe)) {
     marcos.push('Ataque Extra: você passa a atacar duas vezes com a ação Atacar.')
   }
-  if (nivel === 5 && temEspacos(classe) && classe !== 'Bruxo' && MEIOS.includes(classe) === false) {
-    marcos.push('Magias de 3º nível — é quando chegam efeitos como Bola de Fogo e Contramágica.')
+  // Abrir um círculo novo é o marco de conjurador, e cada classe o alcança num
+  // nível diferente. Perguntar à tabela acerta para todas; a lista de classes
+  // que estava aqui só acertava para as completas.
+  const circulo = maiorCirculo(classe, nivel)
+  if (circulo > maiorCirculo(classe, nivel - 1)) {
+    marcos.push(
+      circulo === 3
+        ? 'Magias de 3º círculo — é quando chegam efeitos como Bola de Fogo e Contramágica.'
+        : `Magias de ${circulo}º círculo: espaços de um poder que você ainda não tinha.`,
+    )
   }
   if (nivel === 11) {
     marcos.push('Nível 11: os poderes de classe dão um salto grande. Confira o livro da sua classe.')

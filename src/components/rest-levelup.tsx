@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { Character } from '../types'
+import type { Character, SpellRef } from '../types'
 import { rotuloClasse } from '../data/rules'
 import { espacosPorNivel, marcosDoNivel, mediaDoDado, temEspacos } from '../data/progression'
 import { abilityMod, classInfo, proficiencyBonus } from '../lib/calc'
 import { tracosGanhosNoNivel } from '../lib/features'
 import { registrarGanho, reverterNivel } from '../lib/levelup'
+import { ganhoDoNivel, listaFixa, quotaDoNivel, usaGrimorio } from '../lib/conjuracao'
+import { EscolherMagias } from './magias-ui'
+import { uid } from '../lib/character'
 import { ABILITIES } from '../data/rules'
 import { TALENTOS } from '../data/feats'
 import type { AbilityKey } from '../types'
@@ -204,6 +207,122 @@ function Amanhecer({
   )
 }
 
+/**
+ * As magias que este nível traz.
+ *
+ * Três coisas diferentes cabem aqui, e a classe decide quais:
+ *
+ * - TRUQUES: quase toda classe ganha mais em certos níveis, e eles ficam para
+ *   sempre.
+ * - GRIMÓRIO: só o Mago. Duas magias novas no livro a cada nível.
+ * - LISTA: Bardo, Feiticeiro e Bruxo escolhem uma lista que só muda ao subir
+ *   de nível. Clérigo, Druida, Paladino, Patrulheiro e Mago trocam as
+ *   preparadas no descanso longo — para esses, pedir aqui seria cobrar uma
+ *   decisão que a pessoa refaz de manhã.
+ */
+function MagiasDoNivel({
+  char,
+  nivel,
+  ganho,
+  escolhidas,
+  onMudar,
+}: {
+  char: Character
+  nivel: number
+  ganho: NonNullable<ReturnType<typeof ganhoDoNivel>>
+  escolhidas: SpellRef[]
+  onMudar: (m: SpellRef[]) => void
+}) {
+  const [aba, setAba] = useState<0 | 1>(ganho.truques > 0 ? 0 : 1)
+  const quota = quotaDoNivel(char.classe, nivel)
+  const livro = usaGrimorio(char.classe)
+  const fixa = listaFixa(char.classe)
+
+  // Quantas magias de círculo este nível pede: o livro do Mago, ou a lista de
+  // quem só troca ao subir. Quem prepara no descanso longo não pede nenhuma.
+  const pedeDeCirculo = livro ? ganho.grimorio : fixa ? ganho.preparadas : 0
+
+  const jaTem = new Set(
+    [...char.magias, ...escolhidas].map((m) => m.nome.toLowerCase()),
+  )
+  const postos = (n: number) => escolhidas.filter((m) => (n === 0 ? m.nivel === 0 : m.nivel > 0)).length
+  const faltamTruques = Math.max(0, ganho.truques - postos(0))
+  const faltamMagias = Math.max(0, pedeDeCirculo - postos(1))
+
+  return (
+    <div className="rounded-xl border border-arcane-400/40 bg-arcane-500/10 p-3">
+      <h4 className="mb-1 panel-title">Magias novas</h4>
+      <p className="mb-2.5 text-xs text-parchment-200/70">
+        {[
+          ganho.truques > 0 && `${ganho.truques} truque(s)`,
+          pedeDeCirculo > 0 && `${pedeDeCirculo} ${livro ? 'para o grimório' : 'para a sua lista'}`,
+        ]
+          .filter(Boolean)
+          .join(' e ')}
+        {ganho.circuloNovo > 0 && ` · abre o ${ganho.circuloNovo}º círculo`}
+        {!livro && !fixa && ganho.preparadas > 0 &&
+          ` · você pode preparar ${ganho.preparadas} a mais, e escolhe quais no descanso longo`}
+      </p>
+
+      {escolhidas.length > 0 && (
+        <ul className="mb-2 flex flex-wrap gap-1.5">
+          {escolhidas.map((m) => (
+            <li key={m.id}>
+              <button
+                type="button"
+                className="chip border-emerald-400/40 text-emerald-300 hover:border-dragon-400/60 hover:text-dragon-300"
+                title="Tirar da escolha"
+                onClick={() => onMudar(escolhidas.filter((x) => x.id !== m.id))}
+              >
+                {m.nome} ✕
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {ganho.truques > 0 && pedeDeCirculo > 0 && (
+        <div className="mb-2 flex gap-1 rounded-lg border border-white/10 bg-white/5 p-1">
+          {([0, 1] as const).map((a) => (
+            <button
+              key={a}
+              type="button"
+              onClick={() => setAba(a)}
+              className={`flex-1 rounded px-2 py-1 text-xs transition ${
+                aba === a ? 'bg-arcane-500/25 text-parchment-50' : 'text-parchment-200/70'
+              }`}
+            >
+              {a === 0 ? `Truques (${faltamTruques})` : `${livro ? 'Grimório' : 'Lista'} (${faltamMagias})`}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Quem só ganhou espaço para preparar mais não escolhe nada aqui: a
+          escolha dele é no descanso longo, e a linha acima já diz isso. */}
+      {(ganho.truques > 0 || pedeDeCirculo > 0) && (
+        <EscolherMagias
+          classe={char.classe}
+          circulo={aba}
+          maiorCirculo={quota?.maiorCirculo ?? 1}
+          jaTem={jaTem}
+          faltam={aba === 0 ? faltamTruques : faltamMagias}
+          altura="max-h-52"
+          onEscolher={(m) =>
+            onMudar([
+              ...escolhidas,
+              // No grimório a magia entra desmarcada: preparar é outra decisão,
+              // e é a da manhã seguinte. Em quem tem lista fixa, entrar na lista
+              // É estar preparada.
+              { id: uid(), nome: m.nomePt, nivel: m.nivel, preparada: m.nivel > 0 && !livro },
+            ])
+          }
+        />
+      )}
+    </div>
+  )
+}
+
 // ---------------------------------------------------------------------------
 // Assistente de subida de nível
 // ---------------------------------------------------------------------------
@@ -230,6 +349,9 @@ export function LevelUpModal({
   const [atrA, setAtrA] = useState<AbilityKey>('for')
   const [atrB, setAtrB] = useState<AbilityKey | ''>('')
   const [talento, setTalento] = useState('')
+  // As magias que este nível traz. Ficam aqui até o "Subir": cancelar no meio
+  // não pode deixar meia escolha gravada na ficha.
+  const [novasMagias, setNovasMagias] = useState<SpellRef[]>([])
 
   const precisaSubclasse = novoNivel === 3 && !char.subclasse
   const marcos = useMemo(() => marcosDoNivel(char.classe, novoNivel), [char.classe, novoNivel])
@@ -245,6 +367,14 @@ export function LevelUpModal({
 
   const ganhoBase = metodo === 'media' ? media : (rolado ?? 0)
   const ganhoPv = ganhoBase > 0 ? Math.max(1, ganhoBase + conMod) : 0
+
+  // O ganho de magia deste nível. Separado do ganho de espaços porque são
+  // coisas diferentes: o espaço é o combustível, a magia é o que se aprende —
+  // e um mago podia ganhar quatro espaços novos sem aprender nada.
+  const ganhoMagias = useMemo(
+    () => ganhoDoNivel(char.classe, char.nivel, novoNivel),
+    [char.classe, char.nivel, novoNivel],
+  )
 
   const espacosNovos = useMemo(() => espacosPorNivel(char.classe, novoNivel), [char.classe, novoNivel])
   const espacosAntigos = useMemo(() => espacosPorNivel(char.classe, char.nivel), [char.classe, char.nivel])
@@ -309,6 +439,7 @@ ${explicacao}`)) return
       dadosDeVida: `${novoNivel}d${faces}`,
       subclasse: subclasse || char.subclasse,
       espacosMagia: temEspacos(char.classe) ? espacos : char.espacosMagia,
+      magias: novasMagias.length ? [...char.magias, ...novasMagias] : char.magias,
       // Guardar o que este nível deu é o que torna a descida exata depois.
       historicoNiveis: registrarGanho(char.historicoNiveis, {
         nivel: novoNivel,
@@ -488,6 +619,19 @@ ${explicacao}`)) return
               })}
             </div>
           </div>
+        )}
+
+        {/* Magias novas. Anunciar sem oferecer é o defeito que o jogador já
+            apontou no estilo de luta: o assistente dizia "você ganha X" e
+            deixava a pessoa procurar onde escolher. */}
+        {ganhoMagias?.algo && (
+          <MagiasDoNivel
+            char={char}
+            nivel={novoNivel}
+            ganho={ganhoMagias}
+            escolhidas={novasMagias}
+            onMudar={setNovasMagias}
+          />
         )}
 
         {/* O que este nível dá — vem do catálogo de traços, não de texto solto */}

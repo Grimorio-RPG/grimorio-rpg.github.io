@@ -102,13 +102,9 @@ checar('todo ritual diz isso no tempo de conjuração',
 // ---------------------------------------------------------------------------
 console.log('A ponte com as explicações que já tínhamos')
 
-const tabela = readFileSync('src/data/srd/magias.ts', 'utf8')
-const bloco = tabela.slice(
-  tabela.indexOf('const EQUIVALENTES'),
-  tabela.indexOf('const PORNOME'),
-)
-const chaves = [...bloco.matchAll(/^\s+'?([A-Za-z’ /:]+?)'?:\s*'/gm)].map((m) => m[1])
-checar('a tabela tem chaves', chaves.length > 50, `achei ${chaves.length}`)
+const bloco = readFileSync('src/data/srd/nomes-magias.ts', 'utf8')
+const chaves = [...bloco.matchAll(/^\s+'((?:[^'\\]|\\.)+)':\s*'/gm)].map((m) => m[1].replace(/\\'/g, "'"))
+checar('a tabela tem as 339 chaves', chaves.length === 339, `achei ${chaves.length}`)
 
 const noSrd = new Set(nomes)
 const mortas = chaves.filter((k) => !noSrd.has(k))
@@ -140,9 +136,45 @@ checar('com a explicação sem jargão', !!bola?.emMiudos && bola.explicada === 
 checar('e o texto oficial continua lá', bola?.texto.includes('bright streak'))
 
 const semExplicacao = CAT.find((m) => !m.explicada)
-checar('a que não temos cai no nome em inglês', semExplicacao?.nomePt === semExplicacao?.nome)
-checar('e é marcada como não explicada', semExplicacao?.explicada === false)
+checar('a que não temos ainda é marcada como não explicada', semExplicacao?.explicada === false)
 checar('mas o texto oficial dela está lá', (semExplicacao?.texto.length ?? 0) > 20)
+checar('e mesmo sem explicação o nome vem em português',
+  semExplicacao?.nomePt !== semExplicacao?.nome, semExplicacao?.nome)
+
+// ---------------------------------------------------------------------------
+console.log('Os nomes')
+//
+// O jogador fez um mago, abriu o catálogo — a única coisa que um mago faz — e
+// leu "Chromatic Orb", "Dancing Lights", "Mending". As 69 escritas à mão
+// estavam em português e as outras 270 não.
+
+const semNomePt = CAT.filter((m) => m.nomePt === m.nome)
+checar('só Clone e Tsunami ficam iguais nas duas línguas',
+  semNomePt.length === 2 && semNomePt.every((m) => ['Clone', 'Tsunami'].includes(m.nome)),
+  semNomePt.map((m) => m.nome).join(', '))
+
+// Nome repetido faria a explicação de uma magia vazar para outra: é pelo nome
+// em português que o catálogo se liga aos nossos resumos.
+const contagem = new Map()
+for (const m of CAT) contagem.set(m.nomePt, (contagem.get(m.nomePt) ?? 0) + 1)
+const repetidos = [...contagem].filter(([, n]) => n > 1).map(([n]) => n)
+checar('nenhum nome em português se repete', repetidos.length === 0, repetidos.join(', '))
+
+// Uma amostra conferida à mão. Comparar a tabela com ela mesma passaria mesmo
+// com a tabela inteira trocada.
+for (const [ingles, portugues] of [
+  ['Chromatic Orb', 'Orbe Cromático'],
+  ['Dancing Lights', 'Luzes Dançantes'],
+  ['Mending', 'Consertar'],
+  ['Mage Armor', 'Armadura Arcana'],
+  ['Spare the Dying', 'Estabilizar'],
+  ['Hunter’s Mark', 'Marca do Caçador'],
+  ['Zone of Truth', 'Zona da Verdade'],
+  ['Fireball', 'Bola de Fogo'],
+]) {
+  const m = CAT.find((x) => x.nome === ingles)
+  checar(`${ingles} → ${portugues}`, m?.nomePt === portugues, `deu ${m?.nomePt}`)
+}
 
 const explicadas = CAT.filter((m) => m.explicada).length
 console.log(`  · ${explicadas} de ${CAT.length} com explicação nossa`)

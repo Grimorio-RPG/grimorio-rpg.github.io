@@ -15,6 +15,7 @@
 
 import { SPELLS, type Spell } from '../spells'
 import type { MagiaSrd } from './magias-srd'
+import { NOMES_PT } from './nomes-magias'
 
 export type { MagiaSrd } from './magias-srd'
 
@@ -56,92 +57,18 @@ export interface MagiaDoCatalogo extends MagiaSrd {
 /**
  * Casa a magia do SRD com o resumo que já escrevemos.
  *
- * A ligação é pelo nome em português dos 69 resumos contra uma tabela de
- * equivalência — o SRD é em inglês e eles não. Um nome que não casa não quebra
- * nada: a magia aparece com o texto oficial, que é melhor do que não aparecer.
+ * A ligação é pelo nome em português: o SRD é em inglês e os resumos não. A
+ * tabela de nomes mora em `nomes-magias.ts` e cobre as 339. Um nome que não
+ * casa com resumo nenhum não quebra nada — a magia aparece com o texto
+ * oficial, que é melhor do que não aparecer.
  */
-const EQUIVALENTES: Record<string, string> = {
-  'Acid Splash': 'Respingo Ácido',
-  Aid: 'Auxílio',
-  Bane: 'Perdição',
-  Banishment: 'Banimento',
-  Bless: 'Benção',
-  Blight: 'Praga',
-  'Burning Hands': 'Mãos Flamejantes',
-  'Chain Lightning': 'Relâmpago em Cadeia',
-  'Charm Person': 'Enfeitiçar Pessoa',
-  'Chill Touch': 'Toque Gélido',
-  'Circle of Death': 'Círculo da Morte',
-  'Comprehend Languages': 'Compreender Idiomas',
-  'Cone of Cold': 'Cone de Frio',
-  'Conjure Animals': 'Invocar Besta',
-  Counterspell: 'Contramágica',
-  'Cure Wounds': 'Curar Ferimentos',
-  Darkness: 'Escuridão',
-  Darkvision: 'Visão no Escuro',
-  Daylight: 'Luz do Dia',
-  'Detect Magic': 'Detectar Magia',
-  'Dimension Door': 'Porta Dimensional',
-  Disintegrate: 'Desintegrar',
-  'Dispel Magic': 'Dissipar Magia',
-  'Dominate Monster': 'Dominar Monstro',
-  'Dominate Person': 'Dominar Pessoa',
-  Earthquake: 'Terremoto',
-  'Eldritch Blast': 'Explosão Mística',
-  'Faerie Fire': 'Fogo das Fadas',
-  'Finger of Death': 'Dedo da Morte',
-  'Fire Bolt': 'Raio de Fogo',
-  'Fire Shield': 'Escudo de Fogo',
-  'Fire Storm': 'Tempestade de Fogo',
-  Fireball: 'Bola de Fogo',
-  Fly: 'Voo',
-  Grease: 'Graxa',
-  Guidance: 'Orientação',
-  Heal: 'Curar',
-  'Healing Word': 'Palavra de Cura',
-  'Hold Person': 'Imobilizar Pessoa',
-  'Ice Storm': 'Tempestade de Gelo',
-  Invisibility: 'Invisibilidade',
-  'Lesser Restoration': 'Restauração Menor',
-  Light: 'Luz',
-  'Lightning Bolt': 'Relâmpago',
-  'Mage Hand': 'Mãos Mágicas',
-  'Magic Missile': 'Mísseis Mágicos',
-  'Mass Cure Wounds': 'Curar Ferimentos em Massa',
-  Message: 'Mensagem',
-  'Meteor Swarm': 'Tempestade de Meteoros',
-  'Misty Step': 'Passo Nebuloso',
-  Polymorph: 'Metamorfose',
-  'Power Word Stun': 'Palavra de Poder: Atordoar',
-  Prestidigitation: 'Prestidigitação',
-  'Protection from Energy': 'Proteção contra Energia',
-  'Protection from Evil and Good': 'Proteção contra o Bem e o Mal',
-  'Raise Dead': 'Reviver os Mortos',
-  Revivify: 'Revivificar',
-  'Sacred Flame': 'Chama Sagrada',
-  'Scorching Ray': 'Raio Ardente',
-  'See Invisibility': 'Ver o Invisível',
-  Shatter: 'Despedaçar',
-  Shield: 'Escudo',
-  Sleep: 'Sono',
-  'Spiritual Weapon': 'Arma Espiritual',
-  Telekinesis: 'Telecinesia',
-  Teleport: 'Teletransporte',
-  Thaumaturgy: 'Taumaturgia',
-  Thunderwave: 'Onda Trovejante',
-  'Time Stop': 'Parar o Tempo',
-  'True Resurrection': 'Ressurreição Verdadeira',
-  'True Seeing': 'Visão Verdadeira',
-  Web: 'Teia',
-  Wish: 'Desejo',
-}
 
 const PORNOME = new Map<string, Spell>(SPELLS.map((s) => [s.nome, s]))
 
 /** Junta o SRD com o que já escrevemos. */
 export function comExplicacao(magias: MagiaSrd[]): MagiaDoCatalogo[] {
   return magias.map((m) => {
-    const nomePt = EQUIVALENTES[m.nome] ?? ''
+    const nomePt = NOMES_PT[m.nome] ?? ''
     const nosso = nomePt ? PORNOME.get(nomePt) : undefined
     return {
       ...m,
