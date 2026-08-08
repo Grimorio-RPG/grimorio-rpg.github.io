@@ -215,6 +215,33 @@ export async function publicarEstado(mesaId: string, chave: string, dados: unkno
   return true
 }
 
+/**
+ * Apaga uma chave publicada.
+ *
+ * Sem isto, tudo o que o DM já publicou fica na mesa para sempre. O caso que
+ * mais dói é a imagem de mapa: apagar o mapa tirava o mapa da tela e deixava
+ * ~2 MB de base64 na tabela, numa linha que ninguém mais lê e que nenhuma tela
+ * mostra — acúmulo silencioso, que é o pior tipo.
+ *
+ * As caches de "já está na nuvem" saem junto. Sem limpá-las, republicar a mesma
+ * chave depois seria descartado como "não mudou", e a linha nunca voltaria.
+ */
+export async function apagarEstado(mesaId: string, chave: string): Promise<boolean> {
+  const sb = await getSupabase()
+  if (!sb) return false
+
+  const id = `${mesaId}:${chave}`
+  naNuvem.delete(id)
+  ultimoCarimbo.delete(id)
+
+  const { error } = await sb.from('mesa_estado').delete().eq('mesa_id', mesaId).eq('chave', chave)
+  if (error) {
+    console.warn('[grimório] não consegui apagar o estado:', error.message)
+    return false
+  }
+  return true
+}
+
 // ---------------------------------------------------------------------------
 // Publicação com atraso
 //
@@ -238,4 +265,24 @@ export function publicarComAtraso(mesaId: string, chave: string, dados: unknown,
       void publicarEstado(mesaId, chave, valor)
     }, ms),
   )
+}
+
+// ---------------------------------------------------------------------------
+// Faxina
+//
+// Corrigir o vazamento daqui para frente não devolve o que já vazou. Quem usou
+// o app antes de `removerMapa` limpar atrás de si tem, na mesa, uma linha de
+// imagem por mapa que já apagou — e não há tela que mostre isso.
+// ---------------------------------------------------------------------------
+
+/** As chaves que a mesa tem hoje. Só o nome; os dados ficam onde estão. */
+export async function listarChavesDaMesa(mesaId: string): Promise<string[]> {
+  const sb = await getSupabase()
+  if (!sb) return []
+  const { data, error } = await sb.from('mesa_estado').select('chave').eq('mesa_id', mesaId)
+  if (error) {
+    console.warn('[grimório] não consegui listar as chaves da mesa:', error.message)
+    return []
+  }
+  return (data ?? []).map((l) => l.chave as string)
 }

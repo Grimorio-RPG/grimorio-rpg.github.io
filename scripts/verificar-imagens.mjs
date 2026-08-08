@@ -29,6 +29,16 @@ const { caminhoDaImagem, ehCaminhoDeStorage, tipoDoDataUrl, bytesDoDataUrl } = a
   pathToFileURL(join(dir, 'imagens.js')).href
 )
 
+execSync(
+  `npx esbuild src/lib/sync/config.ts --bundle --outfile=${join(dir, 'config.js')} ` +
+    `--format=esm --log-level=error ` +
+    `--define:import.meta.env.VITE_SUPABASE_URL='""' ` +
+    `--define:import.meta.env.VITE_SUPABASE_ANON_KEY='""'`,
+)
+const { chavesOrfas, mapaDaChaveDeImagem } = await import(
+  pathToFileURL(join(dir, 'config.js')).href
+)
+
 let falhas = 0
 let testes = 0
 function checar(nome, condicao, detalhe = '') {
@@ -123,6 +133,40 @@ checar('e só aceita imagem', sql.includes('allowed_mime_types'))
 const codigo = readFileSync('src/lib/sync/imagens.ts', 'utf8')
 const balde = codigo.match(/const BALDE = '([^']+)'/)?.[1]
 checar('o balde do código é o mesmo do SQL', balde === 'imagens', `código diz ${balde}`)
+
+// ---------------------------------------------------------------------------
+console.log('A faxina acha o que ficou para trás')
+//
+// Apagar um mapa deixava a imagem publicada na mesa: duas linhas com megabytes
+// de base64 que nenhuma tela lê. Isso agora é limpo na hora, mas quem usou o
+// app antes ainda tem as sobras — e não há tela que as mostre sozinha.
+
+checar('a chave de imagem devolve o id do mapa',
+  mapaDaChaveDeImagem('mundoimg_mapa-1') === 'mapa-1')
+checar('inclusive a pública', mapaDaChaveDeImagem('mundoimg_mapa-1_pub') === 'mapa-1')
+checar('id com underscore não confunde',
+  mapaDaChaveDeImagem('mundoimg_mapa_de_teste_pub') === 'mapa_de_teste',
+  mapaDaChaveDeImagem('mundoimg_mapa_de_teste_pub'))
+checar('chave que não é de imagem devolve nada',
+  mapaDaChaveDeImagem('batalha_pub') === null)
+
+const naMesa = [
+  'mundo_pub', 'batalha_pub', 'mapa_pub',
+  'mundoimg_vivo', 'mundoimg_vivo_pub',
+  'mundoimg_apagado', 'mundoimg_apagado_pub',
+]
+const orfas = chavesOrfas(naMesa, ['vivo'])
+checar('acha as duas sobras do mapa apagado', orfas.length === 2, JSON.stringify(orfas))
+checar('e são as certas',
+  orfas.includes('mundoimg_apagado') && orfas.includes('mundoimg_apagado_pub'))
+checar('não leva a imagem do mapa que existe',
+  !orfas.some((c) => c.includes('vivo')), JSON.stringify(orfas))
+// O perigo maior: uma faxina gulosa apagaria a batalha e o mundo junto.
+checar('e não toca em chave que não é de imagem',
+  !orfas.some((c) => !c.startsWith('mundoimg_')), JSON.stringify(orfas))
+checar('sem mapa nenhum, toda imagem é sobra',
+  chavesOrfas(naMesa, []).length === 4)
+checar('mesa vazia não gera sobra', chavesOrfas([], ['vivo']).length === 0)
 
 // ---------------------------------------------------------------------------
 console.log('O app sobrevive sem o Storage')

@@ -4,6 +4,10 @@ import { usoDeArmazenamento } from '../lib/store'
 import { nuvemConfigurada } from '../lib/sync/config'
 import { PageHeader } from '../components/layout-ui'
 import { ATRIBUICAO_SRD, LICENCA_SRD_URL } from '../data/srd'
+import { useMesa } from '../hooks/useSync'
+import { useMundo } from '../hooks/useMundo'
+import { apagarEstado, listarChavesDaMesa } from '../lib/sync/estado'
+import { chavesOrfas } from '../lib/sync/config'
 
 export default function DataPage() {
   const fileRef = useRef<HTMLInputElement>(null)
@@ -183,6 +187,9 @@ export default function DataPage() {
         </div>
       )}
 
+      {/* O que ficou para trás na mesa. */}
+      <FaxinaDaMesa />
+
       {/* A licença do SRD.
           O texto oficial dos itens mágicos é CC-BY-4.0: dá para usar, mas a
           atribuição TEM de aparecer para quem lê. Fica aqui, na página que já
@@ -203,5 +210,83 @@ export default function DataPage() {
         </p>
       </section>
     </div>
+  )
+}
+
+/**
+ * O que sobrou na mesa de mapas já apagados.
+ *
+ * Apagar um mapa passou a limpar a imagem publicada junto, mas isso não devolve
+ * o que já vazou: quem usou o app antes tem, na mesa, uma linha de imagem por
+ * mapa que apagou — cada uma com megabytes de base64 que nenhuma tela lê.
+ *
+ * Fica atrás de um botão, e não roda sozinho, porque apagar dado de alguém sem
+ * pedir é a última coisa que um app de backup deveria fazer.
+ */
+function FaxinaDaMesa() {
+  const { mesa, souDm } = useMesa()
+  const { mundo } = useMundo()
+  const [orfas, setOrfas] = useState<string[] | null>(null)
+  const [ocupado, setOcupado] = useState(false)
+  const [recado, setRecado] = useState('')
+
+  const mesaId = mesa && souDm ? mesa.id : null
+  if (!mesaId) return null
+
+  async function procurar() {
+    setOcupado(true)
+    setRecado('')
+    const chaves = await listarChavesDaMesa(mesaId!)
+    setOrfas(chavesOrfas(chaves, (mundo?.mapas ?? []).map((m) => m.id)))
+    setOcupado(false)
+  }
+
+  async function limpar() {
+    if (!orfas?.length) return
+    setOcupado(true)
+    let apagadas = 0
+    for (const chave of orfas) {
+      if (await apagarEstado(mesaId!, chave)) apagadas++
+    }
+    setOrfas([])
+    setOcupado(false)
+    setRecado(`${apagadas} de ${orfas.length} apagadas.`)
+  }
+
+  return (
+    <section className="card p-5">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <h3 className="panel-title">Faxina da mesa</h3>
+        <button className="btn-ghost py-1 text-xs" disabled={ocupado} onClick={() => void procurar()}>
+          {ocupado ? 'Procurando…' : 'Procurar sobras'}
+        </button>
+      </div>
+      <p className="text-xs leading-relaxed text-parchment-200/60">
+        Imagens de mapas que você já apagou podem ter ficado na mesa. Cada uma pesa o tamanho do
+        mapa inteiro e nenhuma tela as lê.
+      </p>
+
+      {orfas !== null && (
+        <div className="mt-3">
+          {orfas.length === 0 ? (
+            <p className="text-sm text-emerald-300">Nada sobrando. A mesa está limpa.</p>
+          ) : (
+            <>
+              <p className="text-sm text-amber-200/90">
+                {orfas.length} {orfas.length === 1 ? 'sobra encontrada' : 'sobras encontradas'}.
+              </p>
+              <button
+                className="btn-primary mt-2 py-1 text-xs"
+                disabled={ocupado}
+                onClick={() => void limpar()}
+              >
+                Apagar as sobras
+              </button>
+            </>
+          )}
+        </div>
+      )}
+      {recado && <p className="mt-2 text-xs text-parchment-200/60">{recado}</p>}
+    </section>
   )
 }

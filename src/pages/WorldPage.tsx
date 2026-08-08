@@ -3,7 +3,7 @@ import type { MapaMundo, Mundo, PontoInteresse } from '../types'
 import { useMundo } from '../hooks/useMundo'
 import { useEstadoMesa, useMesa } from '../hooks/useSync'
 import { CHAVES_MESA, chaveImagemMapa } from '../lib/sync/config'
-import { lerEstado } from '../lib/sync/estado'
+import { apagarEstado, lerEstado } from '../lib/sync/estado'
 import { SelosDaMesa } from '../components/mesa-ui'
 import {
   ESCOPOS,
@@ -20,7 +20,11 @@ import { imageToDataUrl } from '../lib/bestiary'
 import { EmptyState, Modal } from '../components/layout-ui'
 import { Field, SectionCard, SelectField, TextArea, TextField } from '../components/ui'
 import { PainelDaLoja } from '../components/loja-ui'
-import { enviarImagem, urlDaImagem } from '../lib/sync/imagens'
+import {
+  apagarImagem as apagarImagemDaNuvem,
+  enviarImagem,
+  urlDaImagem,
+} from '../lib/sync/imagens'
 
 export default function WorldPage() {
   const { mesa, souJogador } = useMesa()
@@ -99,8 +103,22 @@ function MundoDoMestre() {
     update({ mapas: [...mundo!.mapas, m], mapaAtivoId: m.id })
   }
 
+  /**
+   * Apaga o mapa — e o que ele deixaria para trás.
+   *
+   * Antes disto, apagar tirava o mapa da tela e pronto: a imagem continuava na
+   * mesa, em duas linhas (a privada e a `_pub`) com ~2 MB de base64 cada, e o
+   * arquivo continuava no Storage. Ninguém mais lia, nenhuma tela mostrava, e a
+   * conta só crescia — acúmulo silencioso, que é o pior tipo.
+   */
   function removerMapa(id: string) {
+    const alvo = mundo!.mapas.find((m) => m.id === id)
     apagarImagem(id)
+    if (alvo?.imagemPath) void apagarImagemDaNuvem(alvo.imagemPath)
+    if (mesaIdDm) {
+      void apagarEstado(mesaIdDm, chaveImagemMapa(id))
+      void apagarEstado(mesaIdDm, chaveImagemMapa(id, true))
+    }
     const restantes = mundo!.mapas.filter((m) => m.id !== id)
     update({
       mapas: restantes,

@@ -46,6 +46,32 @@ export function chaveImagemMapa(id: string, publica = false): string {
   return `mundoimg_${id}${publica ? '_pub' : ''}`
 }
 
+/**
+ * O id do mapa dentro de uma chave de imagem, ou `null` se não for uma.
+ *
+ * O par de `chaveImagemMapa`. Existe para a faxina saber de qual mapa é cada
+ * linha — e mora aqui, ao lado de quem monta a chave, porque separar os dois
+ * seria garantir que um dia um mude sem o outro.
+ */
+export function mapaDaChaveDeImagem(chave: string): string | null {
+  const m = chave.match(/^mundoimg_(.+?)(_pub)?$/)
+  return m ? m[1] : null
+}
+
+/**
+ * As chaves de imagem que não pertencem a mapa nenhum.
+ *
+ * É o lixo que ficou de quando apagar um mapa não limpava atrás de si: linhas
+ * com megabytes de base64 que nenhuma tela lê.
+ */
+export function chavesOrfas(chaves: string[], idsDeMapas: string[]): string[] {
+  const vivos = new Set(idsDeMapas)
+  return chaves.filter((c) => {
+    const id = mapaDaChaveDeImagem(c)
+    return id !== null && !vivos.has(id)
+  })
+}
+
 /** É uma chave que os jogadores podem ler? */
 export function ehChavePublica(chave: string): boolean {
   return chave.endsWith('_pub')
