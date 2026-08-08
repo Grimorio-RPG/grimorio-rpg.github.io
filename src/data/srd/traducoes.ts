@@ -38,6 +38,14 @@ import { D } from './traducoes/d'
 import { E } from './traducoes/e'
 import { FG } from './traducoes/f-g'
 import { H } from './traducoes/h'
+import { IL } from './traducoes/i-l'
+import { M } from './traducoes/m'
+import { NO } from './traducoes/n-o'
+import { PQ } from './traducoes/p-q'
+import { R_ANEIS } from './traducoes/r-aneis'
+import { R_OUTROS } from './traducoes/r-outros'
+import { S } from './traducoes/s'
+import { TW } from './traducoes/t-w'
 
 export const TRADUCOES: Record<string, TraducaoDeItem> = {
   ...A,
@@ -47,4 +55,12 @@ export const TRADUCOES: Record<string, TraducaoDeItem> = {
   ...E,
   ...FG,
   ...H,
+  ...IL,
+  ...M,
+  ...NO,
+  ...PQ,
+  ...R_ANEIS,
+  ...R_OUTROS,
+  ...S,
+  ...TW,
 }

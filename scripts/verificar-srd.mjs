@@ -158,12 +158,32 @@ checar('e marcado como traduzido', traduzido?.traduzido === true)
 checar('mas o inglês oficial continua lá',
   traduzido?.texto.includes('adamantine'), traduzido?.texto?.slice(0, 40))
 
-const semTraducao = juntos.find((i) => !TRADUCOES[i.nome])
-checar('o que falta traduzir cai no inglês', semTraducao?.nomePt === semTraducao?.nome)
-checar('e é marcado como não traduzido', semTraducao?.traduzido === false)
+// O caminho de quem ainda não foi traduzido, testado com um item inventado.
+//
+// Antes este teste procurava um item sem tradução no catálogo de verdade. Deu
+// certo até o dia em que TODOS foram traduzidos e não sobrou nenhum para
+// procurar — e o teste passou a falhar por excesso de trabalho feito. O item
+// inventado deixa a checagem valer para sempre, inclusive para o próximo item
+// que entrar no catálogo antes de alguém traduzir.
+const inventado = {
+  nome: 'Item Que Ninguém Traduziu Ainda',
+  categoria: 'Wondrous Item',
+  raridades: ['Comum'],
+  sintonia: false,
+  porQuem: '',
+  tipoOriginal: 'Wondrous Item, Common',
+  precoPO: 100,
+  texto: 'It does something wondrous.',
+}
+const [semTraducao] = comTraducao([inventado])
+checar('o que falta traduzir cai no inglês', semTraducao.nomePt === inventado.nome)
+checar('e o texto também', semTraducao.textoPt === inventado.texto)
+checar('e é marcado como não traduzido', semTraducao.traduzido === false)
 
 const feitos = juntos.filter((i) => i.traduzido).length
 console.log(`  · ${feitos} de ${juntos.length} traduzidos`)
+checar('nada ficou sem tradução', feitos === juntos.length,
+  juntos.filter((i) => !i.traduzido).map((i) => i.nome).join(', '))
 
 // ---------------------------------------------------------------------------
 console.log('Licença')
