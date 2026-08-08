@@ -383,3 +383,67 @@ export function statusPV(pvAtual: number, pvMax: number): StatusPV {
   if (pct > 25) return { label: 'Ferido', cor: 'bg-amber-500', texto: 'text-amber-400', pct }
   return { label: 'Quase morrendo', cor: 'bg-dragon-500', texto: 'text-dragon-400', pct }
 }
+
+// ---------------------------------------------------------------------------
+// A volta: a ficha do jogador mexendo no combate
+//
+// A ponte DM → ficha já existia (`ajustarFichaDaMesa`): tirar PV no painel do
+// DM chegava na ficha do jogador. A volta não existia, e sem ela deixar o
+// jogador agir na própria ficha seria pior do que não deixar — ele marcaria 12
+// de dano e o DM continuaria vendo a barra cheia, com os dois certos de estarem
+// olhando a verdade.
+// ---------------------------------------------------------------------------
+
+/** O que uma ficha do grupo diz sobre o estado de quem ela representa. */
+export interface EstadoDeFicha {
+  /** O id LOCAL da ficha, que é o que o combatente guarda em `refId`. */
+  id: string
+  pvAtual: number
+  condicoes: string[]
+}
+
+/**
+ * Traz para a batalha o que mudou nas fichas do grupo.
+ *
+ * Só PV e condições, e só para aliados vindos de ficha. O resto do combatente é
+ * do DM: iniciativa, posição no mapa e o que ele anotou não podem ser
+ * reescritos por quem abriu a própria ficha no celular.
+ *
+ * Devolve a MESMA batalha quando nada mudou. É o que impede o laço: o DM
+ * escreve na ficha, a assinatura dispara, isto roda, não acha diferença, e para
+ * — em vez de gravar de novo e acordar a assinatura outra vez.
+ */
+export function comEstadoDasFichas(b: Battle, fichas: EstadoDeFicha[]): Battle {
+  if (fichas.length === 0) return b
+  const porId = new Map(fichas.map((f) => [f.id, f]))
+
+  let mudou = false
+  const combatentes = b.combatentes.map((c) => {
+    if (c.origem !== 'aliado') return c
+    const ficha = porId.get(c.refId)
+    if (!ficha) return c
+
+    const pvDiferente = ficha.pvAtual !== c.pvAtual
+    const condDiferentes =
+      ficha.condicoes.length !== c.condicoes.length ||
+      ficha.condicoes.some((x) => !c.condicoes.includes(x))
+    if (!pvDiferente && !condDiferentes) return c
+
+    mudou = true
+    return { ...c, pvAtual: ficha.pvAtual, condicoes: [...ficha.condicoes] }
+  })
+
+  return mudou ? { ...b, combatentes } : b
+}
+
+/**
+ * Os combatentes que são fichas SUAS.
+ *
+ * É o que o jogador pode mexer na batalha. A conta é local de propósito: as
+ * fichas que existem neste aparelho são as suas, e o banco recusaria o resto de
+ * qualquer forma (`dono_id = auth.uid()`).
+ */
+export function meusCombatentes(b: Battle, meusIds: string[]): Combatant[] {
+  const meus = new Set(meusIds)
+  return b.combatentes.filter((c) => c.origem === 'aliado' && meus.has(c.refId))
+}

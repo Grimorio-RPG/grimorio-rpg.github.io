@@ -1,11 +1,21 @@
-import { useEffect, useMemo, useState } from 'react'
-import type { Battle, Combatant, EventoCombate, MapScene, Monster, MonsterAction } from '../types'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import type {
+  Battle,
+  Character,
+  Combatant,
+  EventoCombate,
+  MapScene,
+  Monster,
+  MonsterAction,
+} from '../types'
 import { useBattle } from '../hooks/useBattle'
 import { useBestiary } from '../hooks/useBestiary'
-import { proximaFase, rotuloFase, tipoAcaoInfo } from '../lib/bestiary'
+import { loadBestiary, proximaFase, rotuloFase, tipoAcaoInfo } from '../lib/bestiary'
 import {
   batalhaVazia,
   combatenteDePersonagem,
+  comEstadoDasFichas,
+  meusCombatentes,
   combatentesDeMonstro,
   comLendariasDisponiveis,
   correrCondicoes,
@@ -53,7 +63,7 @@ import {
 } from '../lib/registro'
 import { xpDoNd, progressoDeXp, avaliarEncontro, CORES_DIFICULDADE } from '../data/progression'
 import { useCharacters } from '../hooks/useCharacters'
-import { loadCharacters } from '../lib/storage'
+import { loadCharacters, upsertCharacter } from '../lib/storage'
 import type { FichaDaMesa } from '../lib/sync/personagens'
 import { ajustarFichaDaMesa, assinarFichasDaMesa, listarFichasDaMesa } from '../lib/sync/personagens'
 import { CONDICOES } from '../data/rules'
@@ -137,6 +147,7 @@ function BatalhaDaMesa({ mesaId }: { mesaId: string }) {
           battle={battle}
           ordenados={ordenar(battle.combatentes)}
           cenaRemota={cenaPublicada ? { ...cenaVazia(), ...cenaPublicada } : null}
+          mesaId={mesaId}
         />
       )}
     </div>
@@ -148,6 +159,50 @@ function BatalhaDaMesa({ mesaId }: { mesaId: string }) {
 // ---------------------------------------------------------------------------
 function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateFn; ordenados: Combatant[] }) {
   const atual = battle.emAndamento ? ordenados[battle.turnoIndex] : null
+  const { mesa: mesaDoDm, souDm: ehDm } = useMesa()
+  const mesaId = ehDm && mesaDoDm ? mesaDoDm.id : null
+
+  /**
+   * A volta: o que o jogador mexeu na ficha dele chega no combate.
+   *
+   * Sem isto, deixar o jogador agir seria pior do que não deixar — ele marcaria
+   * 12 de dano no celular e o DM continuaria vendo a barra cheia, com os dois
+   * certos de estarem olhando a verdade.
+   *
+   * `comEstadoDasFichas` devolve a MESMA batalha quando nada mudou, e é isso
+   * que impede o laço: o DM escreve na ficha, a assinatura acorda, nada
+   * diverge, e para.
+   */
+  // A batalha do momento, sem entrar nas dependências do efeito: pô-la ali
+  // faria a assinatura cair e subir a cada golpe do combate.
+  const batalhaAgora = useRef(battle)
+  batalhaAgora.current = battle
+
+  useEffect(() => {
+    if (!mesaId) return
+    let vivo = true
+    const puxar = () => {
+      void listarFichasDaMesa(mesaId).then((fichas) => {
+        if (!vivo) return
+        const antes = batalhaAgora.current
+        const depois = comEstadoDasFichas(
+          antes,
+          fichas.map((f) => ({
+            id: f.ficha.id,
+            pvAtual: f.ficha.pvAtual,
+            condicoes: f.ficha.condicoes,
+          })),
+        )
+        if (depois !== antes) update({ combatentes: depois.combatentes })
+      })
+    }
+    puxar()
+    const parar = assinarFichasDaMesa(mesaId, puxar)
+    return () => {
+      vivo = false
+      parar()
+    }
+  }, [mesaId, update])
 
   /**
    * Altera um combatente — e, quando ele é uma ficha sua, a ficha junto.
@@ -1026,6 +1081,156 @@ function AddCombatentes({ battle, update, mesaId }: { battle: Battle; update: Up
   )
 }
 
+/**
+ * O painel do jogador sobre o próprio personagem.
+ *
+ * A tela do jogador mostrava o combate e não deixava fazer nada: quem anotava o
+ * dano dele, marcava a condição dele e rolava o ataque dele era o DM, com a mesa
+ * inteira esperando. Aqui ele age.
+ *
+ * O que ele mexe é só a ficha DELE, e por isso a conta de "quais são minhas" é
+ * local: as fichas que existem neste aparelho. O banco recusaria o resto de
+ * qualquer forma — `dono_id = auth.uid()` —, mas pedir e levar não é melhor do
+ * que não pedir.
+ */
+function MeuTurno({
+  battle,
+  atualId,
+  alvos,
+  mesaId,
+}: {
+  battle: Battle
+  atualId?: string
+  alvos: Combatant[]
+  mesaId: string
+}) {
+  const [fichas, setFichas] = useState<Character[]>(() => loadCharacters())
+  const [monstros, setMonstros] = useState<Monster[]>([])
+  const [erro, setErro] = useState('')
+
+  useEffect(() => {
+    setMonstros(loadBestiary())
+  }, [])
+
+  const meus = useMemo(
+    () => meusCombatentes(battle, fichas.map((f) => f.id)),
+    [battle, fichas],
+  )
+  if (meus.length === 0) return null
+
+  /**
+   * Muda o personagem: na ficha local e na cópia da mesa, nessa ordem.
+   *
+   * A local primeiro porque é a que a pessoa vê agora; a da mesa é o que faz o
+   * DM enxergar. Se a rede falhar, ela fica sabendo — a ficha dela já mudou e
+   * seria pior deixar as duas verdades divergirem em silêncio.
+   */
+  async function mudar(refId: string, estado: { pvAtual?: number; condicoes?: string[] }) {
+    const local = fichas.find((f) => f.id === refId)
+    if (local) setFichas(upsertCharacter({ ...local, ...estado, updatedAt: Date.now() }))
+    const ok = await ajustarFichaDaMesa(mesaId, refId, estado)
+    setErro(ok ? '' : 'Mudei aqui, mas não consegui avisar a mesa. Confira a conexão.')
+  }
+
+  return (
+    <div className="space-y-3">
+      {meus.map((c) => {
+        const minhaVez = c.id === atualId
+        const ficha = fichas.find((f) => f.id === c.refId)
+        return (
+          <section
+            key={c.id}
+            className={`card p-4 ${minhaVez ? 'border-dragon-400/60 ring-1 ring-dragon-400/30' : ''}`}
+          >
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <h3 className="panel-title">{c.nome}</h3>
+                {minhaVez && (
+                  <span className="rounded-full bg-dragon-500/20 px-2 py-0.5 text-[11px] font-semibold text-dragon-300">
+                    é a sua vez
+                  </span>
+                )}
+              </div>
+              <span className="text-sm tabular-nums text-parchment-100">
+                {c.pvAtual}/{c.pvMax} PV
+              </span>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <PainelDeDano
+                c={c}
+                onPatch={(patch) => {
+                  if (patch.pvAtual != null) void mudar(c.refId, { pvAtual: patch.pvAtual })
+                }}
+              />
+              <MinhasCondicoes
+                condicoes={c.condicoes}
+                onMudar={(condicoes) => void mudar(c.refId, { condicoes })}
+              />
+            </div>
+
+            {erro && <p className="mt-2 text-xs text-amber-300">{erro}</p>}
+
+            {/* Os ataques dele, com alvo — o mesmo painel que o DM usa, porque a
+                conta do bônus condicional é a mesma. Ele mesmo busca a ficha
+                viva pelo `refId`. */}
+            {ficha && (
+              <div className="mt-3">
+                <TurnoDoPersonagem combatente={c} alvos={alvos} monstros={monstros} />
+              </div>
+            )}
+          </section>
+        )
+      })}
+    </div>
+  )
+}
+
+/** As condições do próprio personagem, para marcar e desmarcar. */
+function MinhasCondicoes({
+  condicoes,
+  onMudar,
+}: {
+  condicoes: string[]
+  onMudar: (c: string[]) => void
+}) {
+  const [aberto, setAberto] = useState(false)
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {condicoes.map((nome) => (
+        <button
+          key={nome}
+          className="chip text-xs text-dragon-300 hover:border-dragon-400/60"
+          title="Tirar esta condição"
+          onClick={() => onMudar(condicoes.filter((x) => x !== nome))}
+        >
+          {nome} ✕
+        </button>
+      ))}
+      <button className="btn-ghost py-0.5 text-xs" onClick={() => setAberto((v) => !v)}>
+        {aberto ? 'Fechar' : '+ condição'}
+      </button>
+      {aberto && (
+        <div className="flex w-full flex-wrap gap-1 pt-1">
+          {CONDICOES.filter((x) => !condicoes.includes(x.nome)).map((x) => (
+            <button
+              key={x.nome}
+              className="chip text-xs"
+              title={x.desc}
+              onClick={() => {
+                onMudar([...condicoes, x.nome])
+                setAberto(false)
+              }}
+            >
+              {x.nome}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ---------------------------------------------------------------------------
 // Visão dos Jogadores
 // ---------------------------------------------------------------------------
@@ -1033,11 +1238,14 @@ function PlayerView({
   battle,
   ordenados,
   cenaRemota,
+  mesaId,
 }: {
   battle: Battle
   ordenados: Combatant[]
   /** Presente só quando quem olha é um jogador de uma mesa. */
   cenaRemota?: MapScene | null
+  /** Presente só para jogador de mesa: é por onde ele escreve na própria ficha. */
+  mesaId?: string
 }) {
   const inimigos = ordenados.filter((c) => c.origem === 'inimigo')
   const aliados = ordenados.filter((c) => c.origem === 'aliado')
@@ -1057,6 +1265,13 @@ function PlayerView({
       {/* Quem mais precisa da faixa é o jogador: ele acompanha pelo celular e
           não tem o painel do DM para consultar. */}
       <PartyBar combatentes={ordenados} atualId={atual?.id} />
+
+      {/* O que o jogador pode FAZER. Até aqui a tela dele era um telão: dava
+          para ver o combate e mais nada, e o DM virava digitador de quatro
+          pessoas. */}
+      {mesaId && (
+        <MeuTurno battle={battle} atualId={atual?.id} alvos={inimigos} mesaId={mesaId} />
+      )}
 
       <CenaDaBatalha
         battle={battle}
