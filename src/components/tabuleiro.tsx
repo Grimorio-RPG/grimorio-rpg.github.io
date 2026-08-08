@@ -8,9 +8,10 @@
 // Era o que faltava para o mapa deixar de ser um quadro e virar a tela onde a
 // luta acontece.
 
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { MapScene, Token } from '../types'
 import { encaixar } from '../lib/mapscene'
+import { conjurandoAgora } from '../lib/battle'
 
 export type Ferramenta = 'mover' | 'medir'
 
@@ -54,6 +55,17 @@ export function Tabuleiro({
 }) {
   const ref = useRef<HTMLDivElement>(null)
   const [arrastando, setArrastando] = useState<string | null>(null)
+
+  // O brilho de conjuração vence pelo relógio, e não por um evento. Este
+  // tique existe só para ele apagar sozinho — e só roda enquanto há alguém
+  // conjurando, para o mapa parado não redesenhar à toa.
+  const [agora, setAgora] = useState(() => Date.now())
+  const alguemConjurando = tokens.some((t) => conjurandoAgora(t, agora))
+  useEffect(() => {
+    if (!alguemConjurando) return
+    const id = setInterval(() => setAgora(Date.now()), 500)
+    return () => clearInterval(id)
+  }, [alguemConjurando])
   const [medida, setMedida] = useState<{ ax: number; ay: number; bx: number; by: number } | null>(null)
   const [medindo, setMedindo] = useState(false)
 
@@ -148,6 +160,7 @@ export function Tabuleiro({
             selecionado={selecionado === t.id}
             vida={vidas[t.id]}
             daVez={atualId === t.id}
+            agora={agora}
             onPointerDown={(e) => {
               if (visaoJogador || ferramenta !== 'mover') return
               e.stopPropagation()
@@ -188,6 +201,7 @@ function TokenView({
   selecionado,
   vida,
   daVez,
+  agora,
   onPointerDown,
 }: {
   t: Token
@@ -196,6 +210,8 @@ function TokenView({
   selecionado: boolean
   vida?: VidaNoTabuleiro
   daVez?: boolean
+  /** A hora do último tique, para o brilho de conjuração saber quando parar. */
+  agora: number
   onPointerDown: (e: React.PointerEvent) => void
 }) {
   const anonimo = visaoJogador && t.origem === 'inimigo' && t.conhecimento === 'desconhecido'
@@ -214,6 +230,8 @@ function TokenView({
         visaoJogador ? '' : 'cursor-grab active:cursor-grabbing'
       } ${t.oculto && !visaoJogador ? 'opacity-50' : ''} ${vida?.fora ? 'opacity-45 grayscale' : ''} ${
         daVez ? 'gv-token-vez' : ''
+      } ${t.concentrando ? 'gv-token-concentra' : ''} ${
+        conjurandoAgora(t, agora) ? 'gv-token-conjura' : ''
       }`}
       style={{
         left: `${t.x * 100}%`,
@@ -232,6 +250,19 @@ function TokenView({
       ) : (
         <span className="font-display" style={{ fontSize: Math.max(10, size * 0.4) }}>
           {anonimo ? '?' : inicial}
+        </span>
+      )}
+
+      {/* Concentrando: o halo já diz de longe, e o selo diz o quê de perto.
+          Saber isso só na lista lateral é saber tarde demais — quando alguém já
+          mirou no mago sem perceber o que ia derrubar. */}
+      {t.concentrando && !vida?.fora && (
+        <span
+          className="pointer-events-none absolute -top-1 -right-1 grid place-items-center rounded-full bg-arcane-500/90 text-[9px] leading-none"
+          style={{ width: Math.max(12, size * 0.32), height: Math.max(12, size * 0.32) }}
+          title={`Concentrando em ${t.concentrando}`}
+        >
+          🧿
         </span>
       )}
 

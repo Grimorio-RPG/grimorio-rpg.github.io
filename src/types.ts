@@ -618,6 +618,8 @@ export interface Combatant {
    * lembrar meia hora depois.
    */
   concentracao?: string
+  /** Quando conjurou pela última vez — é o que faz o token brilhar no mapa. */
+  conjurouEm?: number
   /**
    * Ações lendárias ainda disponíveis nesta rodada.
    *
@@ -762,6 +764,23 @@ export interface Token {
   cor: string // cor do anel do token
   oculto: boolean // escondido dos jogadores
   conhecimento: KnowledgeLevel // p/ inimigos: herda do bestiário
+  /**
+   * A magia que este token está segurando, se estiver.
+   *
+   * Vem para cá porque o mapa é onde a mesa olha durante o combate: saber que o
+   * mago está concentrado só na lista lateral é saber tarde demais, quando
+   * alguém já mirou nele sem perceber o que ia derrubar.
+   */
+  concentrando?: string
+  /**
+   * Quando este token conjurou pela última vez.
+   *
+   * O brilho de conjuração é passageiro e não guarda estado próprio: cada tela
+   * compara este carimbo com a hora atual e decide se ainda pulsa. Assim ele
+   * atravessa a rede junto com o resto do combate, sem um canal só para
+   * animação, e não "reexecuta" quando alguém abre a aba depois.
+   */
+  conjurouEm?: number
 }
 
 export interface MapScene {

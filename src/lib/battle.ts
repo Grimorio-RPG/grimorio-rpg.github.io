@@ -204,7 +204,23 @@ export function tokenDeCombatente(c: Combatant): Token {
     cor: c.cor ?? COR_PADRAO[c.origem],
     oculto: !!c.oculto,
     conhecimento: c.conhecimento,
+    concentrando: c.concentracao || undefined,
+    conjurouEm: c.conjurouEm,
   }
+}
+
+/**
+ * Quanto tempo o brilho de conjuração dura na tela.
+ *
+ * Curto de propósito: é para dizer "olha ali, agora", não para virar mais um
+ * enfeite permanente no mapa. Passado esse tempo o token volta ao normal
+ * sozinho, sem ninguém precisar limpar nada.
+ */
+export const BRILHO_DE_CONJURACAO_MS = 6000
+
+/** Este token conjurou agora há pouco? */
+export function conjurandoAgora(t: { conjurouEm?: number }, agora = Date.now()): boolean {
+  return !!t.conjurouEm && agora - t.conjurouEm < BRILHO_DE_CONJURACAO_MS
 }
 
 /**

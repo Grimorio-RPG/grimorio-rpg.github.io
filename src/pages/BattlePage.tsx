@@ -73,6 +73,7 @@ import { useEstadoMesa, useMesa } from '../hooks/useSync'
 import { CHAVES_MESA } from '../lib/sync/config'
 import { SelosDaMesa } from '../components/mesa-ui'
 import { aoMudar, passouNoTeste, semConcentracao } from '../lib/concentracao'
+import { SeletorDeMagia, type Conjuracao } from '../components/conjurar-ui'
 
 type Modo = 'dm' | 'jogadores'
 type UpdateFn = (patch: Partial<Battle>) => void
@@ -176,6 +177,66 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
     cd: number
     dano: number
   } | null>(null)
+
+  /** Quem abriu o grimório agora. */
+  const [conjurando, setConjurando] = useState<Combatant | null>(null)
+
+  /**
+   * Conjura: marca a concentração quando a magia pede, gasta o espaço na ficha
+   * de origem e acende o token no mapa.
+   *
+   * O dano NÃO sai daqui. Metade das magias não causa dano e a outra metade
+   * pede salvaguarda antes — inventar um número seria pior do que não ter
+   * número nenhum. Quem aplica continua sendo o botão de dano no alvo.
+   */
+  function conjurar(c: Combatant, escolha: Conjuracao) {
+    const { magia, nivel } = escolha
+    patchC(
+      c.id,
+      {
+        // Uma magia de concentração substitui a anterior; a que não exige
+        // concentração não derruba o que já estava sendo segurado.
+        ...(magia.concentracao ? { concentracao: magia.nomePt } : {}),
+        conjurouEm: Date.now(),
+      },
+      `${c.nome} conjurou ${magia.nomePt}`,
+    )
+
+    update({
+      registro: registrar(battle, {
+        tipo: 'concentracao',
+        alvo: c.nome,
+        texto: `${c.nome} conjurou ${magia.nomePt}${
+          nivel > magia.nivel ? ` (${nivel}º círculo)` : ''
+        }${magia.concentracao ? ' — está concentrando' : ''}`,
+        deInimigo: c.origem === 'inimigo',
+      }),
+    })
+
+    gastarEspacoNaFicha(c, nivel)
+    setConjurando(null)
+  }
+
+  /**
+   * Tira o espaço de magia da ficha de origem.
+   *
+   * Só para ficha deste aparelho: a do jogador é dele, e o banco recusaria de
+   * qualquer forma. Truque não gasta nada, e sem espaços marcados na ficha não
+   * há o que gastar — o app não inventa uma tabela de espaços que a pessoa não
+   * preencheu.
+   */
+  function gastarEspacoNaFicha(c: Combatant, nivel: number) {
+    if (nivel <= 0 || c.origem !== 'aliado' || !c.refId) return
+    const ficha = loadCharacters().find((f) => f.id === c.refId)
+    const slot = ficha?.espacosMagia?.[nivel - 1]
+    if (!ficha || !slot || slot.total <= 0) return
+    salvarFicha({
+      ...ficha,
+      espacosMagia: ficha.espacosMagia.map((s, i) =>
+        i === nivel - 1 ? { ...s, usados: Math.min(s.total, s.usados + 1) } : s,
+      ),
+    })
+  }
   const { mesa: mesaDoDm, souDm: ehDm } = useMesa()
   const mesaId = ehDm && mesaDoDm ? mesaDoDm.id : null
 
@@ -528,6 +589,14 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
         />
       )}
 
+      {conjurando && (
+        <SeletorDeMagia
+          nomeDoConjurador={conjurando.nome}
+          onFechar={() => setConjurando(null)}
+          onConjurar={(escolha) => conjurar(conjurando, escolha)}
+        />
+      )}
+
       {recompensa && (
         <Modal titulo="⚔️ Encontro vencido" onClose={() => setRecompensa(null)}>
           <p className="text-sm text-parchment-200/80">
@@ -747,6 +816,7 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
                   atual={atual?.id === c.id}
                   onPatch={(p, rotulo) => patchC(c.id, p, rotulo)}
                   onRemove={() => removerC(c.id)}
+                  onConjurar={() => setConjurando(c)}
                   temProximaFase={
                     c.origem === 'inimigo' &&
                     c.pvAtual <= 0 &&
@@ -760,6 +830,7 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
                   atual={atual?.id === c.id}
                   onPatch={(p, rotulo) => patchC(c.id, p, rotulo)}
                   onRemove={() => removerC(c.id)}
+                  onConjurar={() => setConjurando(c)}
                   temProximaFase={
                     c.origem === 'inimigo' &&
                     c.pvAtual <= 0 &&
@@ -815,6 +886,7 @@ function CombatantRow({
   atual,
   onPatch,
   onRemove,
+  onConjurar,
   temProximaFase = false,
   onVirarFase,
 }: {
@@ -822,6 +894,8 @@ function CombatantRow({
   atual: boolean
   onPatch: (p: Partial<Combatant>, rotulo?: string) => void
   onRemove: () => void
+  /** Abre o grimório para esta criatura. */
+  onConjurar: () => void
   /** O chefe caiu, mas ainda tem forma seguinte. */
   temProximaFase?: boolean
   onVirarFase?: () => void
@@ -930,6 +1004,7 @@ function CombatantRow({
         c={c}
         onChange={(cond, rodadas) => onPatch({ condicoes: cond, rodadasDeCondicao: rodadas })}
         onConcentracao={(magia) => onPatch({ concentracao: magia })}
+        onConjurar={onConjurar}
       />
     </div>
   )
@@ -945,10 +1020,12 @@ function CondicoesEditor({
   c,
   onChange,
   onConcentracao,
+  onConjurar,
 }: {
   c: Combatant
   onChange: (condicoes: string[], rodadas: Record<string, number>) => void
   onConcentracao: (magia: string) => void
+  onConjurar: () => void
 }) {
   const [editando, setEditando] = useState('')
   const rodadas = c.rodadasDeCondicao ?? {}
@@ -1035,7 +1112,17 @@ function CondicoesEditor({
           segurando uma magia até meia hora depois. Ao tomar dano, o registro
           avisa o teste com a CD já calculada. */}
       <div className="flex items-center gap-1.5">
-        <span className="text-xs text-parchment-200/40">🧿</span>
+        {/* O grimório inteiro atrás de um botão. O campo continua ao lado: uma
+            magia de casa, ou uma anotação rápida, não precisam passar pelo
+            catálogo. */}
+        <button
+          type="button"
+          className="shrink-0 rounded-md border border-arcane-400/40 px-1.5 py-0.5 text-xs text-arcane-300 hover:bg-arcane-500/15"
+          onClick={onConjurar}
+          title="Conjurar uma magia"
+        >
+          ✨
+        </button>
         <input
           value={c.concentracao ?? ''}
           onChange={(e) => onConcentracao(e.target.value)}

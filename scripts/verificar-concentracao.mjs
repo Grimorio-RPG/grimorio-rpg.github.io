@@ -16,13 +16,16 @@ import { execSync } from 'node:child_process'
 
 const dir = mkdtempSync(join(tmpdir(), 'conc-'))
 execSync(
-  `npx esbuild src/lib/concentracao.ts --bundle --outfile=${join(dir, 'c.js')} ` +
-    `--format=esm --log-level=error`,
+  `npx esbuild src/lib/concentracao.ts src/lib/battle.ts ` +
+    `--bundle --splitting --outdir=${dir} --format=esm --log-level=error`,
 )
+const carregar = (n) => import(pathToFileURL(join(dir, `${n}.js`)).href)
 const {
   aoMudar, cdDeConcentracao, condicaoDerruba, passouNoTeste, semConcentracao,
   CONDICOES_QUE_DERRUBAM,
-} = await import(pathToFileURL(join(dir, 'c.js')).href)
+} = await carregar('concentracao')
+const { conjurandoAgora, tokenDeCombatente, projetarBatalha, batalhaVazia, BRILHO_DE_CONJURACAO_MS } =
+  await carregar('battle')
 
 let falhas = 0
 let testes = 0
@@ -122,6 +125,50 @@ checar('passa quando ultrapassa', passouNoTeste(15, 3, 10) === true)
 checar('falha quando fica abaixo', passouNoTeste(6, 2, 10) === false)
 checar('o bônus negativo conta', passouNoTeste(11, -2, 10) === false)
 checar('sem bônus também funciona', passouNoTeste(10, 0, 10) === true)
+
+// ---------------------------------------------------------------------------
+console.log('O brilho no mapa')
+//
+// O brilho de conjuração vence pelo RELÓGIO, e não por um evento. É o que faz
+// ele atravessar a rede junto com o resto do combate, sem um canal só para
+// animação — e o que impede a tela de reexecutar a animação quando alguém abre
+// a aba dez minutos depois.
+
+const agora = 1_000_000
+checar('quem acabou de conjurar brilha', conjurandoAgora({ conjurouEm: agora - 500 }, agora))
+checar('quem conjurou há muito tempo não', !conjurandoAgora({ conjurouEm: agora - 60_000 }, agora))
+checar('quem nunca conjurou também não', !conjurandoAgora({}, agora))
+checar('a janela é curta', BRILHO_DE_CONJURACAO_MS <= 10_000, `${BRILHO_DE_CONJURACAO_MS}ms`)
+checar('e existe', BRILHO_DE_CONJURACAO_MS > 0)
+checar('bem no limite ainda brilha',
+  conjurandoAgora({ conjurouEm: agora - BRILHO_DE_CONJURACAO_MS + 1 }, agora))
+checar('e um instante depois não',
+  !conjurandoAgora({ conjurouEm: agora - BRILHO_DE_CONJURACAO_MS }, agora))
+
+// O token leva a concentração para o mapa — é lá que a mesa olha durante a luta.
+const token = tokenDeCombatente(mago())
+checar('o token sabe o que está sendo segurado', token.concentrando === 'Teia')
+checar('e quem não segura nada não leva marca',
+  tokenDeCombatente(mago({ concentracao: '' })).concentrando === undefined)
+checar('o carimbo da conjuração vai junto',
+  tokenDeCombatente(mago({ conjurouEm: 123 })).conjurouEm === 123)
+
+// O que o inimigo está conjurando continua sendo informação do DM: a projeção
+// já apagava o nome, e o mapa não pode ser a porta dos fundos para ele.
+const publicada = projetarBatalha({
+  ...batalhaVazia(),
+  combatentes: [
+    { ...mago(), id: 'i1', origem: 'inimigo', concentracao: 'Dominar Pessoa' },
+    { ...mago(), id: 'a1', origem: 'aliado' },
+  ],
+})
+const inimigoPublico = publicada.combatentes.find((c) => c.id === 'i1')
+checar('a magia do inimigo não sai na projeção', !inimigoPublico?.concentracao,
+  inimigoPublico?.concentracao)
+checar('e o token dele também não a leva',
+  tokenDeCombatente(inimigoPublico).concentrando === undefined)
+checar('mas a do aliado continua aparecendo',
+  publicada.combatentes.find((c) => c.id === 'a1')?.concentracao === 'Teia')
 
 // ---------------------------------------------------------------------------
 console.log('Soltar a magia')
