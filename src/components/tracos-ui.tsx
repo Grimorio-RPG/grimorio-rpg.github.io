@@ -11,6 +11,7 @@ import {
 } from '../lib/features'
 import { MANOBRAS, subclasseCatalogada } from '../data/subclasses'
 import { TALENTOS } from '../data/feats'
+import { TextoComTermos } from './glossario-ui'
 
 const ROTULO_ESCOLHA: Record<string, string> = {
   subclasse: 'Escolha a sua subclasse',
@@ -102,7 +103,9 @@ export function TracosDeClasse({
                 </span>
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-parchment-50">{t.nome}</p>
-                  <p className="text-xs leading-relaxed text-parchment-200/70">{t.resumo}</p>
+                  <p className="text-xs leading-relaxed text-parchment-200/70">
+                    <TextoComTermos texto={t.resumo} />
+                  </p>
                 </div>
               </li>
             ))}
@@ -177,7 +180,9 @@ function SeletorDeEstilo({
                 {ativo ? '✓ ' : ''}
                 {e.nome}
               </p>
-              <p className="text-xs text-parchment-200/70">{e.resumo}</p>
+              <p className="text-xs text-parchment-200/70">
+                <TextoComTermos texto={e.resumo} />
+              </p>
             </button>
           )
         })}
@@ -249,7 +254,7 @@ function SeletorDeManobras({
             if (!m) return null
             return (
               <li key={nome} className="text-xs text-parchment-200/70">
-                <b className="text-parchment-100">{m.nome}</b> — {m.resumo}
+                <b className="text-parchment-100">{m.nome}</b> — <TextoComTermos texto={m.resumo} />
               </li>
             )
           })}

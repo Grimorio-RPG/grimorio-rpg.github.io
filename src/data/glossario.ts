@@ -36,7 +36,7 @@ const BASE: Verbete[] = [
     'sintonia',
     'sintonia',
     'Alguns itens mágicos só funcionam depois que você se **sintoniza** com eles: uma hora de foco, normalmente durante um **descanso curto**, segurando o item. Sem isso ele é um enfeite. Você mantém no máximo **três** itens sintonizados ao mesmo tempo — o quarto simplesmente não funciona.',
-    ['sintonizar', 'sintonizado', 'sintonização', 'requer sintonia'],
+    ['sintoniza', 'sintonizar', 'sintonizado', 'sintonizados', 'sintonização', 'requer sintonia'],
     'DMG, itens mágicos',
   ),
   V(

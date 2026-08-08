@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { PainelDeAcoes } from './acoes-ui'
 import type { Attack, Character } from '../types'
 import { PainelDeEquipamento } from './equipamento-ui'
+import { GlossarioProvider, TextoComTermos } from './glossario-ui'
 import { bonusForaDasArmas, itensAtivos } from '../lib/equipamento'
 import { ataquesDeArmas, type AtaqueDeArma } from '../lib/weapons'
 import { ABILITIES, CONDICOES, SKILLS, rotuloClasse } from '../data/rules'
@@ -48,6 +49,7 @@ export default function CharacterSheetView({
   const magiasPorNivel = [...new Set(char.magias.map((m) => m.nivel))].sort((a, b) => a - b)
 
   return (
+    <GlossarioProvider>
     <div className="space-y-6">
       {/* Cabeçalho */}
       <section className="card p-5">
@@ -176,7 +178,12 @@ export default function CharacterSheetView({
           {char.condicoes.length > 0 && (
             <ul className="mt-3 space-y-1 text-sm">
               {CONDICOES.filter((c) => char.condicoes.includes(c.nome)).map((c) => (
-                <li key={c.nome}><b className="text-dragon-400">{c.nome}.</b> <span className="text-parchment-200/80">{c.desc}</span></li>
+                <li key={c.nome}>
+                  <b className="text-dragon-400">{c.nome}.</b>{' '}
+                  <span className="text-parchment-200/80">
+                    <TextoComTermos texto={c.desc} exceto={`condicao-${c.nome.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '')}`} />
+                  </span>
+                </li>
               ))}
             </ul>
           )}
@@ -202,7 +209,11 @@ export default function CharacterSheetView({
               return (
                 <li key={nome} className="rounded-lg border border-white/10 bg-ink-900/40 p-2.5">
                   <p className="text-sm font-medium text-parchment-50">{nome}</p>
-                  {t && <p className="mt-0.5 text-xs text-parchment-200/70">{t.resumo}</p>}
+                  {t && (
+                    <p className="mt-0.5 text-xs text-parchment-200/70">
+                      <TextoComTermos texto={t.resumo} />
+                    </p>
+                  )}
                 </li>
               )
             })}
@@ -313,6 +324,7 @@ export default function CharacterSheetView({
         <LevelUpModal char={char} update={update} onClose={() => setSubindoNivel(false)} />
       )}
     </div>
+    </GlossarioProvider>
   )
 }
 
@@ -387,7 +399,9 @@ function ListaAcoes({ acoes, mostrarNivel = false }: { acoes: AcaoInfo[]; mostra
                 <span className="ml-auto text-[10px] text-parchment-200/40">nível {a.nivel}</span>
               )}
             </div>
-            <p className="mt-1 text-xs leading-relaxed text-parchment-200/70">{a.resumo}</p>
+            <p className="mt-1 text-xs leading-relaxed text-parchment-200/70">
+              <TextoComTermos texto={a.resumo} />
+            </p>
           </li>
         )
       })}

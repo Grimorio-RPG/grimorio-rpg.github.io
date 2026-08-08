@@ -21,6 +21,7 @@ import {
 } from '../lib/equipamento'
 import { ITENS_EQUIPAVEIS, doCatalogo } from '../data/itens-equipaveis'
 import { reconhecerEquipaveis } from '../lib/reconhecerEquipamento'
+import { TextoComTermos } from './glossario-ui'
 import { armorClass, passivePerception, saveBonus, skillBonus } from '../lib/calc'
 import { ABILITIES, SKILLS } from '../data/rules'
 import { uid } from '../lib/character'
@@ -394,7 +395,7 @@ function ResumoDoConjunto({ char }: { char: Character }) {
             {b.acoes.map((a) => (
               <li key={a.nome} className="text-xs text-parchment-200/80">
                 <b className="text-parchment-50">{a.nome}</b>
-                {a.usos ? ` (${a.usos})` : ''} — {a.descricao}
+                {a.usos ? ` (${a.usos})` : ''} — <TextoComTermos texto={a.descricao} />
               </li>
             ))}
           </ul>
@@ -626,6 +627,13 @@ function EditorDeItem({
             placeholder="O que não cabe em número: o gigante atingido faz salvaguarda ou cai."
           />
         </label>
+
+        {/* O que você escreveu, com as regras explicáveis já clicáveis. */}
+        {item.descricao?.trim() && (
+          <p className="mt-1.5 text-xs leading-relaxed text-parchment-200/70">
+            <TextoComTermos texto={item.descricao} />
+          </p>
+        )}
 
         <div className="mt-4 flex flex-wrap justify-between gap-2">
           <div className="flex gap-2">

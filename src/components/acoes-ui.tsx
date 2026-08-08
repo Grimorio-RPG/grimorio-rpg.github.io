@@ -6,6 +6,7 @@ import { acharTalento } from '../data/feats'
 import { rolarComModo } from './dice-ui'
 import { Modal } from './layout-ui'
 import { descreveRolagem } from '../lib/dice'
+import { TextoComTermos } from './glossario-ui'
 
 /**
  * O que o personagem pode fazer no turno, em um lugar só.
@@ -152,6 +153,9 @@ export function PainelDeAcoes({ char }: { char: Character }) {
                     title="Ver o que faz"
                   >
                     <p className="text-sm font-medium text-parchment-50">{a.nome}</p>
+                    {/* Sem links aqui: a linha é truncada e o toque nela abre
+                        a ação. Um termo no meio roubaria o toque para abrir
+                        outra coisa. Os links ficam no texto inteiro, dentro. */}
                     <p className="truncate text-xs text-parchment-200/60">{a.descricao || '—'}</p>
                   </button>
                   {a.ataque && (
@@ -181,7 +185,9 @@ export function PainelDeAcoes({ char }: { char: Character }) {
 
       {aberta && (
         <Modal titulo={aberta.nome} onClose={() => setAberta(null)}>
-          <p className="whitespace-pre-wrap text-parchment-100">{aberta.descricao || 'Sem descrição.'}</p>
+          <p className="whitespace-pre-wrap text-parchment-100">
+            {aberta.descricao ? <TextoComTermos texto={aberta.descricao} /> : 'Sem descrição.'}
+          </p>
           <div className="mt-4 flex flex-wrap gap-2">
             {aberta.ataque && (
               <button
