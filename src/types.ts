@@ -134,6 +134,8 @@ export interface Equipamento {
   efeitos: EfeitoDeItem[]
   descricao?: string
   peso?: number
+  /** Quantas peças. Ausente vale 1. A loja também vai precisar disto. */
+  qtd?: number
 }
 
 export interface InventoryItem {

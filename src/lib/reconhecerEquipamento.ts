@@ -63,17 +63,35 @@ const EQUIVALENTES: [RegExp, string][] = [
   [/\bmace\b|maça/i, 'Maça'],
   [/\bquarterstaff\b|bordão/i, 'Bordão'],
   [/\bdagger\b|adaga/i, 'Adaga'],
-  [/\brapier\b|florete/i, 'Florete'],
+  [/\brapier\b|rapieira/i, 'Rapieira'],
   [/\bscimitar\b|cimitarra/i, 'Cimitarra'],
-  [/\bspear\b|lança/i, 'Lança'],
-  [/\bglaive\b|glaive/i, 'Glaive'],
+  [/\bspear\b|^lança$/i, 'Lança'],
+  [/\bpike\b|lança longa/i, 'Lança Longa'],
   [/\bhalberd\b|alabarda/i, 'Alabarda'],
+  [/\btrident\b|tridente/i, 'Tridente'],
+  [/\bmorningstar\b|estrela/i, 'Maça Estrela'],
+  [/\bgreatclub\b|clava grande/i, 'Clava Grande'],
+  [/\bclub\b|^clava$/i, 'Clava'],
+  [/\bsickle\b|foice/i, 'Foice Curta'],
+  [/light hammer|martelo leve/i, 'Martelo Leve'],
+  [/\bdart\b|dardo/i, 'Dardo'],
+  [/\bsling\b|funda/i, 'Funda'],
   [/\blongbow\b|arco longo/i, 'Arco Longo'],
   [/\bshortbow\b|arco curto/i, 'Arco Curto'],
   [/light crossbow|besta leve/i, 'Besta Leve'],
   [/heavy crossbow|besta pesada/i, 'Besta Pesada'],
   [/hand crossbow|besta de mão/i, 'Besta de Mão'],
 ]
+
+/**
+ * Todos os destinos que a tabela aponta.
+ *
+ * Existe para o teste conferir que cada um existe de verdade no catálogo. Um
+ * destino escrito errado — "Florete" onde o catálogo diz "Rapieira" — não
+ * quebra nada: o item só some em silêncio, e a pessoa acha que a rapieira dela
+ * não é equipável.
+ */
+export const DESTINOS: string[] = [...new Set(EQUIVALENTES.map(([, nome]) => nome))]
 
 /** O nome no catálogo, se esta linha do inventário for algo equipável. */
 export function nomeNoCatalogo(linha: string): string | null {
@@ -133,12 +151,13 @@ export function reconhecerEquipaveis(
       equip.raridade = equip.raridade ?? 'Incomum'
     }
 
-    // Duplicatas viram peças separadas: duas adagas são duas, e cada uma pode
-    // ir para uma mão.
-    const quantas = Math.max(1, Math.min(item.qtd || 1, 4))
-    for (let i = 0; i < quantas; i++) {
-      equipamentos.push(i === 0 ? equip : { ...equip, id: uid() })
-    }
+    // Uma entrada por linha do inventário, com a quantidade junto.
+    //
+    // Antes cada peça virava uma entrada — pensando em "duas adagas, uma por
+    // mão". Só que dez dardos viravam dez linhas iguais e entulhavam a mochila,
+    // que é bem pior do que o caso que aquilo resolvia.
+    const quantas = Math.max(1, item.qtd || 1)
+    equipamentos.push(quantas > 1 ? { ...equip, qtd: quantas } : equip)
   }
 
   return { equipamentos, inventario: sobra }

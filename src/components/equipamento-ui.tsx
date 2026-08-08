@@ -20,6 +20,7 @@ import {
   porSlot,
 } from '../lib/equipamento'
 import { ITENS_EQUIPAVEIS, doCatalogo } from '../data/itens-equipaveis'
+import { reconhecerEquipaveis } from '../lib/reconhecerEquipamento'
 import { armorClass, passivePerception, saveBonus, skillBonus } from '../lib/calc'
 import { ABILITIES, SKILLS } from '../data/rules'
 import { uid } from '../lib/character'
@@ -109,6 +110,16 @@ export function PainelDeEquipamento({
   const guardados = lista.filter((e) => !e.equipado)
   const excede = bonus.sintonizados - LIMITE_SINTONIA
 
+  // O que dá para trazer do inventário de texto.
+  //
+  // O reconhecedor só rodava na importação, então quem importou a ficha ANTES
+  // dele existir ficava com a espada e a armadura presas na mochila de texto —
+  // e não havia caminho nenhum até aqui a não ser importar de novo.
+  const aReconhecer = useMemo(
+    () => reconhecerEquipaveis(char.inventario).equipamentos,
+    [char.inventario],
+  )
+
   function setLista(nova: Equipamento[]) {
     onChange({ equipamentos: nova })
   }
@@ -126,6 +137,26 @@ export function PainelDeEquipamento({
           ⚠️ {bonus.sintonizados} itens sintonizados, e o limite é {LIMITE_SINTONIA}.{' '}
           {excede === 1 ? 'Um deles' : `${excede} deles`} não está funcionando — a regra não diz
           qual, então escolha e desfaça a sintonia.
+        </div>
+      )}
+
+      {aReconhecer.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-arcane-400/40 bg-arcane-500/10 p-3 text-sm">
+          <span className="min-w-0 flex-1 text-parchment-100">
+            Achei <b>{aReconhecer.length}</b>{' '}
+            {aReconhecer.length === 1 ? 'item equipável' : 'itens equipáveis'} no seu inventário —{' '}
+            {aReconhecer.slice(0, 3).map((e) => e.nome).join(', ')}
+            {aReconhecer.length > 3 ? ` e mais ${aReconhecer.length - 3}` : ''}.
+          </span>
+          <button
+            className="btn-primary shrink-0 px-3 py-1 text-xs"
+            onClick={() => {
+              const { equipamentos, inventario } = reconhecerEquipaveis(char.inventario)
+              onChange({ equipamentos: [...lista, ...equipamentos], inventario })
+            }}
+          >
+            Trazer para cá
+          </button>
         </div>
       )}
 
@@ -205,6 +236,9 @@ export function PainelDeEquipamento({
                     >
                       <span className={`block truncate text-sm font-medium ${cor.texto}`}>
                         {item.nome || 'Sem nome'}
+                        {(item.qtd ?? 1) > 1 && (
+                          <span className="ml-1 text-parchment-200/50">×{item.qtd}</span>
+                        )}
                       </span>
                       <span className="block truncate text-[11px] text-parchment-200/50">
                         {SLOTS.find((s) => s.slot === item.slot)?.nome}

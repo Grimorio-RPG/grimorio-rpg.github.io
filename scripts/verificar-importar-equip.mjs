@@ -18,8 +18,9 @@ const compilar = (entrada, saida) => {
   return import(pathToFileURL(alvo).href)
 }
 
-const { reconhecerEquipaveis, nomeNoCatalogo } =
+const { reconhecerEquipaveis, nomeNoCatalogo, DESTINOS } =
   await compilar('src/lib/reconhecerEquipamento.ts', 'rec.js')
+const { ITENS_EQUIPAVEIS } = await compilar('src/data/itens-equipaveis.ts', 'cat.js')
 
 let falhas = 0
 let testes = 0
@@ -31,6 +32,19 @@ function checar(nome, condicao, detalhe = '') {
 }
 
 const linha = (nome, qtd = 1) => ({ id: nome, nome, qtd, peso: 0, notas: '' })
+
+// ---------------------------------------------------------------------------
+console.log('A tabela aponta para itens que existem')
+//
+// Um destino escrito errado não quebra nada: o item some em silêncio e a pessoa
+// acha que a arma dela não é equipável. Foi o que aconteceu com "Florete", que
+// no catálogo se chama "Rapieira" — e só apareceu quando uma ficha de verdade
+// foi importada.
+
+const nomesDoCatalogo = new Set(ITENS_EQUIPAVEIS.map((i) => i.nome))
+for (const destino of DESTINOS) {
+  checar(`"${destino}" existe no catálogo`, nomesDoCatalogo.has(destino))
+}
 
 // ---------------------------------------------------------------------------
 console.log('Reconhecer o nome')
@@ -113,13 +127,17 @@ checar('nenhum item chega equipado', equipamentos.every((e) => !e.equipado))
 // ---------------------------------------------------------------------------
 console.log('Quantidade')
 
+// Uma entrada por linha, com a quantidade junto. Dez dardos viravam dez linhas
+// iguais e entulhavam a mochila — pior do que o caso que aquilo resolvia.
 const { equipamentos: duas } = reconhecerEquipaveis([linha('Dagger', 2)])
-checar('duas adagas viram duas peças', duas.length === 2)
-checar('com ids diferentes', duas[0].id !== duas[1].id)
+checar('duas adagas viram UMA entrada', duas.length === 1, `viraram ${duas.length}`)
+checar('com a quantidade junto', duas[0].qtd === 2)
 
-// Uma pilha grande não pode virar cinquenta equipamentos na boneca.
-const { equipamentos: muitas } = reconhecerEquipaveis([linha('Dagger', 50)])
-checar('pilha grande é limitada', muitas.length === 4, `viraram ${muitas.length}`)
+const { equipamentos: dardos } = reconhecerEquipaveis([linha('Dart', 10)])
+checar('dez dardos também', dardos.length === 1 && dardos[0].qtd === 10)
+
+const { equipamentos: uma } = reconhecerEquipaveis([linha('Dagger')])
+checar('uma peça não carrega quantidade', uma[0].qtd === undefined)
 
 // ---------------------------------------------------------------------------
 console.log('Sem nada')

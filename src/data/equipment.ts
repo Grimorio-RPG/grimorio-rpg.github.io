@@ -32,6 +32,7 @@ export const ARMAS: Arma[] = [
   A('Clava', 'Simples', 'Corpo a corpo', '1d4', 'contundente', ['Leve'], 1),
   A('Clava Grande', 'Simples', 'Corpo a corpo', '1d8', 'contundente', ['Duas mãos'], 5),
   A('Foice Curta', 'Simples', 'Corpo a corpo', '1d4', 'cortante', ['Leve'], 1),
+  A('Maça', 'Simples', 'Corpo a corpo', '1d6', 'contundente', [], 2),
   A('Lança', 'Simples', 'Corpo a corpo', '1d6', 'perfurante', ['Arremesso', 'Versátil'], 1.5, '6/18 m', '1d8'),
   A('Machadinha', 'Simples', 'Corpo a corpo', '1d6', 'cortante', ['Leve', 'Arremesso'], 1, '6/18 m'),
   A('Martelo Leve', 'Simples', 'Corpo a corpo', '1d4', 'contundente', ['Leve', 'Arremesso'], 1, '6/18 m'),
