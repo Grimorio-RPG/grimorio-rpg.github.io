@@ -85,6 +85,10 @@ export function useMundo() {
       // `atualizadoEm` entra na marca para uma troca de imagem republicar.
       const marca = `${mapa.id}:${mapa.atualizadoEm}:${mapa.revelado}`
       if (publicadas.current.has(marca)) continue
+      // Mapa com caminho no Storage não publica imagem nenhuma: o caminho já
+      // viaja dentro do próprio mapa, e o arquivo o jogador busca direto. Era
+      // aqui que ~2 MB de base64 subiam a cada troca.
+      if (mapa.imagemPath) continue
       const img = imagemParaPublicar(mapa.id)
       if (!img.dataUrl) continue
       publicadas.current.add(marca)

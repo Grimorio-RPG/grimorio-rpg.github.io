@@ -20,6 +20,7 @@ import { imageToDataUrl } from '../lib/bestiary'
 import { EmptyState, Modal } from '../components/layout-ui'
 import { Field, SectionCard, SelectField, TextArea, TextField } from '../components/ui'
 import { PainelDaLoja } from '../components/loja-ui'
+import { enviarImagem, urlDaImagem } from '../lib/sync/imagens'
 
 export default function WorldPage() {
   const { mesa, souJogador } = useMesa()
@@ -52,10 +53,25 @@ function MundoDoMestre() {
       setImagem('')
       return
     }
+    // `vivo` nasce aqui em cima porque os dois caminhos abaixo o usam dentro de
+    // uma promessa. Declarado depois do primeiro `return`, ele existiria só
+    // para um deles — e o outro estouraria ao responder.
+    let vivo = true
+
+    // O caminho do Storage vence: é a versão que todo mundo enxerga. A cópia
+    // local serve para o mapa aparecer antes da rede responder, e para quem
+    // usa o app sem nuvem nenhuma.
     const local = lerImagem(mapa.id)
     setImagem(local)
+    if (mapa.imagemPath) {
+      void urlDaImagem(mapa.imagemPath).then((url) => {
+        if (vivo && url) setImagem(url)
+      })
+      return () => {
+        vivo = false
+      }
+    }
     if (local || !mesaIdDm) return
-    let vivo = true
     void lerEstado(mesaIdDm, chaveImagemMapa(mapa.id)).then((r) => {
       const url = (r as { dataUrl?: string } | null)?.dataUrl
       if (!vivo || !url) return
@@ -101,7 +117,15 @@ function MundoDoMestre() {
       const dataUrl = await imageToDataUrl(file, 1600, 0.82)
       salvarImagem(mapa.id, dataUrl)
       setImagem(dataUrl)
-      mudarMapa({}) // carimba atualizadoEm: é o sinal para republicar a imagem
+
+      // Sobe para o Storage quando há mesa. Se não subir — sem nuvem, sem
+      // sessão, ou porque o `storage.sql` ainda não foi rodado —, o mapa
+      // continua viajando embutido pelo caminho antigo. Uma etapa de instalação
+      // que ninguém fez não pode impedir alguém de usar o app.
+      const caminho = mesaIdDm
+        ? await enviarImagem(mesaIdDm, 'mapas', mapa.id, dataUrl)
+        : null
+      mudarMapa(caminho ? { imagemPath: caminho } : {})
     } catch {
       setErro('Não consegui ler essa imagem. Tente um PNG ou JPG.')
     }
@@ -596,11 +620,26 @@ function MundoDoJogador({ mesaId }: { mesaId: string }) {
     mundo?.mapas.find((m) => m.id === (aberto || mundo.mapaAtivoId)) ?? mundo?.mapas[0] ?? null
 
   // A imagem vem de uma chave própria — por isso ela não pesa nas atualizações
-  // de ponto, que chegam o tempo todo.
+  // de ponto, que chegam o tempo todo. Mapa novo nem usa esta chave: ele traz o
+  // caminho do Storage, e o que desce é o arquivo, não base64 dentro de JSON.
   const img = useEstadoMesa<{ dataUrl: string }>(
     mesaId,
-    mapa ? chaveImagemMapa(mapa.id, true) : CHAVES_MESA.mundoPub,
+    mapa && !mapa.imagemPath ? chaveImagemMapa(mapa.id, true) : CHAVES_MESA.mundoPub,
   )
+  const [doStorage, setDoStorage] = useState('')
+  useEffect(() => {
+    if (!mapa?.imagemPath) {
+      setDoStorage('')
+      return
+    }
+    let vivo = true
+    void urlDaImagem(mapa.imagemPath).then((url) => {
+      if (vivo && url) setDoStorage(url)
+    })
+    return () => {
+      vivo = false
+    }
+  }, [mapa?.imagemPath])
 
   return (
     <div>
@@ -641,9 +680,9 @@ function MundoDoJogador({ mesaId }: { mesaId: string }) {
             </div>
           )}
 
-          {img?.dataUrl ? (
+          {doStorage || img?.dataUrl ? (
             <>
-              <Tabuleiro imagem={img.dataUrl} pontos={mapa.pontos} soLeitura onAbrir={(p) => setLendo(p)} />
+              <Tabuleiro imagem={doStorage || img!.dataUrl} pontos={mapa.pontos} soLeitura onAbrir={(p) => setLendo(p)} />
               <p className="mt-1.5 text-center text-xs text-parchment-200/45">
                 Toque num símbolo para ver o lugar · use pinça para aproximar
               </p>

@@ -393,6 +393,15 @@ export interface MapaMundo {
   /** Mapa inteiro escondido: nem ele nem a imagem saem para o grupo. */
   revelado: boolean
   atualizadoEm: number
+  /**
+   * Onde a imagem mora no Storage.
+   *
+   * Ausente nos mapas de antes disto existir, e nos de quem ainda não rodou o
+   * `supabase/storage.sql` — nesses a imagem continua viajando embutida, pelo
+   * caminho antigo. Ter o caminho é o que faz o mapa parar de arrastar
+   * megabytes a cada revelação de ponto.
+   */
+  imagemPath?: string
 }
 
 /**

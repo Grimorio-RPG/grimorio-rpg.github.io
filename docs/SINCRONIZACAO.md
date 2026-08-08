@@ -53,7 +53,22 @@ quem não entra numa mesa continua com o app inteiro só para si.
    [`supabase/schema.sql`](../supabase/schema.sql) → **Run**.
    Pode rodar de novo quantas vezes quiser: é idempotente.
 
-3. **Pegar as chaves**
+3. **Ligar o Storage das imagens** *(opcional, mas vale)*
+   No painel → **SQL Editor** → *New query* → cole
+   [`supabase/storage.sql`](../supabase/storage.sql) → **Run**. Também é
+   idempotente.
+
+   Sem isso o app funciona igual: a imagem do mapa continua viajando embutida
+   dentro da linha de estado, como sempre viajou. Com isso ela vira arquivo, e o
+   que trafega no banco passa a ser o caminho dela — algumas dezenas de bytes no
+   lugar de ~2 MB de base64 a cada republicação.
+
+   O balde nasce **privado** de propósito: um mapa que você ainda não revelou é
+   segredo seu, e balde público entrega o arquivo a quem tiver o link. Quem lê é
+   quem o RLS deixa, e o app pede uma URL assinada de uma hora na hora de
+   mostrar.
+
+4. **Pegar as chaves**
    **Project Settings → API**:
    - *Project URL* → `VITE_SUPABASE_URL`
    - *Project API keys → `anon` `public`* → `VITE_SUPABASE_ANON_KEY`
@@ -61,7 +76,7 @@ quem não entra numa mesa continua com o app inteiro só para si.
    ⚠️ Use a chave **anon**, nunca a `service_role`. A anon é pública por
    natureza (vai no código do site); quem protege os dados é o RLS.
 
-4. **Configurar o app**
+5. **Configurar o app**
    ```bash
    cp .env.example .env
    # preencha as duas variáveis
@@ -70,11 +85,11 @@ quem não entra numa mesa continua com o app inteiro só para si.
    Abra a aba **Mesa**: ela deve trocar as instruções de instalação por uma
    tela de login.
 
-5. **Criar sua conta e a mesa**
+6. **Criar sua conta e a mesa**
    Na aba **Mesa** → *Criar conta* → depois *Sou o DM* → dê um nome à mesa.
    Sai um **código de 6 letras**.
 
-6. **Cada jogador**
+7. **Cada jogador**
    Abre o mesmo endereço, cria a conta dele, escolhe *Sou jogador* e digita o
    código. Pronto: quando você montar um encontro na aba **Batalhas**, ele
    aparece no celular de cada um em segundos.
