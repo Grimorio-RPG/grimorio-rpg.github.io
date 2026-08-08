@@ -190,7 +190,13 @@ export function vesteArmadura(char: Character): boolean {
  * é só "+3 de CA na mão secundária", igual a uma braçadeira seria.
  */
 export function usaEscudo(char: Character): boolean {
-  return itensAtivos(char).some((e) => e.slot === 'maoSecundaria' && /escudo/i.test(e.nome))
+  // Qualquer uma das mãos. Nada nas regras diz em qual braço o escudo vai, e
+  // depois que a escolha da mão passou a ser da pessoa, olhar só a secundária
+  // deixava um Monge de escudo na mão principal continuar com a Defesa sem
+  // Armadura — o traço que o escudo justamente desliga.
+  return itensAtivos(char).some(
+    (e) => MAOS.includes(e.slot) && /escudo/i.test(e.nome),
+  )
 }
 
 /** A arma do catálogo em que o item se baseia, se houver. */
@@ -404,6 +410,16 @@ export function excedeSintonia(char: Character): number {
 const MAOS: SlotEquipamento[] = ['maoPrincipal', 'maoSecundaria']
 
 /**
+ * Os lugares que vêm em par.
+ *
+ * Duas mãos, dois anéis. O que eles têm em comum é que a peça não pertence a um
+ * deles — ela cabe em qualquer um, e quem escolhe é a pessoa. O catálogo dá um
+ * slot só a cada item, e enquanto o app tratava esse slot como destino fixo,
+ * ninguém conseguia usar duas adagas nem dois anéis.
+ */
+const PARES: SlotEquipamento[][] = [MAOS, ['anel1', 'anel2']]
+
+/**
  * É uma arma de uma mão?
  *
  * O que decide se a peça pode ir para qualquer das duas mãos. Uma adaga vai,
@@ -415,9 +431,18 @@ export function ehDeUmaMao(item: Equipamento): boolean {
   return !!armaBase(item) && !ocupaDuasMaos(item)
 }
 
-/** Os lugares em que esta peça pode ser equipada. */
+/**
+ * Os lugares em que esta peça pode ser equipada.
+ *
+ * Quase toda peça tem um lugar só — o elmo vai na cabeça e acabou. As exceções
+ * são os pares: uma arma de UMA mão cabe nas duas mãos, e um anel cabe nos dois
+ * dedos. Arma de duas mãos não é exceção: ela ocupa as duas e só começa na
+ * principal.
+ */
 export function slotsPossiveis(item: Equipamento): SlotEquipamento[] {
-  return ehDeUmaMao(item) ? [...MAOS] : [item.slot]
+  if (armaBase(item)) return ehDeUmaMao(item) ? [...MAOS] : [item.slot]
+  const par = PARES.find((p) => p.includes(item.slot))
+  return par ? [...par] : [item.slot]
 }
 
 /**

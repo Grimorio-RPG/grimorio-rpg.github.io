@@ -211,6 +211,47 @@ checar('lugar impossível não muda nada',
 const ataquesComDuas = ataquesDeArmas({ ...BASE, equipamentos: comDuas })
 checar('as duas armas rendem dois ataques', ataquesComDuas.length === 2)
 
+// Anel tem o mesmo problema que a adaga tinha: são dois dedos, o catálogo dá um
+// slot só, e enquanto o app tratasse esse slot como destino fixo o segundo anel
+// expulsava o primeiro.
+const anelDoCatalogo = doCatalogo('Anel de Proteção', 'r1')
+checar('o anel do catálogo nasce no Anel I', anelDoCatalogo.slot === 'anel1')
+checar('mas cabe nos dois dedos',
+  JSON.stringify(slotsPossiveis(anelDoCatalogo)) === JSON.stringify(['anel1', 'anel2']),
+  JSON.stringify(slotsPossiveis(anelDoCatalogo)))
+
+const doisAneis = [
+  { ...anelDoCatalogo, id: 'r1', equipado: false },
+  { ...doCatalogo('Anel de Proteção', 'r2'), id: 'r2', nome: 'Anel de Fogo', equipado: false },
+]
+const comDois = equiparEm(equiparEm(doisAneis, 'r1', 'anel1'), 'r2', 'anel2')
+checar('dá para usar dois anéis',
+  comDois.filter((e) => e.equipado).length === 2,
+  JSON.stringify(comDois.map((e) => [e.id, e.slot, e.equipado])))
+checar('um em cada dedo',
+  comDois.find((e) => e.id === 'r1').slot === 'anel1' &&
+  comDois.find((e) => e.id === 'r2').slot === 'anel2')
+
+// E o segundo anel no MESMO dedo continua expulsando o primeiro.
+const mesmoDedo = equiparEm(equiparEm(doisAneis, 'r1', 'anel1'), 'r2', 'anel1')
+checar('dois anéis no mesmo dedo não cabem',
+  mesmoDedo.filter((e) => e.equipado).length === 1)
+
+// O que não vem em par continua com um lugar só.
+checar('o elmo tem um lugar só',
+  slotsPossiveis({ id: 'h', nome: 'Elmo', slot: 'cabeca', efeitos: [] }).length === 1)
+checar('a armadura também',
+  slotsPossiveis({ id: 'a', nome: 'Cota', slot: 'corpo', efeitos: [] }).length === 1)
+// O escudo cabe nos dois braços — nada nas regras diz em qual ele vai. Mas se
+// só a mão secundária contasse como "usando escudo", um Monge com o escudo na
+// principal manteria a Defesa sem Armadura, que é o traço que o escudo desliga.
+checar('o escudo cabe nas duas mãos',
+  slotsPossiveis(escudo).length === 2, JSON.stringify(slotsPossiveis(escudo)))
+const escudoNaPrincipal = { ...BASE, classe: 'Monge', equipamentos: [{ ...escudo, slot: 'maoPrincipal' }] }
+checar('e conta como escudo na principal também', usaEscudo(escudoNaPrincipal) === true)
+checar('então o Monge perde a Defesa sem Armadura de qualquer mão',
+  defesaSemArmadura(escudoNaPrincipal) === null)
+
 // ---------------------------------------------------------------------------
 console.log('O ataque extra de duas armas')
 

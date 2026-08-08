@@ -8,8 +8,9 @@ import { useMemo, useState } from 'react'
 import type { AbilityKey, Character, EfeitoDeItem, Equipamento, SkillKey, SlotEquipamento } from '../types'
 import {
   BONECA,
-  ehDeUmaMao,
   equiparEm,
+  nomeDoSlot,
+  slotsPossiveis,
   LIMITE_SINTONIA,
   SLOTS,
   bonusDeEquipamento,
@@ -238,42 +239,24 @@ export function PainelDeEquipamento({
                         {item.sintonia ? ' · sintonia' : ''}
                       </span>
                     </button>
-                    {/* Arma de uma mão cabe nas duas — inclusive a adaga. As
-                        regras não exigem nada para segurar uma arma na mão
-                        secundária; o que exige é o ataque EXTRA, que pede a
-                        propriedade Leve nas duas. Antes o app escolhia a mão
-                        pela pessoa, e duas adagas eram impossíveis. */}
-                    {ehDeUmaMao(item) ? (
-                      <span className="flex shrink-0 gap-1">
+                    {/* Os lugares que vêm em par pedem escolha: uma arma de
+                        uma mão cabe nas duas mãos, um anel cabe nos dois dedos.
+                        Antes o app escolhia pela pessoa, e duas adagas ou dois
+                        anéis eram impossíveis. Um botão por lugar. */}
+                    <span className="flex shrink-0 gap-1">
+                      {slotsPossiveis(item).map((slot) => (
                         <button
+                          key={slot}
                           className="chip text-xs hover:border-emerald-400/60"
-                          title="Equipar na mão principal"
-                          onClick={() => setLista(equiparEm(lista, item.id, 'maoPrincipal'))}
+                          title={`Equipar em ${nomeDoSlot(slot).toLowerCase()}`}
+                          onClick={() => setLista(equiparEm(lista, item.id, slot))}
                           onFocus={() => setEspiando(item.id)}
                           onBlur={() => setEspiando(null)}
                         >
-                          Mão principal
+                          {slotsPossiveis(item).length > 1 ? nomeDoSlot(slot) : 'Equipar'}
                         </button>
-                        <button
-                          className="chip text-xs hover:border-emerald-400/60"
-                          title="Equipar na mão secundária"
-                          onClick={() => setLista(equiparEm(lista, item.id, 'maoSecundaria'))}
-                          onFocus={() => setEspiando(item.id)}
-                          onBlur={() => setEspiando(null)}
-                        >
-                          Secundária
-                        </button>
-                      </span>
-                    ) : (
-                      <button
-                        className="chip shrink-0 text-xs hover:border-emerald-400/60"
-                        onClick={() => setLista(equipar(lista, item.id))}
-                        onFocus={() => setEspiando(item.id)}
-                        onBlur={() => setEspiando(null)}
-                      >
-                        Equipar
-                      </button>
-                    )}
+                      ))}
+                    </span>
                   </div>
 
                   {/* A diferença, antes de vestir. É o ponto da tela. */}
