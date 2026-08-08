@@ -81,6 +81,10 @@ export type SlotEquipamento =
   | 'anel1'
   | 'anel2'
   | 'cinto'
+  // Pernas não existe no livro — armadura em D&D é peça única. Existe aqui
+  // porque a boneca é de RPG tradicional, e uma boneca sem pernas fica com um
+  // buraco no meio. Quem não usa deixa vazio, que é o que o livro faz.
+  | 'pernas'
   | 'pes'
   | 'maoPrincipal'
   | 'maoSecundaria'

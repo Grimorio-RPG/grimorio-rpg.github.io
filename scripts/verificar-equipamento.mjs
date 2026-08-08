@@ -23,7 +23,7 @@ const compilar = (entrada, saida) => {
 
 const {
   bonusDeEquipamento, atributoComEquipamento, equipar, desequipar,
-  excedeSintonia, porSlot, itensAtivos, descreveEfeito, LIMITE_SINTONIA,
+  excedeSintonia, porSlot, itensAtivos, descreveEfeito, LIMITE_SINTONIA, SLOTS, BONECA,
   alvoCasa, bonusContra, temBonusContra,
 } = await compilar('src/lib/equipamento.ts', 'equipamento.js')
 const { armorClass, armorClassDetalhe, saveBonus, skillBonus, atributoEfetivo } =
@@ -253,6 +253,32 @@ checar('três sintonizados cabem', excedeSintonia(com(...tres)) === 0)
 const quatro = [...tres, { ...anel, id: 's4', nome: 'Item 4', slot: 'cinto' }]
 checar('o quarto excede', excedeSintonia(com(...quatro)) === 1)
 checar('o limite é o da regra', LIMITE_SINTONIA === 3)
+
+// ---------------------------------------------------------------------------
+console.log('A boneca')
+//
+// Um slot criado no modelo e esquecido no desenho não dá erro nenhum: ele
+// simplesmente não aparece na boneca, e a peça equipada some da vista. É a
+// mesma família de defeito silencioso do "Florete" que não existia no catálogo.
+
+const noDesenho = BONECA.flat()
+for (const { slot, nome } of SLOTS) {
+  checar(`"${nome}" tem lugar no corpo`, noDesenho.includes(slot))
+}
+checar('e a boneca não desenha slot que não existe',
+  noDesenho.every((s) => SLOTS.some((x) => x.slot === s)),
+  noDesenho.filter((s) => !SLOTS.some((x) => x.slot === s)).join(', '))
+checar('nenhum slot aparece duas vezes',
+  new Set(noDesenho).size === noDesenho.length)
+checar('são três colunas em toda linha', BONECA.every((linha) => linha.length === 3))
+
+// A coluna do meio é o eixo do corpo: cabeça em cima, pés embaixo.
+const meio = BONECA.map((linha) => linha[1])
+checar('a cabeça é a primeira do eixo', meio[0] === 'cabeca')
+checar('e os pés a última', meio[meio.length - 1] === 'pes')
+checar('as mãos ficam nas laterais',
+  BONECA.some((l) => l[0] === 'maoPrincipal' && l[2] === 'maoSecundaria'))
+checar('e os anéis também', BONECA.some((l) => l[0] === 'anel1' && l[2] === 'anel2'))
 
 // ---------------------------------------------------------------------------
 console.log('Texto dos efeitos')

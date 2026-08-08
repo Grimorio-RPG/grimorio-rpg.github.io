@@ -70,11 +70,26 @@ export const SLOTS: { slot: SlotEquipamento; nome: string; icone: string }[] = [
   { slot: 'corpo', nome: 'Corpo', icone: '🥋' },
   { slot: 'maos', nome: 'Mãos', icone: '🧤' },
   { slot: 'cinto', nome: 'Cinto', icone: '🎗️' },
+  { slot: 'pernas', nome: 'Pernas', icone: '👖' },
   { slot: 'pes', nome: 'Pés', icone: '🥾' },
   { slot: 'anel1', nome: 'Anel I', icone: '💍' },
   { slot: 'anel2', nome: 'Anel II', icone: '💍' },
   { slot: 'maoPrincipal', nome: 'Mão principal', icone: '⚔️' },
   { slot: 'maoSecundaria', nome: 'Mão secundária', icone: '🛡️' },
+]
+
+/**
+ * Onde cada slot fica na boneca: quatro linhas de três colunas.
+ *
+ * Mora aqui, e não na tela, para o teste conferir que todo slot do modelo tem
+ * um lugar no corpo. Um slot criado e esquecido no desenho não dá erro nenhum —
+ * ele simplesmente não aparece, e a peça vestida some da vista.
+ */
+export const BONECA: SlotEquipamento[][] = [
+  ['capa', 'cabeca', 'pescoco'],
+  ['maos', 'corpo', 'cinto'],
+  ['maoPrincipal', 'pernas', 'maoSecundaria'],
+  ['anel1', 'pes', 'anel2'],
 ]
 
 export function nomeDoSlot(slot: SlotEquipamento): string {

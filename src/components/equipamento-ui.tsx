@@ -7,6 +7,7 @@
 import { useMemo, useState } from 'react'
 import type { AbilityKey, Character, EfeitoDeItem, Equipamento, SkillKey, SlotEquipamento } from '../types'
 import {
+  BONECA,
   LIMITE_SINTONIA,
   SLOTS,
   bonusDeEquipamento,
@@ -165,49 +166,12 @@ export function PainelDeEquipamento({
         </div>
       )}
 
-      {/* Os lugares do corpo */}
-      <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
-        {SLOTS.map(({ slot, nome, icone }) => {
-          const item = vestidos[slot]
-          const cor = coresDe(item?.raridade)
-          // A mão vazia por causa de uma arma de duas mãos não é uma mão livre.
-          // Sem dizer isso, vestir o escudo e ver o arco sumir parece defeito.
-          const tomadaPelasDuasMaos =
-            !item && slot === 'maoSecundaria' && !!maoPrincipalDeDuasMaos
-          return (
-            <button
-              key={slot}
-              type="button"
-              onClick={() => item && setEditando(item)}
-              className={`rounded-lg border p-2 text-center transition ${
-                item
-                  ? `${cor.anel} ${cor.fundo} hover:brightness-125`
-                  : 'border-dashed border-white/15 text-parchment-200/35 hover:border-white/30'
-              }`}
-              title={
-                item
-                  ? `${item.nome} — toque para ver`
-                  : tomadaPelasDuasMaos
-                    ? `${maoPrincipalDeDuasMaos?.nome} ocupa as duas mãos`
-                    : `${nome}: vazio`
-              }
-            >
-              <span className="block text-2xl">{item?.icone || icone}</span>
-              <span className="mt-0.5 block truncate text-[11px] text-parchment-200/60">{nome}</span>
-              {item && (
-                <span className={`mt-0.5 block truncate text-xs font-medium ${cor.texto}`}>
-                  {item.nome}
-                </span>
-              )}
-              {tomadaPelasDuasMaos && (
-                <span className="mt-0.5 block truncate text-[11px] text-parchment-200/40">
-                  ocupada
-                </span>
-              )}
-            </button>
-          )
-        })}
-      </div>
+      {/* A boneca */}
+      <Boneca
+        vestidos={vestidos}
+        maoPrincipalDeDuasMaos={maoPrincipalDeDuasMaos}
+        onAbrir={setEditando}
+      />
 
       {/* O que o conjunto está dando */}
       <ResumoDoConjunto char={char} />
@@ -272,7 +236,7 @@ export function PainelDeEquipamento({
                       onFocus={() => setEspiando(item.id)}
                       onBlur={() => setEspiando(null)}
                     >
-                      Vestir
+                      Equipar
                     </button>
                   </div>
 
@@ -324,6 +288,104 @@ export function PainelDeEquipamento({
 }
 
 /** O que o conjunto vestido está dando, somado. */
+/**
+ * A boneca: cada peça no lugar do corpo em que ela fica.
+ *
+ * A grade que existia antes era uma fileira de quadradinhos em ordem
+ * arbitrária — dava para ver o que estava vestido, mas não dava para ler o
+ * personagem. Num RPG a boneca é meia interface por si só: você bate o olho e
+ * sabe que falta capa, que a mão secundária está livre, que só tem um anel.
+ *
+ * A silhueta atrás é o que faz as posições fazerem sentido. Sem ela, "Cinto à
+ * direita do Corpo" é só mais um quadradinho num lugar esquisito.
+ */
+function Boneca({
+  vestidos,
+  maoPrincipalDeDuasMaos,
+  onAbrir,
+}: {
+  vestidos: Partial<Record<SlotEquipamento, Equipamento>>
+  maoPrincipalDeDuasMaos: Equipamento | null
+  onAbrir: (item: Equipamento) => void
+}) {
+  return (
+    <div className="relative mx-auto w-full max-w-md">
+      <Silhueta />
+      <div className="relative grid grid-cols-3 gap-1.5 sm:gap-2">
+        {BONECA.flat().map((slot, i) => {
+          if (!slot) return <div key={i} />
+          const info = SLOTS.find((x) => x.slot === slot)!
+          const item = vestidos[slot]
+          const cor = coresDe(item?.raridade)
+          // A mão vazia por causa de uma arma de duas mãos não é uma mão livre.
+          // Sem dizer isso, equipar o escudo e ver o arco sumir parece defeito.
+          const tomadaPelasDuasMaos =
+            !item && slot === 'maoSecundaria' && !!maoPrincipalDeDuasMaos
+          return (
+            <button
+              key={slot}
+              type="button"
+              onClick={() => item && onAbrir(item)}
+              className={`min-h-[4.5rem] rounded-lg border p-1.5 text-center backdrop-blur-[1px] transition ${
+                item
+                  ? `${cor.anel} ${cor.fundo} hover:brightness-125`
+                  : 'border-dashed border-white/15 bg-ink-900/30 text-parchment-200/35 hover:border-white/30'
+              }`}
+              title={
+                item
+                  ? `${item.nome} — toque para ver`
+                  : tomadaPelasDuasMaos
+                    ? `${maoPrincipalDeDuasMaos?.nome} ocupa as duas mãos`
+                    : `${info.nome}: vazio`
+              }
+            >
+              <span className="block text-xl leading-tight">{item?.icone || info.icone}</span>
+              <span className="mt-0.5 block truncate text-[10px] uppercase tracking-wide text-parchment-200/45">
+                {info.nome}
+              </span>
+              {item && (
+                <span className={`block truncate text-[11px] font-medium leading-tight ${cor.texto}`}>
+                  {item.nome}
+                </span>
+              )}
+              {tomadaPelasDuasMaos && (
+                <span className="block truncate text-[10px] text-parchment-200/40">ocupada</span>
+              )}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * O corpo por trás dos slots.
+ *
+ * Fica atrás e não recebe clique nenhum: é enfeite que orienta a leitura, e um
+ * enfeite que rouba o toque do slot seria pior do que não existir.
+ */
+function Silhueta() {
+  return (
+    <svg
+      viewBox="0 0 100 160"
+      aria-hidden
+      className="pointer-events-none absolute inset-0 mx-auto h-full w-[38%] text-parchment-100/[0.13]"
+      preserveAspectRatio="xMidYMid meet"
+    >
+      <g fill="currentColor" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round">
+        {/* cabeça */}
+        <circle cx="50" cy="18" r="13" />
+        {/* pescoço e tronco */}
+        <path d="M44 30h12v6l16 8c4 2 6 6 6 10v26c0 3-2 5-5 5h-4l-2-26-1 40H34l-1-40-2 26h-4c-3 0-5-2-5-5V54c0-4 2-8 6-10l16-8z" />
+        {/* pernas */}
+        <path d="M36 92h11l2 34-2 30h-9l-2-30z" />
+        <path d="M53 92h11l2 34-2 30h-9l-2-30z" />
+      </g>
+    </svg>
+  )
+}
+
 function ResumoDoConjunto({ char }: { char: Character }) {
   const b = bonusDeEquipamento(char)
   const temAlgo =
@@ -336,7 +398,7 @@ function ResumoDoConjunto({ char }: { char: Character }) {
 
   return (
     <div className="card space-y-2 p-3">
-      <p className="panel-title">O que você ganha vestindo isto</p>
+      <p className="panel-title">O que você ganha equipando isto</p>
 
       <div className="flex flex-wrap gap-1.5">
         {b.ca !== 0 && <span className="chip text-xs">{sinal(b.ca)} CA</span>}
@@ -642,7 +704,7 @@ function EditorDeItem({
             </button>
             {inicial.equipado && (
               <button className="btn-ghost text-xs" onClick={onDesequipar}>
-                Tirar
+                Desequipar
               </button>
             )}
           </div>

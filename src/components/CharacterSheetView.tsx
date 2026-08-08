@@ -273,7 +273,7 @@ export default function CharacterSheetView({
       <section className="card p-5">
         <h3 className="mb-1 panel-title">Equipamento</h3>
         <p className="mb-3 text-xs text-parchment-200/50">
-          O que você veste muda a ficha. Passe o olho num item guardado para ver a diferença
+          O que você equipa muda a ficha. Passe o olho num item guardado para ver a diferença
           antes de vestir.
         </p>
         <PainelDeEquipamento char={char} onChange={update} />
