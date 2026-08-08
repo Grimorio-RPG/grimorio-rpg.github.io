@@ -3,6 +3,7 @@ import { apagarTudo, baixarBackup, lerBackup, restaurarBackup, type Backup, type
 import { usoDeArmazenamento } from '../lib/store'
 import { nuvemConfigurada } from '../lib/sync/config'
 import { PageHeader } from '../components/layout-ui'
+import { ATRIBUICAO_SRD, LICENCA_SRD_URL } from '../data/srd'
 
 export default function DataPage() {
   const fileRef = useRef<HTMLInputElement>(null)
@@ -181,6 +182,26 @@ export default function DataPage() {
           </div>
         </div>
       )}
+
+      {/* A licença do SRD.
+          O texto oficial dos itens mágicos é CC-BY-4.0: dá para usar, mas a
+          atribuição TEM de aparecer para quem lê. Fica aqui, na página que já
+          é sobre a procedência dos dados. */}
+      <section className="card p-5">
+        <h3 className="mb-2 panel-title">Créditos</h3>
+        <p className="text-xs leading-relaxed text-parchment-200/60">{ATRIBUICAO_SRD}</p>
+        <a
+          href={LICENCA_SRD_URL}
+          target="_blank"
+          rel="noreferrer"
+          className="mt-1 inline-block text-xs text-arcane-400 hover:underline"
+        >
+          Ler a licença
+        </a>
+        <p className="mt-3 text-xs leading-relaxed text-parchment-200/50">
+          O resto das regras no app é resumo escrito por nós, não cópia dos livros.
+        </p>
+      </section>
     </div>
   )
 }

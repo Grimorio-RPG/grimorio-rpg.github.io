@@ -15,11 +15,18 @@ Não está no repositório: são 6 MB que não mudam nunca. Baixe de
 
 ```bash
 cd scripts/srd
-npm i pdfjs-dist@4          # fora do package.json do app, é ferramenta
+npm i --no-save pdfjs-dist@4        # ferramenta, não dependência do app
 
 node srd.mjs 209 253 itens.txt      # extrai a seção "Magic Items A–Z"
-node gerar.mjs itens.txt itens.json # vira dado estruturado
+node gerar.mjs itens.txt itens.json # vira dado e escreve src/data/srd/itens-srd.ts
+
+npm i --no-save pdfjs-dist@^3.11.174   # devolve a versão que o app usa
 ```
+
+> **Cuidado.** `scripts/srd` não tem `package.json` próprio, então o npm sobe
+> até o do app e instala **lá**. Um `npm i pdfjs-dist@4` troca a versão 3 que o
+> `ddbImport.ts` importa, e a importação do D&D Beyond para de compilar sem que
+> nada aqui reclame. Por isso o `--no-save` e a linha que devolve a versão.
 
 ## O que custou descobrir
 
@@ -54,13 +61,37 @@ O SRD não dá preço item a item; dá por raridade, e é o bastante para uma lo
 Item que é armadura ou arma vale isso **mais** o preço do item base — uma
 Armadura de Placas +1 Rara vale 4.000 + 1.500.
 
+## O que só apareceu quando o parser foi consertado
+
+A primeira versão entregava 196 itens e 32 sem raridade. Depois de corrigir o
+que está abaixo, são **253 itens e 3 sem raridade** — ou seja, 57 itens estavam
+sendo silenciosamente engolidos, e ninguém tinha como perceber.
+
+- **O nome do item pode começar com uma categoria.** "Ammunition, +1, +2, or +3"
+  era descartado porque começa com "Ammunition", e a munição inteira ia parar
+  dentro do texto da Adamantine Armor. Cabeçalho de verdade tem parêntese,
+  raridade, ou termina em vírgula; nome não tem nada disso.
+- **O nome quebra em duas linhas** quando é longo: "Amulet of Proof against
+  Detection" / "and Location". Olhando só a linha de cima, o item sumia.
+- **O cabeçalho quebra dentro do parêntese**: "Legendary (Requires" /
+  "Attunement)". Sobrava "Attunement)" no começo do texto e a sintonia não era
+  detectada.
+- **A quebra cai no meio do nome da raridade**: "…, Rare (+1), Very" /
+  "Rare (+2), or Legendary (+3)".
+- **Falsos começos**: "This concoction looks, smells, and tastes like a" chegou
+  a ser um item mágico. Nome do SRD é Título Assim — uma palavra minúscula que
+  não seja conectivo denuncia que é frase.
+- **Linha de tabela virando nome**: "PotionStr.Rarity Potion of Giant
+  Strength(hill)21Uncommon". Dígito colado em letra denuncia. Só parêntese não
+  denuncia nada: "Stone of Good Luck (Luckstone)" é nome de verdade.
+
 ## O que ainda não sai limpo
 
-Dos 196 extraídos, 32 ficam sem raridade. Dois motivos:
-
-- **Itens com variantes em tabela** — Belt of Giant Strength, Figurine of
-  Wondrous Power, Dragon Orb. A raridade está numa tabela dentro do verbete,
-  não na linha de cabeçalho. Precisam de leitura à mão.
-- **Falsos começos**: um parágrafo que começa com maiúscula logo antes de uma
-  linha de tipo vira "item". Dá para reconhecer pelo nome ter mais de 60
-  caracteres ou terminar em ponto.
+- **Tabelas.** São duas colunas dentro de duas colunas, e às vezes uma coluna
+  reaparece no meio do item seguinte. Não dá para consertar lendo o PDF, então
+  o texto é cortado onde a tabela começa e o item fica com `tabelaOmitida`.
+  Acontece com 22 itens.
+- **Três itens sem raridade** — Belt of Giant Strength, Dragon Orb e Ioun Stone:
+  a raridade está dentro da tabela de variantes. Precisam de leitura à mão.
+- **Potion of Giant Strength não existe como item**: o verbete inteiro dela é
+  uma tabela.
