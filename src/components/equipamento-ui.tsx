@@ -27,6 +27,7 @@ import { ITENS_EQUIPAVEIS, doCatalogo } from '../data/itens-equipaveis'
 import { reconhecerEquipaveis } from '../lib/reconhecerEquipamento'
 import { TextoComTermos } from './glossario-ui'
 import { armorClass, passivePerception, saveBonus, skillBonus } from '../lib/calc'
+import { defesaSemArmadura, deslocamentoEfetivo } from '../lib/features'
 import { ABILITIES, SKILLS } from '../data/rules'
 import { uid } from '../lib/character'
 import { atributoComEquipamento, ocupaDuasMaos } from '../lib/equipamento'
@@ -417,22 +418,50 @@ function AvisoDeCorpoSemBase({ char }: { char: Character }) {
   )
 }
 
+/**
+ * O que o conjunto está dando — de verdade.
+ *
+ * CA e deslocamento não são somas: são o número final MENOS o número que a
+ * pessoa teria sem nada equipado. Somar os bônus dos itens mentia em dois
+ * casos, e o pior era o Monge — a armadura dá CA e tira a Defesa sem Armadura,
+ * então "+5 CA" podia ser, na conta real, um prejuízo. O mesmo vale para o
+ * deslocamento, que o Monge também perde ao vestir armadura.
+ *
+ * O resto continua sendo soma, e está certo assim: bônus de ataque e de dano
+ * não substituem nada, eles se acrescentam.
+ */
 function ResumoDoConjunto({ char }: { char: Character }) {
   const b = bonusDeEquipamento(char)
+
+  // A mesma pessoa, sem nada equipado. É a régua contra a qual o ganho é medido.
+  const semNada = useMemo(() => ({ ...char, equipamentos: [] }), [char])
+  const deltaCa = armorClass(char) - armorClass(semNada)
+  const deltaDeslocamento = deslocamentoEfetivo(char) - deslocamentoEfetivo(semNada)
+
+  // Trocou a base da CA por causa de armadura? É o que explica um número menor
+  // do que a soma dos itens sugere.
+  const trocouADefesa = !!defesaSemArmadura(semNada) && !defesaSemArmadura(char)
+
   const temAlgo =
-    b.ca || b.ataque || b.dano || b.danoExtra.length || b.vantagens.length ||
-    b.resistencias.length || b.deslocamento || b.sentidos.length || b.acoes.length ||
+    deltaCa || b.ataque || b.dano || b.danoExtra.length || b.vantagens.length ||
+    b.resistencias.length || deltaDeslocamento || b.sentidos.length || b.acoes.length ||
     b.condicionais.length
 
   if (!temAlgo) return null
   const sinal = (n: number) => (n >= 0 ? `+${n}` : `${n}`)
+  const corDoDelta = (n: number) =>
+    n > 0 ? 'text-emerald-300' : n < 0 ? 'text-dragon-300' : 'text-parchment-200/70'
 
   return (
     <div className="card space-y-2 p-3">
       <p className="panel-title">O que você ganha equipando isto</p>
 
       <div className="flex flex-wrap gap-1.5">
-        {b.ca !== 0 && <span className="chip text-xs">{sinal(b.ca)} CA</span>}
+        {deltaCa !== 0 && (
+          <span className={`chip text-xs ${corDoDelta(deltaCa)}`}>
+            {sinal(deltaCa)} CA <span className="text-parchment-200/40">(CA {armorClass(char)})</span>
+          </span>
+        )}
         {b.ataque !== 0 && <span className="chip text-xs">{sinal(b.ataque)} ataque</span>}
         {b.dano !== 0 && <span className="chip text-xs">{sinal(b.dano)} dano</span>}
         {b.danoExtra.map((d) => (
@@ -440,8 +469,10 @@ function ResumoDoConjunto({ char }: { char: Character }) {
             +{d.dado} {d.descricao}
           </span>
         ))}
-        {b.deslocamento !== 0 && (
-          <span className="chip text-xs">{sinal(b.deslocamento)} m</span>
+        {deltaDeslocamento !== 0 && (
+          <span className={`chip text-xs ${corDoDelta(deltaDeslocamento)}`}>
+            {sinal(deltaDeslocamento)} m
+          </span>
         )}
         {b.resistencias.map((r) => (
           <span key={r} className="chip text-xs text-arcane-300">resistência a {r}</span>
@@ -453,6 +484,16 @@ function ResumoDoConjunto({ char }: { char: Character }) {
           <span key={s} className="chip text-xs">{s}</span>
         ))}
       </div>
+
+      {/* A armadura num Monge (ou Bárbaro) não é só ganho: ela desliga a Defesa
+          sem Armadura. Sem dizer isso, o número menor do que os itens prometem
+          parece defeito do app. */}
+      {trocouADefesa && (
+        <p className="text-xs text-amber-200/90">
+          A armadura substituiu a sua Defesa sem Armadura — o ganho já está com essa troca
+          descontada.
+        </p>
+      )}
 
       {/* Os que só valem contra alguém. Ficam separados porque é isso que eles
           são: não entram no total, e mostrá-los somados seria mentira. */}

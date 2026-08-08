@@ -35,11 +35,11 @@ const carregar = (n) => import(pathToFileURL(join(dir, `${n}.js`)).href)
 const { ataquesDeArmas } = await carregar('lib/weapons')
 const {
   equipar, equiparEm, ocupaDuasMaos, itensAtivos, usaEscudo, vesteArmadura,
-  bonusForaDasArmas, ehDeUmaMao, ehLeve, duasArmasLeves, slotsPossiveis,
+  bonusForaDasArmas, ehDeUmaMao, ehLeve, duasArmasLeves, slotsPossiveis, bonusDeEquipamento,
 } = await carregar('lib/equipamento')
 const { armorClass } = await carregar('lib/calc')
 const { normalizeCharacter } = await carregar('lib/character')
-const { defesaSemArmadura } = await carregar('lib/features')
+const { defesaSemArmadura, deslocamentoEfetivo } = await carregar('lib/features')
 const { doCatalogo, ITENS_EQUIPAVEIS } = await carregar('data/itens-equipaveis')
 
 let falhas = 0
@@ -387,6 +387,58 @@ for (const grau of [1, 2, 3]) {
   const comEla = { ...BASE, atributos: { ...BASE.atributos, des: 10 }, equipamentos: [{ ...item, equipado: true }] }
   checar(`e dá CA ${18 + grau}`, armorClass(comEla) === 18 + grau, `deu ${armorClass(comEla)}`)
 }
+
+// ---------------------------------------------------------------------------
+console.log('O ganho tem de ser o ganho de verdade')
+//
+// O painel "o que você ganha equipando isto" somava os bônus de CA dos itens.
+// Num Monge isso mentia: a armadura DÁ CA e TIRA a Defesa sem Armadura, então
+// a soma dos itens podia anunciar ganho onde havia prejuízo. O ganho honesto é
+// a CA final menos a CA sem nada equipado — que é a conta que este bloco fixa.
+
+const ganhoDeCa = (c) => armorClass(c) - armorClass({ ...c, equipamentos: [] })
+
+// Guerreiro: sem traço de defesa, a soma e o ganho coincidem.
+const guerreiroDeCota = {
+  ...BASE,
+  atributos: { ...BASE.atributos, des: 10 },
+  equipamentos: [{ ...cotaMais1, equipado: true }],
+}
+checar('no Guerreiro, vestir Cota de Malha +1 ganha 7',
+  ganhoDeCa(guerreiroDeCota) === 7, `deu ${ganhoDeCa(guerreiroDeCota)}`)
+
+// Monge de DES 14 e SAB 14: 14 desarmado, 17 de Cota de Malha +1. Ganho 3 — e
+// não os 17 da armadura nem só o +1 do encantamento.
+checar('no Monge, o ganho desconta a Defesa sem Armadura',
+  ganhoDeCa(mongeDeCota) === 3, `deu ${ganhoDeCa(mongeDeCota)}`)
+
+// O caso que dói: armadura pior que a defesa do Monge. O ganho tem de ser
+// NEGATIVO, e não o "+1" que a soma dos itens anunciaria.
+//
+// Com SAB 14 o Couro +1 empata em 14 e não prova nada — foi o que a primeira
+// versão deste teste pediu. Um Monge de nível 5 com SAB 18 é o caso comum, e aí
+// a Defesa sem Armadura (16) ganha da armadura (14) com folga.
+const mongeSabio = {
+  ...monge14,
+  atributos: { ...monge14.atributos, sab: 18 },
+}
+const couroMais1 = doCatalogo('Couro +1', 'z')
+const mongeDeCouro = { ...mongeSabio, equipamentos: [{ ...couroMais1, equipado: true }] }
+checar('armadura fraca no Monge é prejuízo, não ganho',
+  ganhoDeCa(mongeDeCouro) < 0,
+  `CA ${armorClass(mongeSabio)} → ${armorClass(mongeDeCouro)} (ganho ${ganhoDeCa(mongeDeCouro)})`)
+checar('e a soma crua dos itens teria dito o contrário',
+  bonusDeEquipamento(mongeDeCouro).ca > 0,
+  `soma crua ${bonusDeEquipamento(mongeDeCouro).ca}`)
+
+// O deslocamento tem o mesmo problema: o Monge perde o bônus ao vestir armadura.
+const ganhoDeDeslocamento = (c) =>
+  deslocamentoEfetivo(c) - deslocamentoEfetivo({ ...c, equipamentos: [] })
+const monge5 = { ...monge14, nivel: 5, deslocamento: 9 }
+const monge5DeCota = { ...monge5, equipamentos: [{ ...cotaMais1, equipado: true }] }
+checar('o Monge de armadura perde deslocamento',
+  ganhoDeDeslocamento(monge5DeCota) < 0,
+  `${deslocamentoEfetivo(monge5)} → ${deslocamentoEfetivo(monge5DeCota)}`)
 
 // ---------------------------------------------------------------------------
 console.log('Sintonia')
