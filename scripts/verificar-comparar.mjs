@@ -21,7 +21,7 @@ const dir = mkdtempSync(join(tmpdir(), 'comp-'))
 execSync(
   `npx esbuild src/lib/comparar.ts --bundle --outdir=${dir} --format=esm --log-level=error`,
 )
-const { retratar, diferencas, seEquipasse, resumoCurto, melhorPara } = await import(
+const { retratar, diferencas, seEquipasse, resumoCurto, resumir, melhorPara } = await import(
   pathToFileURL(join(dir, 'comparar.js')).href
 )
 
@@ -182,9 +182,58 @@ checar('e o deslocamento', varias.some((d) => /deslocamento/.test(d.texto)))
 
 checar('resumo curto junta com ponto', resumoCurto(comSinal).includes('CA'))
 checar('resumo de nada é vazio', resumoCurto([]) === '')
-checar('e ele corta no limite', resumoCurto(
-  [{ texto: 'a', bom: true }, { texto: 'b', bom: true }, { texto: 'c', bom: true },
-   { texto: 'd', bom: true }], 2) === 'a · b')
+
+// ---------------------------------------------------------------------------
+console.log('O corte deixa ganho de fora, NUNCA perda')
+//
+// A lista vem ordenada por CA, atributo, salvaguarda, perícia e deslocamento —
+// e perda quase sempre é perícia ou deslocamento, ou seja, o fim da fila.
+// Cortar pelos primeiros escondia exatamente a má notícia: uma armadura de +5
+// de CA, +1 em seis salvaguardas, −5 de Furtividade e −3 m aparecia como
+// quatro linhas verdes, sem uma palavra sobre as duas perdas. O app virava
+// anúncio.
+//
+// Errar para menos é seguro: quem vê ganho a menos compra do mesmo jeito e
+// descobre o resto na ficha. Quem vê PERDA a menos compra o que não devia.
+
+const pesadaDeVerdade = [
+  { texto: '+5 CA', bom: true },
+  { texto: '+1 salv. FOR', bom: true },
+  { texto: '+1 salv. DES', bom: true },
+  { texto: '+1 salv. CON', bom: true },
+  { texto: '-5 Furtividade', bom: false },
+  { texto: '-3 m de deslocamento', bom: false },
+]
+
+const r4 = resumir(pesadaDeVerdade, 4)
+checar('as duas perdas aparecem mesmo com limite 4',
+  r4.mostrar.filter((d) => !d.bom).length === 2,
+  JSON.stringify(r4.mostrar.map((d) => d.texto)))
+checar('e sobra pouco espaço para ganho', r4.mostrar.filter((d) => d.bom).length === 2)
+checar('o que ficou de fora é contado', r4.ocultos === 2, String(r4.ocultos))
+checar('a ordem original é mantida', r4.mostrar[0].texto === '+5 CA')
+
+// Limite apertado demais: a perda passa por cima dele. Ela é a informação que
+// decide, e cortar uma para caber num número seria escolher o número.
+const r1 = resumir(pesadaDeVerdade, 1)
+checar('com limite 1, as perdas ainda entram',
+  r1.mostrar.filter((d) => !d.bom).length === 2,
+  JSON.stringify(r1.mostrar.map((d) => d.texto)))
+checar('e nenhum ganho sobra', r1.mostrar.filter((d) => d.bom).length === 0)
+checar('com todos os ganhos contados', r1.ocultos === 4)
+
+checar('sem perda, o corte é o normal',
+  resumir([{ texto: 'a', bom: true }, { texto: 'b', bom: true }, { texto: 'c', bom: true }], 2)
+    .mostrar.map((d) => d.texto).join(',') === 'a,b')
+checar('lista vazia não quebra', resumir([], 3).mostrar.length === 0)
+checar('nada oculto quando tudo cabe', resumir(pesadaDeVerdade, 10).ocultos === 0)
+
+// E o texto de uma linha diz quantos ficaram de fora, em vez de cortar calado.
+checar('o texto avisa o que ficou de fora',
+  resumoCurto(pesadaDeVerdade, 3).includes('+3'),
+  resumoCurto(pesadaDeVerdade, 3))
+checar('e traz as perdas', resumoCurto(pesadaDeVerdade, 3).includes('-5 Furtividade'),
+  resumoCurto(pesadaDeVerdade, 3))
 
 // ---------------------------------------------------------------------------
 console.log('Ficha esquisita não quebra')
@@ -249,6 +298,50 @@ checar('os dois ganham alguma coisa', ordenados.length === 2,
 checar('e quem ganha MAIS CA vem primeiro',
   ordenados[0]?.ficha.nome === 'Elara',
   ordenados.map((a) => `${a.ficha.nome}(${a.diferencas[0]?.texto})`).join(', '))
+
+// ---------------------------------------------------------------------------
+console.log('O que não é número')
+//
+// Vantagem e desvantagem não são valores, e por isso quase ficaram de fora: a
+// comparação compara números. Mas a desvantagem em Furtividade é O trade-off do
+// 5e — a placa dá +6 de CA e acaba com a furtividade do grupo. Mostrar só o +6
+// é propaganda, não informação.
+
+const placa = item('placa', {
+  slot: 'corpo', armadura: 'Placas',
+  efeitos: [{ tipo: 'caBase', valor: 18, maxDes: 0 }],
+})
+const couroLeve = item('couro', {
+  slot: 'corpo', equipado: true, armadura: 'Couro',
+  efeitos: [{ tipo: 'caBase', valor: 11 }],
+})
+
+const vestirPlaca = seEquipasse(ficha({ equipamentos: [couroLeve] }), placa)
+checar('a placa avisa a desvantagem em Furtividade',
+  vestirPlaca.some((d) => /desvantagem em Furtividade/.test(d.texto) && !d.bom),
+  JSON.stringify(vestirPlaca.map((x) => x.texto)))
+checar('e ela conta como PERDA', 
+  vestirPlaca.find((d) => /desvantagem em Furtividade/.test(d.texto))?.bom === false)
+checar('junto com o ganho de CA', vestirPlaca.some((d) => /CA/.test(d.texto) && d.bom))
+checar('e com a força que ela exige',
+  vestirPlaca.some((d) => /exige FOR/.test(d.texto) && !d.bom),
+  JSON.stringify(vestirPlaca.map((x) => x.texto)))
+
+// Tirar a placa é o contrário, e tem de aparecer como GANHO — senão trocar por
+// couro pareceria só perda de CA, e a decisão de quem quer se esconder some.
+const tirarPlaca = seEquipasse(
+  ficha({ equipamentos: [{ ...placa, equipado: true }] }),
+  { ...couroLeve, equipado: false },
+)
+checar('sair da placa devolve a furtividade',
+  tirarPlaca.some((d) => /sai a desvantagem em Furtividade/.test(d.texto) && d.bom),
+  JSON.stringify(tirarPlaca.map((x) => x.texto)))
+
+// E a perda que não é número entra no resumo pela mesma regra: nunca cortada.
+const comDesvantagem = resumir(vestirPlaca, 1)
+checar('a desvantagem não é cortada pelo limite',
+  comDesvantagem.mostrar.some((d) => /Furtividade/.test(d.texto)),
+  JSON.stringify(comDesvantagem.mostrar.map((x) => x.texto)))
 
 if (falhas > 0) {
   console.error(`\n✗ ${falhas} de ${testes} verificações de comparação falharam`)

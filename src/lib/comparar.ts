@@ -16,7 +16,7 @@ import type { AbilityKey, Character, Equipamento } from '../types'
 import { ABILITIES, SKILLS } from '../data/rules'
 import { armorClass, passivePerception, saveBonus, skillBonus } from './calc'
 import { deslocamentoEfetivo } from './features'
-import { atributoComEquipamento, equiparEm } from './equipamento'
+import { armaduraVestida, atributoComEquipamento, equiparEm } from './equipamento'
 
 /**
  * O retrato da ficha que interessa numa troca.
@@ -31,6 +31,17 @@ export interface Retrato {
   deslocamento: number
   pericias: Record<string, number>
   salvaguardas: Record<string, number>
+  /**
+   * Desvantagem em Furtividade pela armadura.
+   *
+   * Não é número, e por isso quase ficou de fora: `diferencas` compara valores,
+   * e vantagem/desvantagem não é um valor. Mas é O trade-off do 5e — a placa
+   * dá +6 de CA e acaba com a furtividade do grupo —, e uma comparação que
+   * mostra só o +6 é propaganda, não informação.
+   */
+  furtividadeRuim: boolean
+  /** Força mínima da armadura: abaixo dela, a pessoa anda mais devagar. */
+  forcaMinima: number
 }
 
 export function retratar(char: Character): Retrato {
@@ -42,6 +53,7 @@ export function retratar(char: Character): Retrato {
   }
   const pericias: Record<string, number> = {}
   for (const s of SKILLS) pericias[s.key] = skillBonus(char, s.key)
+  const armadura = armaduraVestida(char)
   return {
     ca: armorClass(char),
     atributos,
@@ -49,6 +61,8 @@ export function retratar(char: Character): Retrato {
     deslocamento: deslocamentoEfetivo(char),
     pericias,
     salvaguardas,
+    furtividadeRuim: !!armadura?.furtividadeRuim,
+    forcaMinima: armadura?.forcaMinima ?? 0,
   }
 }
 
@@ -94,6 +108,21 @@ export function diferencas(antes: Retrato, depois: Retrato): Diferenca[] {
     const d = depois.deslocamento - antes.deslocamento
     fora.push({ texto: `${sinal(d)} m de deslocamento`, bom: d > 0 })
   }
+
+  // O que não é número. Sem estas duas linhas, a armadura de placa aparecia na
+  // loja como "+6 CA" e mais nada — e o ladino do grupo descobria o resto na
+  // primeira vez que tentasse se esconder.
+  if (depois.furtividadeRuim !== antes.furtividadeRuim) {
+    fora.push({
+      texto: depois.furtividadeRuim
+        ? 'desvantagem em Furtividade'
+        : 'sai a desvantagem em Furtividade',
+      bom: !depois.furtividadeRuim,
+    })
+  }
+  if (depois.forcaMinima !== antes.forcaMinima && depois.forcaMinima > 0) {
+    fora.push({ texto: `exige FOR ${depois.forcaMinima}`, bom: false })
+  }
   return fora
 }
 
@@ -123,10 +152,49 @@ export function seEquipasse(char: Character, item: Equipamento): Diferenca[] {
   return diferencas(retratar(char), retratar(simulada))
 }
 
-/** Só o que melhora, para quando o espaço não cabe a lista inteira. */
-export function resumoCurto(dif: Diferenca[], quantos = 3): string {
-  if (dif.length === 0) return ''
-  return dif.slice(0, quantos).map((d) => d.texto).join(' · ')
+export interface Resumo {
+  /** O que cabe na linha — com TODAS as perdas dentro. */
+  mostrar: Diferenca[]
+  /** Quantos GANHOS ficaram de fora. Perda nunca fica. */
+  ocultos: number
+}
+
+/**
+ * O que mostrar quando o espaço não cabe a lista inteira.
+ *
+ * A regra é assimétrica de propósito: GANHO pode ser cortado, PERDA nunca.
+ *
+ * Cortar pelos primeiros parecia inofensivo e era o contrário. A ordem da lista
+ * é CA, atributo, salvaguarda, perícia, deslocamento — e perda quase sempre é
+ * perícia ou deslocamento, ou seja, o fim da fila. Uma armadura pesada que dava
+ * +5 de CA, +1 em seis salvaguardas, −5 de Furtividade e −3 m de deslocamento
+ * aparecia na loja como quatro linhas verdes, sem uma palavra sobre as duas
+ * perdas. O app virava anúncio.
+ *
+ * Errar para menos é seguro: quem vê ganho a menos compra do mesmo jeito e
+ * descobre o resto na ficha. Quem vê perda a menos compra o que não devia.
+ */
+export function resumir(dif: Diferenca[], limite = 4): Resumo {
+  const perdas = dif.filter((d) => !d.bom)
+  const ganhos = dif.filter((d) => d.bom)
+  // A perda entra inteira; o que sobra de espaço é dos ganhos. Com muitas
+  // perdas o limite estoura — e é o certo: elas são a informação que decide.
+  const cabem = Math.max(0, limite - perdas.length)
+  const mostrados = ganhos.slice(0, cabem)
+  return {
+    // Na ordem original, para a linha continuar legível: CA primeiro, e não a
+    // perda primeiro só por ser perda.
+    mostrar: dif.filter((d) => !d.bom || mostrados.includes(d)),
+    ocultos: ganhos.length - mostrados.length,
+  }
+}
+
+/** O mesmo, em uma linha de texto. */
+export function resumoCurto(dif: Diferenca[], limite = 3): string {
+  const { mostrar, ocultos } = resumir(dif, limite)
+  if (mostrar.length === 0) return ''
+  const texto = mostrar.map((d) => d.texto).join(' · ')
+  return ocultos > 0 ? `${texto} · +${ocultos}` : texto
 }
 
 /** Para quem o item rende mais, e quanto. */

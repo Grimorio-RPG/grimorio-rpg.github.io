@@ -77,7 +77,7 @@ import { aoMudar, passouNoTeste, semConcentracao } from '../lib/concentracao'
 import { SeletorDeMagia, type Conjuracao } from '../components/conjurar-ui'
 import { PainelDeMesa } from '../components/mesa-fisica'
 import { GlossarioProvider, TextoComTermos } from '../components/glossario-ui'
-import { melhorPara, resumoCurto } from '../lib/comparar'
+import { melhorPara, resumir } from '../lib/comparar'
 import { nomeNoCatalogo } from '../lib/reconhecerEquipamento'
 import { doCatalogo as equipavelDoCatalogo } from '../data/itens-equipaveis'
 import { QuemReage, SelosDeAcao } from '../components/acoes-turno-ui'
@@ -2387,11 +2387,23 @@ function ParaQuemServe({ nome }: { nome: string }) {
 
   return (
     <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px]">
-      {alvos.map(({ ficha, diferencas }) => (
-        <span key={ficha.id} className="chip border-emerald-400/30 text-emerald-300/90">
-          {ficha.nome || 'Sem nome'}: {resumoCurto(diferencas, 2)}
-        </span>
-      ))}
+      {alvos.map(({ ficha, diferencas }) => {
+        // A perda NUNCA é cortada, e nunca sai verde. Uma linha toda da mesma
+        // cor faria "−5 Furtividade" ler como ganho — e a cor é a primeira
+        // coisa que se lê num chip.
+        const { mostrar, ocultos } = resumir(diferencas, 3)
+        return (
+          <span key={ficha.id} className="chip flex items-center gap-1 text-parchment-200/70">
+            {ficha.nome || 'Sem nome'}:
+            {mostrar.map((d) => (
+              <span key={d.texto} className={d.bom ? 'text-emerald-300' : 'text-dragon-300'}>
+                {d.texto}
+              </span>
+            ))}
+            {ocultos > 0 && <span className="text-parchment-200/35">e mais {ocultos}</span>}
+          </span>
+        )
+      })}
     </span>
   )
 }

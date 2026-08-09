@@ -38,7 +38,7 @@ import {
   vender,
 } from '../lib/loja'
 import { coresDe } from '../lib/equipamento'
-import { seEquipasse } from '../lib/comparar'
+import { resumir, seEquipasse } from '../lib/comparar'
 import { loadCharacters, upsertCharacter } from '../lib/storage'
 import { useEstadoMesa, useMesa } from '../hooks/useSync'
 import { CHAVES_MESA } from '../lib/sync/config'
@@ -747,9 +747,15 @@ function OQueMuda({
 
   if (diferencas.length === 0) return null
 
+  // O corte deixa GANHO de fora, nunca perda: a lista vem ordenada por CA,
+  // atributo, salvaguarda, perícia e deslocamento, e perda quase sempre é
+  // perícia ou deslocamento — o fim da fila. Cortar pelos primeiros escondia
+  // exatamente a má notícia, e a loja virava anúncio.
+  const { mostrar, ocultos } = resumir(diferencas, 4)
+
   return (
     <span className="flex w-full flex-wrap gap-1.5 text-[11px]">
-      {diferencas.slice(0, 4).map((d) => (
+      {mostrar.map((d) => (
         <span
           key={d.texto}
           className={`chip ${d.bom ? 'border-emerald-400/40 text-emerald-300' : 'border-dragon-400/40 text-dragon-300'}`}
@@ -757,6 +763,9 @@ function OQueMuda({
           {d.texto}
         </span>
       ))}
+      {ocultos > 0 && (
+        <span className="self-center text-parchment-200/35">e mais {ocultos}</span>
+      )}
       <span className="self-center text-parchment-200/35">
         para {comprador?.nome || 'a ficha'}
       </span>
