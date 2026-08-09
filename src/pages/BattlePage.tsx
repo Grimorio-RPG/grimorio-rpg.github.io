@@ -182,6 +182,18 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
   const [conjurando, setConjurando] = useState<Combatant | null>(null)
 
   /**
+   * A ficha de quem está conjurando, se ela existir neste aparelho.
+   *
+   * É ela que transforma "as 339 do SRD" em "as sete que você preparou". Sem
+   * ficha — monstro, NPC, ficha do jogador que está no celular dele — a tela
+   * volta a ser o catálogo inteiro, que é o certo nesse caso.
+   */
+  const fichaDoConjurador = useMemo(
+    () => (conjurando?.refId ? loadCharacters().find((f) => f.id === conjurando.refId) ?? null : null),
+    [conjurando],
+  )
+
+  /**
    * Conjura: marca a concentração quando a magia pede, gasta o espaço na ficha
    * de origem e acende o token no mapa.
    *
@@ -208,6 +220,11 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
         alvo: c.nome,
         texto: `${c.nome} conjurou ${magia.nomePt}${
           nivel > magia.nivel ? ` (${nivel}º círculo)` : ''
+        }${
+          // Conjurar sem gastar espaço é legítimo — traço de classe, pergaminho
+          // — mas some da conta da ficha. Se não ficar no registro, ninguém
+          // lembra depois por que a ficha não bateu.
+          magia.nivel > 0 && nivel === 0 ? ' (sem gastar espaço)' : ''
         }${magia.concentracao ? ' — está concentrando' : ''}`,
         deInimigo: c.origem === 'inimigo',
       }),
@@ -592,6 +609,7 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
       {conjurando && (
         <SeletorDeMagia
           nomeDoConjurador={conjurando.nome}
+          ficha={fichaDoConjurador}
           onFechar={() => setConjurando(null)}
           onConjurar={(escolha) => conjurar(conjurando, escolha)}
         />

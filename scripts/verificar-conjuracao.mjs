@@ -26,6 +26,7 @@ const carregar = (n) => import(pathToFileURL(join(dir, `${n}.js`)).href)
 const {
   quotaDoNivel, tamanhoDoGrimorio, usaGrimorio, listaFixa,
   contar, oQueFalta, ganhoDoNivel,
+  espacosLivres, cabeEm, menorCirculoLivre, magiasParaConjurar,
 } = await carregar('lib/conjuracao')
 const { espacosPorNivel, temEspacos, maiorCirculo } = await carregar('data/progression')
 
@@ -240,6 +241,72 @@ checar('e não pede escolha nenhuma', descendo.algo === false)
 const virouMago = ganhoDoNivel('Mago', 0, 1)
 checar('quem vira conjurador ganha os 3 truques', virouMago.truques === 3)
 checar('e as 6 do livro', virouMago.grimorio === 6)
+
+// ---------------------------------------------------------------------------
+console.log('Na hora de conjurar')
+//
+// O ✨ do combate abria as 339 do SRD para todo mundo. Para um monstro está
+// certo; para um mago com sete magias preparadas é o problema anterior ao
+// contrário — catálogo demais no momento em que a pessoa precisa de sete
+// linhas, e nenhuma pista de qual delas ainda tem espaço para sair.
+
+const espacos = (livres) => livres.map((n) => ({ total: n, usados: 0 }))
+
+checar('conta os espaços livres',
+  espacosLivres({ espacosMagia: [{ total: 4, usados: 1 }, { total: 3, usados: 3 }] })
+    .join(',') === '3,0')
+checar('e nunca devolve negativo',
+  espacosLivres({ espacosMagia: [{ total: 2, usados: 5 }] })[0] === 0)
+checar('ficha sem espaços não quebra', espacosLivres({ espacosMagia: [] }).length === 0)
+
+// Um espaço MAIOR serve para uma magia menor — é a regra, e é a diferença
+// entre "acabou" e "acabou o barato". Sem isso o app diria que o mago está
+// seco enquanto ele ainda tem dois espaços de 3º na manga.
+checar('espaço do próprio círculo serve', cabeEm([1, 0, 0], 1) === true)
+checar('espaço MAIOR também serve', cabeEm([0, 0, 2], 1) === true)
+checar('espaço menor NÃO serve', cabeEm([4, 0, 0], 3) === false)
+checar('sem espaço nenhum, não cabe', cabeEm([0, 0, 0], 1) === false)
+
+// O padrão da tela: o MENOR que serve. Começar pelo círculo próprio da magia
+// é o reflexo, e queima o espaço grande à toa.
+checar('começa no menor que serve', menorCirculoLivre([2, 2, 2], 1) === 1)
+checar('pula os esgotados', menorCirculoLivre([0, 0, 2], 1) === 3, `deu ${menorCirculoLivre([0, 0, 2], 1)}`)
+checar('nunca abaixo do círculo da magia', menorCirculoLivre([3, 3, 3], 3) === 3)
+checar('e devolve 0 quando não há nenhum', menorCirculoLivre([1, 0, 0], 2) === 0)
+
+const grimorio = magiasParaConjurar({
+  magias: [
+    magia('Luz', 0), magia('Mãos Mágicas', 0),
+    magia('Mísseis Mágicos', 1, true), magia('Escudo', 1, true),
+    magia('Sono', 1), magia('Teia', 2),
+  ],
+})
+checar('os truques ficam juntos', grimorio.truques.length === 2)
+checar('as preparadas também', grimorio.preparadas.length === 2, String(grimorio.preparadas.length))
+// As guardadas PRECISAM aparecer. Esconder o que está no livro faz o jogador
+// esquecer que a magia existe — e esquecer é pior do que não poder usar hoje.
+checar('e o que está no livro sem preparar não some', grimorio.guardadas.length === 2,
+  grimorio.guardadas.map((m) => m.nome).join(', '))
+checar('truque nunca cai em preparadas',
+  grimorio.preparadas.every((m) => m.nivel > 0))
+checar('nem em guardadas', grimorio.guardadas.every((m) => m.nivel > 0))
+// Truque marcado como preparado continua sendo truque: ele não se prepara.
+checar('truque marcado continua truque',
+  magiasParaConjurar({ magias: [magia('Luz', 0, true)] }).truques.length === 1)
+checar('e não entra nas preparadas',
+  magiasParaConjurar({ magias: [magia('Luz', 0, true)] }).preparadas.length === 0)
+checar('ficha sem magia nenhuma não quebra',
+  magiasParaConjurar({ magias: [] }).preparadas.length === 0)
+
+// O caso do mago que gastou tudo: a Bola de Fogo continua na lista, e o app
+// tem de dizer que ela não sai — não sumir com ela.
+const seco = espacos([0, 0, 0, 0, 0, 0, 0, 0, 0])
+checar('sem espaço, nada de 1º círculo cabe', cabeEm(espacosLivres({ espacosMagia: seco }), 1) === false)
+const sobrouAlto = espacos([0, 0, 1, 0, 0, 0, 0, 0, 0])
+checar('mas com um de 3º sobrando, a de 1º sai',
+  cabeEm(espacosLivres({ espacosMagia: sobrouAlto }), 1) === true)
+checar('gastando o de 3º, porque é o único',
+  menorCirculoLivre(espacosLivres({ espacosMagia: sobrouAlto }), 1) === 3)
 
 if (falhas > 0) {
   console.error(`\n✗ ${falhas} de ${testes} verificações de conjuração falharam`)

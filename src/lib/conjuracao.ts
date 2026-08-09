@@ -166,6 +166,61 @@ export interface Ganho {
   algo: boolean
 }
 
+// ---------------------------------------------------------------------------
+// Na hora de conjurar
+//
+// Estas quatro funções decidem o que aparece no ✨ do combate. Moram aqui, e
+// não dentro do componente, porque são regra — e regra dentro de JSX é regra
+// que nenhum teste alcança.
+// ---------------------------------------------------------------------------
+
+/** Quantos espaços sobraram em cada círculo, do 1º ao 9º. */
+export function espacosLivres(char: Pick<Character, 'espacosMagia'>): number[] {
+  return (char.espacosMagia ?? []).map((s) => Math.max(0, s.total - s.usados))
+}
+
+/**
+ * Existe espaço livre que sirva para uma magia deste círculo?
+ *
+ * "Que sirva" inclui os círculos ACIMA: quem não tem mais espaço de 1º pode
+ * conjurar Mísseis Mágicos gastando um de 3º. É a regra, e é o que faz a
+ * diferença entre "acabou" e "acabou o barato".
+ */
+export function cabeEm(livres: number[], circulo: number): boolean {
+  return livres.some((n, i) => i + 1 >= circulo && n > 0)
+}
+
+/**
+ * O menor círculo com espaço livre que serve para a magia. 0 = nenhum.
+ *
+ * O padrão da tela sai daqui. Começar pelo círculo próprio da magia seria o
+ * reflexo, e empurraria para gastar o espaço grande à toa — o erro clássico é
+ * queimar o de 5º numa magia que sairia igual com o de 1º.
+ */
+export function menorCirculoLivre(livres: number[], circulo: number): number {
+  const i = livres.findIndex((n, idx) => idx + 1 >= circulo && n > 0)
+  return i < 0 ? 0 : i + 1
+}
+
+/** As magias da ficha, separadas pelo que a regra permite fazer com elas hoje. */
+export interface ParaConjurar {
+  /** Sempre disponíveis, sem gastar nada. */
+  truques: SpellRef[]
+  /** Preparadas hoje: são as que saem. */
+  preparadas: SpellRef[]
+  /** Estão no livro, mas não foram preparadas. Não saem — e precisam aparecer. */
+  guardadas: SpellRef[]
+}
+
+export function magiasParaConjurar(char: Pick<Character, 'magias'>): ParaConjurar {
+  const lista = char.magias ?? []
+  return {
+    truques: lista.filter((m) => m.nivel === 0),
+    preparadas: lista.filter((m) => m.nivel > 0 && m.preparada),
+    guardadas: lista.filter((m) => m.nivel > 0 && !m.preparada),
+  }
+}
+
 export function ganhoDoNivel(classe: string, de: number, para: number): Ganho | null {
   const antes = quotaDoNivel(classe, de)
   const depois = quotaDoNivel(classe, para)
