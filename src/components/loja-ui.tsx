@@ -15,6 +15,7 @@ import { sortearLoja } from '../lib/loja-nomes'
 import {
   PORTES,
   TIPOS,
+  type ItemNaPrateleira,
   type Loja,
   type PorteDeLoja,
   type TipoDeLoja,
@@ -25,6 +26,7 @@ import {
   emOuro,
   projetarLoja,
   adicionarNaPrateleira,
+  equipamentoDoSrd,
   gerarPrateleira,
   loadLoja,
   precoManual,
@@ -36,6 +38,7 @@ import {
   vender,
 } from '../lib/loja'
 import { coresDe } from '../lib/equipamento'
+import { seEquipasse } from '../lib/comparar'
 import { loadCharacters, upsertCharacter } from '../lib/storage'
 import { useEstadoMesa, useMesa } from '../hooks/useSync'
 import { CHAVES_MESA } from '../lib/sync/config'
@@ -357,6 +360,7 @@ function LojaDoDm({ mesaId }: { mesaId: string | null }) {
                   >
                     Comprar
                   </button>
+                  <OQueMuda item={item} comprador={comprador} catalogo={catalogo} />
                   <button
                     className="px-1 text-parchment-200/40 hover:text-dragon-400"
                     title="Tirar da prateleira"
@@ -684,6 +688,7 @@ function LojaDoGrupo({ mesaId }: { mesaId: string }) {
                   <span className="block text-xs text-parchment-200/50">{item.raridade}</span>
                 </button>
                 <span className="tabular-nums text-sm text-amber-300">{ouro(item.precoPO)} PO</span>
+                <OQueMuda item={item} comprador={minha} catalogo={catalogo} />
                 <button
                   className="btn-ghost py-1 text-xs disabled:opacity-30"
                   disabled={!minha || !cabe || jaLevei}
@@ -706,5 +711,55 @@ function LojaDoGrupo({ mesaId }: { mesaId: string }) {
         {aberto && <FichaDoItem item={aberto} onFechar={() => setAberto(null)} />}
       </section>
     </GlossarioProvider>
+  )
+}
+
+/**
+ * O que este item mudaria para quem está comprando.
+ *
+ * É a pergunta que se faz antes de gastar quatro mil peças de ouro, e a loja
+ * não tinha resposta: o item ia para a mochila e a comparação ficava por conta
+ * de quem lembrasse de abrir a boneca depois.
+ *
+ * A conta desconta o que sai. Não é "quanto este item dá", é "quanto ele dá A
+ * MAIS do que o que eu já uso" — uma armadura de +2 não vale nada para quem já
+ * veste uma de +2, e é justamente essa a compra que dói.
+ *
+ * Silêncio quando não há diferença é de propósito. "Não muda nada" caberia
+ * numa linha, mas apareceria em quase todo item da prateleira — a maioria do
+ * catálogo do SRD não tem efeito que a ficha saiba somar —, e uma linha que
+ * quase sempre diz a mesma coisa vira ruído.
+ */
+function OQueMuda({
+  item,
+  comprador,
+  catalogo,
+}: {
+  item: ItemNaPrateleira
+  comprador: Character | null
+  catalogo: ItemDoSrd[] | null
+}) {
+  const diferencas = useMemo(() => {
+    if (!comprador || !catalogo) return []
+    const doCat = catalogo.find((i) => i.nome === item.chave)
+    return seEquipasse(comprador, equipamentoDoSrd(item, doCat))
+  }, [item, comprador, catalogo])
+
+  if (diferencas.length === 0) return null
+
+  return (
+    <span className="flex w-full flex-wrap gap-1.5 text-[11px]">
+      {diferencas.slice(0, 4).map((d) => (
+        <span
+          key={d.texto}
+          className={`chip ${d.bom ? 'border-emerald-400/40 text-emerald-300' : 'border-dragon-400/40 text-dragon-300'}`}
+        >
+          {d.texto}
+        </span>
+      ))}
+      <span className="self-center text-parchment-200/35">
+        para {comprador?.nome || 'a ficha'}
+      </span>
+    </span>
   )
 }

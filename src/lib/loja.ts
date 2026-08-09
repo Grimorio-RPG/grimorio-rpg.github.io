@@ -12,6 +12,8 @@ import type { Character, Equipamento, Moedas, RaridadeItem } from '../types'
 import type { ItemDoSrd } from '../data/srd'
 import { PRECO_POR_RARIDADE } from '../data/srd'
 import { uid } from './character'
+import { doCatalogo as equipavelDoCatalogo } from '../data/itens-equipaveis'
+import { nomeNoCatalogo } from './reconhecerEquipamento'
 import { CHAVES, readJson, writeJson } from './store'
 
 // ---------------------------------------------------------------------------
@@ -654,26 +656,52 @@ export function valorDeVenda(item: Equipamento, loja: Loja): number {
  * está lá, em português, e inventar um bônus a partir dele daria um número
  * errado com cara de certo. Quem quiser somar edita o item — o editor existe.
  */
-function equipamentoDoSrd(
+/**
+ * O item da prateleira virando equipamento de verdade.
+ *
+ * Os EFEITOS vêm do catálogo de equipáveis, que os tem estruturados — "+1 na
+ * Classe de Armadura" como número, e não como frase. Sem isso, o Anel de
+ * Proteção comprado por 4.000 PO entrava na mochila inerte: a boneca não somava
+ * nada, e a loja não tinha como dizer o que ele mudaria. O texto do SRD estava
+ * lá o tempo todo, bonito e sem efeito nenhum.
+ *
+ * A ponte é pelo nome em INGLÊS, porque é o que os dois catálogos têm em comum
+ * e o que não muda quando alguém melhora uma tradução.
+ *
+ * O que o catálogo de equipáveis não conhece continua entrando sem efeito — e
+ * é o certo. Inventar um efeito a partir do texto oficial seria adivinhar, e
+ * adivinhar em item mágico erra em silêncio.
+ */
+export function equipamentoDoSrd(
   naPrateleira: ItemNaPrateleira,
   doCatalogo: ItemDoSrd | undefined,
 ): Equipamento {
+  // A família "+1, +2 ou +3" fica DE FORA da ponte. O SRD junta os três graus
+  // numa entrada só, e o catálogo de equipáveis tem o item base — casar os dois
+  // daria a um Escudo +2 comprado por 4.000 PO os efeitos de um escudo comum.
+  // Errar para menos continua sendo errar, e em silêncio.
+  const variavel = /\+\s*1,/.test(naPrateleira.chave)
+  const equivalente = variavel ? null : nomeNoCatalogo(naPrateleira.chave)
+  const comEfeitos = equivalente ? equipavelDoCatalogo(equivalente, uid()) : null
+
   return {
     id: uid(),
+    ...(comEfeitos ?? {}),
     nome: naPrateleira.nome,
     // O original vai junto: quem comprou "Manto Élfico" vai procurar por "Elven
     // Cloak" no livro, e a mochila é olhada com a loja fechada.
     nomeOriginal: doCatalogo && doCatalogo.nome !== naPrateleira.nome ? doCatalogo.nome : undefined,
-    slot: slotDaCategoria(doCatalogo?.categoria),
-    icone: iconeDaCategoria(doCatalogo?.categoria),
+    slot: comEfeitos?.slot ?? slotDaCategoria(doCatalogo?.categoria),
+    icone: comEfeitos?.icone ?? iconeDaCategoria(doCatalogo?.categoria),
     raridade: naPrateleira.raridade,
     // Quanto custou, para a revenda não inventar outro valor.
     precoPO: naPrateleira.precoPO,
-    sintonia: doCatalogo?.sintonia,
+    sintonia: doCatalogo?.sintonia ?? comEfeitos?.sintonia,
     sintonizado: false,
     equipado: false,
-    efeitos: [],
-    descricao: doCatalogo?.textoPt,
+    efeitos: comEfeitos?.efeitos ?? [],
+    // O texto do SRD vence o do catálogo: é o oficial, e é mais completo.
+    descricao: doCatalogo?.textoPt ?? comEfeitos?.descricao,
   }
 }
 

@@ -8,7 +8,7 @@ import type { AbilityKey, Character } from '../types'
 import { TRACOS_DE_CLASSE, type EfeitoTraco, type TracoClasse } from '../data/features'
 import { tracosDaSubclasse } from '../data/subclasses'
 import { TRACO_ANTECEDENTE, tracosDaEspecie } from '../data/species'
-import { usaEscudo, vesteArmadura } from './equipamento'
+import { bonusDeEquipamento, usaEscudo, vesteArmadura } from './equipamento'
 
 /** De onde um traço veio — a ficha agrupa por isso. */
 export type Origem = 'classe' | 'subclasse' | 'especie' | 'antecedente'
@@ -83,9 +83,17 @@ export function bonusDeslocamento(char: Character): number {
   return efeitos(char, 'movimentoSemArmadura').reduce((maior, e) => Math.max(maior, e.metros), 0)
 }
 
-/** Deslocamento efetivo, já com os traços. */
+/**
+ * Deslocamento efetivo: base, traços e EQUIPAMENTO.
+ *
+ * O equipamento faltava, e faltava em silêncio. O efeito existia no tipo, o
+ * acumulador somava, e ninguém lia o resultado — então Botas Aladas não mexiam
+ * um centímetro no deslocamento da ficha. Pior: o resumo do conjunto na boneca
+ * já mostrava a diferença de deslocamento ao trocar de item, e ela era zero
+ * para sempre, porque a conta nunca chegava aqui.
+ */
 export function deslocamentoEfetivo(char: Character): number {
-  return char.deslocamento + bonusDeslocamento(char)
+  return char.deslocamento + bonusDeslocamento(char) + bonusDeEquipamento(char).deslocamento
 }
 
 export interface EscolhaPendente {

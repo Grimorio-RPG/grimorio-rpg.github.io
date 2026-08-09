@@ -27,79 +27,12 @@ import {
 import { ITENS_EQUIPAVEIS, doCatalogo } from '../data/itens-equipaveis'
 import { reconhecerEquipaveis } from '../lib/reconhecerEquipamento'
 import { TextoComTermos } from './glossario-ui'
-import { armorClass, passivePerception, saveBonus, skillBonus } from '../lib/calc'
+import { armorClass } from '../lib/calc'
 import { defesaSemArmadura, deslocamentoEfetivo } from '../lib/features'
 import { ABILITIES, SKILLS } from '../data/rules'
 import { uid } from '../lib/character'
-import { atributoComEquipamento, ocupaDuasMaos } from '../lib/equipamento'
-
-/**
- * O retrato da ficha que interessa numa troca.
- *
- * Só o que muda de verdade ao vestir algo. Comparar a ficha inteira produziria
- * uma lista de diferenças em que ninguém acha o que importa.
- */
-interface Retrato {
-  ca: number
-  atributos: Record<AbilityKey, number>
-  percepcaoPassiva: number
-  pericias: Record<string, number>
-  salvaguardas: Record<string, number>
-}
-
-function retratar(char: Character): Retrato {
-  const atributos = {} as Record<AbilityKey, number>
-  const salvaguardas: Record<string, number> = {}
-  for (const a of ABILITIES) {
-    atributos[a.key] = atributoComEquipamento(char, a.key)
-    salvaguardas[a.key] = saveBonus(char, a.key)
-  }
-  const pericias: Record<string, number> = {}
-  for (const s of SKILLS) pericias[s.key] = skillBonus(char, s.key)
-  return {
-    ca: armorClass(char),
-    atributos,
-    percepcaoPassiva: passivePerception(char),
-    pericias,
-    salvaguardas,
-  }
-}
-
-/** As diferenças entre dois retratos, já em texto pronto. */
-function diferencas(antes: Retrato, depois: Retrato): { texto: string; bom: boolean }[] {
-  const fora: { texto: string; bom: boolean }[] = []
-  const sinal = (n: number) => (n > 0 ? `+${n}` : `${n}`)
-
-  if (depois.ca !== antes.ca) {
-    fora.push({ texto: `${sinal(depois.ca - antes.ca)} CA`, bom: depois.ca > antes.ca })
-  }
-  // O atributo é mostrado como transição, e não como delta: "+5 FOR" leria
-  // como cinco a mais nas rolagens, quando 16 → 21 muda o modificador só em 2.
-  for (const a of ABILITIES) {
-    const de = antes.atributos[a.key]
-    const para = depois.atributos[a.key]
-    if (de !== para) {
-      fora.push({ texto: `${a.abrev} ${de} → ${para}`, bom: para > de })
-    }
-  }
-
-  // E o que muda por tabela é listado, porque é onde a diferença aparece na
-  // hora de rolar.
-  for (const a of ABILITIES) {
-    const d = depois.salvaguardas[a.key] - antes.salvaguardas[a.key]
-    if (d !== 0) fora.push({ texto: `${sinal(d)} salv. ${a.abrev}`, bom: d > 0 })
-  }
-  for (const s of SKILLS) {
-    const d = depois.pericias[s.key] - antes.pericias[s.key]
-    if (d !== 0) fora.push({ texto: `${sinal(d)} ${s.nome}`, bom: d > 0 })
-  }
-
-  if (depois.percepcaoPassiva !== antes.percepcaoPassiva) {
-    const d = depois.percepcaoPassiva - antes.percepcaoPassiva
-    fora.push({ texto: `${sinal(d)} percep. passiva`, bom: d > 0 })
-  }
-  return fora
-}
+import { ocupaDuasMaos } from '../lib/equipamento'
+import { diferencas, retratar } from '../lib/comparar'
 
 export function PainelDeEquipamento({
   char,
