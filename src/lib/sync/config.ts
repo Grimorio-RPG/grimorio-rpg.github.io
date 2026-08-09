@@ -30,6 +30,7 @@ export const CHAVES_MESA = {
   mapaPub: 'mapa_pub',
   mundo: 'mundo',
   mundoPub: 'mundo_pub',
+  lojaPub: 'loja_pub',
 } as const
 
 export type ChaveMesa = (typeof CHAVES_MESA)[keyof typeof CHAVES_MESA]

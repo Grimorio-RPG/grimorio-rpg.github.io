@@ -175,6 +175,16 @@ export interface Loja {
   /** Quanto o vendedor paga, como fração do preço de tabela. */
   fracaoDeVenda: number
   prateleira: ItemNaPrateleira[]
+  /**
+   * O grupo já pode entrar?
+   *
+   * Existe porque montar a loja é trabalho do DM e acontece ANTES da cena: ele
+   * sorteia o estoque, tira o que não faz sentido para aquela vila, põe a
+   * espada que o ferreiro guardou para o grupo. Sem esta trava, o jogador vê a
+   * prateleira sendo montada e mexida em tempo real, o que estraga a cena e
+   * entrega a mão do DM.
+   */
+  liberada: boolean
   atualizadoEm: number
 }
 
@@ -186,6 +196,63 @@ export function lojaVazia(): Loja {
     margem: 1,
     fracaoDeVenda: FRACAO_DE_VENDA,
     prateleira: [],
+    liberada: false,
+    atualizadoEm: Date.now(),
+  }
+}
+
+/**
+ * O que o grupo enxerga.
+ *
+ * Nada até o DM liberar — e "nada" é `null`, não uma loja vazia: uma loja de
+ * prateleira vazia diz "o vendedor não tem nada", que é uma informação, e
+ * errada. Antes de liberar, para o jogador esta loja não existe.
+ */
+export function projetarLoja(loja: Loja | null): Loja | null {
+  if (!loja || !loja.liberada) return null
+  return loja
+}
+
+/** Põe um item do catálogo na prateleira, com o preço desta loja. */
+export function adicionarNaPrateleira(
+  loja: Loja,
+  item: ItemDoSrd,
+  aleatorio: () => number = Math.random,
+): Loja {
+  // A raridade que vale é a mais baixa que o item tem: uma Arma +1/+2/+3
+  // colocada à mão entra como a +1, igual ao que o sorteio faz.
+  const raridade = item.raridades[0]
+  if (!raridade) return loja
+  const novo: ItemNaPrateleira = {
+    id: uid(),
+    chave: item.nome,
+    nome: item.nomePt,
+    raridade,
+    precoPO: precoDaPrateleira(
+      { chave: item.nome, raridade, consumivel: ehConsumivel(item.categoria) },
+      loja.margem,
+      aleatorio,
+    ),
+    qtd: 1,
+  }
+  return { ...loja, prateleira: [...loja.prateleira, novo], atualizadoEm: Date.now() }
+}
+
+export function removerDaPrateleira(loja: Loja, itemId: string): Loja {
+  return {
+    ...loja,
+    prateleira: loja.prateleira.filter((i) => i.id !== itemId),
+    atualizadoEm: Date.now(),
+  }
+}
+
+/** Muda o preço de um item à mão — o DM sempre pode dar o preço que quiser. */
+export function precoManual(loja: Loja, itemId: string, precoPO: number): Loja {
+  return {
+    ...loja,
+    prateleira: loja.prateleira.map((i) =>
+      i.id === itemId ? { ...i, precoPO: Math.max(0, Math.round(precoPO)) } : i,
+    ),
     atualizadoEm: Date.now(),
   }
 }
@@ -211,6 +278,91 @@ export function precoNaLoja(item: ItemDoSrd, margem: number): number | null {
   if (base == null) return null
   const desconto = ehConsumivel(item.categoria) ? FRACAO_CONSUMIVEL : 1
   return Math.round(base * margem * desconto)
+}
+
+// ---------------------------------------------------------------------------
+// O preço deixar de ser sempre o mesmo
+//
+// O SRD dá UM número por raridade: Incomum, 400 PO. Seguir isso à risca produz
+// o que a mesa reclamou — oito itens incomuns na prateleira, todos a 400 PO, e
+// a loja vira uma tabela em vez de um lugar. O jogador não decide nada: não há
+// item caro, não há pechincha, não há motivo para perguntar o preço na cidade
+// seguinte.
+//
+// A variação abaixo é NOSSA, não do livro, e tem duas metades de propósito
+// diferentes:
+//
+// - VALOR DE MERCADO: quanto aquele item vale acima ou abaixo da âncora da
+//   raridade. É ESTÁVEL — sai do nome do item, não do sorteio. Um Manto de
+//   Proteção é caro em toda cidade, e é isso que deixa o grupo APRENDER preço.
+//   Sortear também esta metade daria um item a 300 numa vila e a 900 na vila
+//   seguinte sem explicação nenhuma: isso é aleatoriedade, não economia.
+// - PECHINCHA: o quanto ESTA loja está pedindo hoje. Essa sim é sorteada, e
+//   fica gravada na prateleira — é o que faz valer a pena perguntar em dois
+//   lugares antes de comprar.
+// ---------------------------------------------------------------------------
+
+/** Espalhamento do valor de mercado: de 70% a 140% da âncora da raridade. */
+const VALOR_MIN = 0.7
+const VALOR_MAX = 1.4
+
+/** O quanto a loja pode pedir a mais ou a menos: ±20%. */
+export const PECHINCHA = 0.2
+
+/**
+ * Um número estável de 0 a 1 tirado do texto.
+ *
+ * É hash, não sorteio: o mesmo nome dá sempre o mesmo número, em qualquer
+ * aparelho e em qualquer sessão. É o que faz o preço ser característica do
+ * item, e não do dia.
+ */
+export function semente(texto: string): number {
+  let h = 2166136261
+  for (let i = 0; i < texto.length; i++) {
+    h ^= texto.charCodeAt(i)
+    h = Math.imul(h, 16777619)
+  }
+  return ((h >>> 0) % 10000) / 10000
+}
+
+/**
+ * Quanto este item vale, em relação à âncora da raridade dele.
+ *
+ * A chave é o nome em INGLÊS porque é o que não muda: traduzir um item depois
+ * não pode mexer no preço dele numa campanha em andamento.
+ */
+export function valorDeMercado(chaveEmIngles: string): number {
+  return VALOR_MIN + semente(chaveEmIngles) * (VALOR_MAX - VALOR_MIN)
+}
+
+/**
+ * O preço que ESTA loja pede por este item, hoje.
+ *
+ * Ordem: âncora da raridade → metade se for consumível → quanto o item vale →
+ * a margem do porte → a pechincha do dia.
+ */
+export function precoDaPrateleira(
+  item: { chave: string; raridade: RaridadeItem; consumivel?: boolean },
+  margem: number,
+  aleatorio: () => number = Math.random,
+): number {
+  const ancora = PRECO_POR_RARIDADE[item.raridade]
+  const consumivel = item.consumivel ? FRACAO_CONSUMIVEL : 1
+  const pechincha = 1 - PECHINCHA + aleatorio() * PECHINCHA * 2
+  return arredondarPreco(ancora * consumivel * valorDeMercado(item.chave) * margem * pechincha)
+}
+
+/**
+ * Arredonda para um número que dá para falar em voz alta.
+ *
+ * Preço de mesa é redondo: 25, 350, 4.500. Um item a 4.183 PO faz o jogador
+ * conferir a conta em vez de decidir se compra. O passo cresce com o preço —
+ * de 5 em 5 no que é barato, de 500 em 500 no que custa uma masmorra.
+ */
+export function arredondarPreco(valor: number): number {
+  if (valor <= 0) return 0
+  const passo = valor < 100 ? 5 : valor < 1000 ? 25 : valor < 10000 ? 100 : 500
+  return Math.max(passo, Math.round(valor / passo) * passo)
 }
 
 /**
@@ -243,14 +395,17 @@ export function gerarPrateleira(
     // numa cidade é a +1, não a +3.
     const raridade =
       info.raridades.find((r) => item.raridades.includes(r)) ?? item.raridades[0]
-    const preco = precoNaLoja({ ...item, precoPO: PRECO_POR_RARIDADE[raridade] }, margem)
-    if (preco == null) return []
+    if (!raridade) return []
     return [{
       id: uid(),
       chave: item.nome,
       nome: item.nomePt,
       raridade,
-      precoPO: preco,
+      precoPO: precoDaPrateleira(
+        { chave: item.nome, raridade, consumivel: ehConsumivel(item.categoria) },
+        margem,
+        aleatorio,
+      ),
       // Poção e munição vêm em quantidade; o resto é peça única.
       qtd: item.categoria === 'Potion' || item.categoria === 'Ammunition' ? 1 + Math.floor(aleatorio() * 3) : 1,
     }]
@@ -260,6 +415,39 @@ export function gerarPrateleira(
 // ---------------------------------------------------------------------------
 // Comprar e vender
 // ---------------------------------------------------------------------------
+
+/**
+ * Quantas compras a ficha lembra.
+ *
+ * A lista existe para a prateleira se acertar, e não para virar histórico. Ids
+ * de uma prateleira sorteada há três sessões não casam com nada — só ocupam
+ * espaço numa ficha que atravessa a rede a cada mudança de PV.
+ */
+const TETO_DE_COMPRAS = 30
+
+/**
+ * A prateleira do DM depois do que os jogadores levaram.
+ *
+ * O jogador compra do aparelho dele: paga da própria bolsa e o item entra na
+ * própria mochila — tudo dentro do que o banco deixa ele escrever. O que ele
+ * NÃO consegue é tirar o item da prateleira, que é estado do DM. Então a
+ * prateleira se acerta lendo as fichas, do mesmo jeito que o combate lê os PV.
+ *
+ * Devolve a MESMA loja quando nada mudou. Sem isso, cada leitura produziria um
+ * objeto novo, o DM publicaria de novo, o aparelho do jogador acordaria, e o
+ * laço não pararia mais — é exatamente o erro que a ponte da batalha já custou
+ * caro para descobrir.
+ */
+export function comEstoqueDosJogadores(
+  loja: Loja,
+  fichas: { comprasNaLoja?: string[] }[],
+): Loja {
+  const levados = new Set(fichas.flatMap((f) => f.comprasNaLoja ?? []))
+  if (levados.size === 0) return loja
+  const sobrou = loja.prateleira.filter((i) => !levados.has(i.id))
+  if (sobrou.length === loja.prateleira.length) return loja
+  return { ...loja, prateleira: sobrou, atualizadoEm: Date.now() }
+}
 
 export interface ResultadoDaCompra {
   ok: boolean
@@ -297,6 +485,10 @@ export function comprar(
     ok: true,
     char: {
       ...char,
+      // A compra fica anotada na FICHA porque é ela que o jogador consegue
+      // escrever: no banco, quem edita o estado da mesa é só o DM. É por esta
+      // lista que a prateleira do DM descobre o que já foi levado.
+      comprasNaLoja: [...(char.comprasNaLoja ?? []), naPrateleira.id].slice(-TETO_DE_COMPRAS),
       moedas: bolsa,
       equipamentos: [...(char.equipamentos ?? []), novo],
       updatedAt: Date.now(),

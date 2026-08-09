@@ -279,6 +279,14 @@ export interface Character {
 
   // Estado / condições
   testesMorte: TestesMorte
+  /**
+   * Ids de prateleira que esta ficha já comprou.
+   *
+   * Mora na FICHA porque é o que o jogador consegue escrever: no banco, quem
+   * edita o estado da mesa é só o DM. É por esta lista que a prateleira dele
+   * descobre o que já foi levado, do mesmo jeito que o combate lê os PV.
+   */
+  comprasNaLoja?: string[]
   exaustao: number // 0-6 (regra 2024)
   condicoes: string[] // nomes das condições ativas
 

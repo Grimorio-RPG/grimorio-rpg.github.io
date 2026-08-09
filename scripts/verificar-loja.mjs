@@ -21,7 +21,10 @@ globalThis.localStorage = {
 }
 
 const dir = mkdtempSync(join(tmpdir(), 'loja-'))
-const ENTRADAS = ['src/lib/loja.ts', 'src/data/srd/index.ts', 'src/data/srd/itens-srd.ts']
+const ENTRADAS = [
+  'src/lib/loja.ts', 'src/lib/loja-nomes.ts',
+  'src/data/srd/index.ts', 'src/data/srd/itens-srd.ts',
+]
 execSync(
   `npx esbuild ${ENTRADAS.join(' ')} --bundle --splitting --outdir=${dir} --format=esm --log-level=error`,
 )
@@ -33,11 +36,32 @@ const {
   EM_COBRE, emCobre, emOuro, distribuir, podePagar, pagar, receber,
   PORTES, porteInfo, gerarPrateleira, comprar, vender, valorDeVenda,
   lojaVazia, precoNaLoja, ehConsumivel,
+  semente, valorDeMercado, precoDaPrateleira, arredondarPreco, PECHINCHA,
+  projetarLoja, adicionarNaPrateleira, removerDaPrateleira, precoManual,
+  comEstoqueDosJogadores,
 } = await carregar('lib/loja')
+const { sortearLoja, TEMAS } = await carregar('lib/loja-nomes')
 const { comTraducao, PRECO_POR_RARIDADE } = await carregar('data/srd/index')
 const { ITENS_SRD } = await carregar('data/srd/itens-srd')
 
 const CATALOGO = comTraducao(ITENS_SRD)
+
+/** Gerador deterministico: o mesmo numero de partida da a mesma loja. */
+function semeado(n) {
+  let x = n * 2654435761 + 1
+  return () => {
+    x = (x * 1103515245 + 12345) % 2147483648
+    return x / 2147483648
+  }
+}
+
+/** Como `checar`, mas so fala quando falha: para uso dentro de laco. */
+function checarSilencioso(nome, condicao, detalhe = '') {
+  testes++
+  if (condicao) return
+  falhas++
+  console.error(`  x ${nome}${detalhe ? `\n      ${detalhe}` : ''}`)
+}
 
 let falhas = 0
 let testes = 0
@@ -135,11 +159,15 @@ checar('o vilarejo NÃO tem item lendário',
   vilarejo.filter((i) => i.raridade === 'Lendário').map((i) => i.nome).join(', '))
 
 // A margem é o que o DM mexe para a cidade pequena cobrar mais caro.
-const caro = gerarPrateleira(CATALOGO, 'vilarejo', 2, () => 0.5)
-const normal = gerarPrateleira(CATALOGO, 'vilarejo', 1, () => 0.5)
-checar('a margem dobra o preço',
-  caro[0].precoPO === normal[0].precoPO * 2,
-  `${caro[0].precoPO} vs ${normal[0].precoPO}`)
+// O preço deixou de ser múltiplo exato da tabela — ele passa pelo valor do
+// item e por um arredondamento que fala em voz alta. O que a margem tem de
+// garantir é a PROPORÇÃO, não a igualdade ao centavo.
+const comMargemDobrada = gerarPrateleira(CATALOGO, 'vilarejo', 2, () => 0.5)
+const comMargemNormal = gerarPrateleira(CATALOGO, 'vilarejo', 1, () => 0.5)
+checar('a margem quase dobra o preço',
+  comMargemDobrada[0].precoPO >= comMargemNormal[0].precoPO * 1.8 &&
+  comMargemDobrada[0].precoPO <= comMargemNormal[0].precoPO * 2.2,
+  `${comMargemDobrada[0].precoPO} vs ${comMargemNormal[0].precoPO}`)
 
 // Item de várias raridades entra pela mais baixa que a loja alcança.
 const naCidade = gerarPrateleira(CATALOGO, 'cidade', 1)
@@ -151,8 +179,12 @@ if (variavel) {
   checar('item de várias raridades entra pela mais baixa que a loja alcança',
     variavel.raridade === 'Comum' || variavel.raridade === 'Incomum',
     `${variavel.nome}: ${variavel.raridade}`)
-  checar('e o preço é o daquela raridade',
-    variavel.precoPO === PRECO_POR_RARIDADE[variavel.raridade])
+  // Já não é o número da tabela: é a âncora dela, esticada pelo valor do item
+  // e pela pechincha do dia. O que não pode é sair de outra raridade.
+  const ancora = PRECO_POR_RARIDADE[variavel.raridade]
+  checar('e o preço orbita a âncora daquela raridade',
+    variavel.precoPO >= ancora * 0.25 && variavel.precoPO <= ancora * 1.8,
+    `${variavel.nome}: ${variavel.precoPO} para âncora ${ancora}`)
 }
 
 checar('o preço sai da tabela de raridade',
@@ -176,9 +208,13 @@ const comPocao = gerarPrateleira(CATALOGO, 'metropole', 1, () => 0.5)
 for (const naPrateleira of comPocao) {
   const doCat = CATALOGO.find((c) => c.nome === naPrateleira.chave)
   if (!ehConsumivel(doCat?.categoria)) continue
+  // O consumível vale METADE, e o valor do item continua esticando em cima
+  // disso — o que a checagem cobra é que ele fique claramente abaixo do preço
+  // cheio da raridade, não que bata um número exato que não existe mais.
+  const cheio = PRECO_POR_RARIDADE[naPrateleira.raridade]
   checar(`"${naPrateleira.nome}" está com preço de consumível`,
-    naPrateleira.precoPO === PRECO_POR_RARIDADE[naPrateleira.raridade] / 2,
-    `${naPrateleira.precoPO} para ${naPrateleira.raridade}`)
+    naPrateleira.precoPO < cheio * 0.75 && naPrateleira.precoPO > cheio * 0.2,
+    `${naPrateleira.precoPO} para ${naPrateleira.raridade} (cheio ${cheio})`)
 }
 
 // ---------------------------------------------------------------------------
@@ -302,6 +338,192 @@ checar('porte desconhecido cai num padrão', !!porteInfo('inventado'))
 checar('catálogo vazio não quebra', gerarPrateleira([], 'cidade', 1).length === 0)
 const semEquip = vender({ ...FICHA, equipamentos: [] }, LOJA, 'x')
 checar('vender item inexistente falha sem quebrar', semEquip.ok === false)
+
+// ---------------------------------------------------------------------------
+console.log('O preco deixar de ser sempre o mesmo')
+//
+// O SRD da UM numero por raridade, e oito itens incomuns saiam todos a 400 PO.
+// A loja virava tabela: sem item caro, sem pechincha, sem motivo para perguntar
+// o preco na cidade seguinte.
+
+// O valor de mercado e HASH, nao sorteio. Se variar entre sessoes, o grupo
+// nunca aprende que o Manto de Protecao e caro — e aprender preco e metade da
+// graca de ter uma loja.
+checar('a semente e estavel', semente('Cloak of Protection') === semente('Cloak of Protection'))
+checar('e diferente por item', semente('Cloak of Protection') !== semente('Ring of Protection'))
+checar('sempre entre 0 e 1',
+  ['a', 'Bag of Holding', '', 'Oculos'].every((x) => semente(x) >= 0 && semente(x) < 1))
+
+const valores = ITENS_SRD.slice(0, 60).map((i) => valorDeMercado(i.nome))
+checar('o valor de mercado fica na faixa',
+  valores.every((v) => v >= 0.7 && v <= 1.4),
+  `${Math.min(...valores).toFixed(2)}-${Math.max(...valores).toFixed(2)}`)
+// Uma faixa que na pratica nao espalha seria pior do que nao ter faixa: daria
+// trabalho e continuaria com tudo custando quase igual.
+checar('e ela espalha de verdade',
+  Math.max(...valores) - Math.min(...valores) > 0.5,
+  `espalhou ${(Math.max(...valores) - Math.min(...valores)).toFixed(2)}`)
+
+// Preco redondo: ninguem pede "417 pecas de ouro".
+checar('arredonda o barato de 5 em 5', arredondarPreco(43) === 45, String(arredondarPreco(43)))
+checar('o medio de 25 em 25', arredondarPreco(417) === 425, String(arredondarPreco(417)))
+checar('o caro de 100 em 100', arredondarPreco(4183) === 4200, String(arredondarPreco(4183)))
+checar('o absurdo de 500 em 500', arredondarPreco(41830) === 42000, String(arredondarPreco(41830)))
+checar('e nunca devolve zero para item que custa algo', arredondarPreco(1) === 5)
+checar('zero continua zero', arredondarPreco(0) === 0)
+
+// A pechincha e a metade sorteada.
+const pechinchaBoa = precoDaPrateleira({ chave: 'Cloak of Protection', raridade: 'Incomum' }, 1, () => 0)
+const pechinchaRuim = precoDaPrateleira({ chave: 'Cloak of Protection', raridade: 'Incomum' }, 1, () => 1)
+checar('a pechincha baixa o preco', pechinchaBoa < pechinchaRuim, `${pechinchaBoa} vs ${pechinchaRuim}`)
+checar('e o espalhamento e o combinado',
+  Math.abs(pechinchaRuim / pechinchaBoa - (1 + PECHINCHA) / (1 - PECHINCHA)) < 0.25,
+  `${pechinchaBoa} -> ${pechinchaRuim}`)
+checar('o meio-termo fica perto da ancora do item',
+  Math.abs(precoDaPrateleira({ chave: 'Cloak of Protection', raridade: 'Incomum' }, 1, () => 0.5) -
+    400 * valorDeMercado('Cloak of Protection')) < 60)
+
+// Sem isto, oito itens incomuns na mesma prateleira voltam a custar igual.
+const precos = ITENS_SRD.slice(0, 40).map((i) =>
+  precoDaPrateleira({ chave: i.nome, raridade: 'Incomum' }, 1, () => 0.5))
+checar('itens da MESMA raridade tem precos diferentes',
+  new Set(precos).size > 6, `${new Set(precos).size} precos distintos em 40`)
+
+checar('consumivel custa metade',
+  precoDaPrateleira({ chave: 'Potion of Healing', raridade: 'Comum', consumivel: true }, 1, () => 0.5) <
+  precoDaPrateleira({ chave: 'Potion of Healing', raridade: 'Comum' }, 1, () => 0.5))
+checar('e a margem do porte pesa',
+  precoDaPrateleira({ chave: 'Cloak of Protection', raridade: 'Incomum' }, 1.5, () => 0.5) >
+  precoDaPrateleira({ chave: 'Cloak of Protection', raridade: 'Incomum' }, 1, () => 0.5))
+
+// A prateleira sorteada tem de herdar tudo isso.
+const variada = gerarPrateleira(CATALOGO, 'cidade', 1, semeado(7))
+checar('a prateleira sorteada nao sai toda com o mesmo preco',
+  new Set(variada.map((i) => i.precoPO)).size > 3,
+  variada.map((i) => i.precoPO).join(', '))
+checar('e nenhum preco sai quebrado',
+  variada.every((i) => i.precoPO % 5 === 0), variada.map((i) => i.precoPO).join(', '))
+
+// ---------------------------------------------------------------------------
+console.log('Sortear a loja e o vendedor')
+
+const sorteada = sortearLoja('cidade', semeado(3))
+checar('sai um nome', sorteada.nome.length > 4, sorteada.nome)
+checar('e um vendedor com nome e oficio', /,/.test(sorteada.vendedor), sorteada.vendedor)
+checar('o artigo concorda com a coisa',
+  !/^A \w+o /.test(sorteada.nome) && !/^O \w+a /.test(sorteada.nome), sorteada.nome)
+
+// O tema tem de mandar nos DOIS. Sortear separado da "A Bigorna Torta, de
+// Sylvara, elfa que vende ervas": cada metade plausivel, conjunto sem sentido.
+for (let i = 0; i < 40; i++) {
+  const x = sortearLoja('cidade', semeado(i))
+  const tema = TEMAS.find((t) => t.id === x.tema)
+  const coisa = x.nome.split(' ')[1]
+  checarSilencioso(`o nome vem do tema ${x.tema}`,
+    tema.coisas.some(([c]) => c === coisa), x.nome)
+  // O artigo tem de bater com o do dado: "A Martelo Torta" é o erro que faz a
+  // mesa rir do app em vez de com ele.
+  const [, artigoCerto] = tema.coisas.find(([c]) => c === coisa) ?? []
+  checarSilencioso(`o artigo de "${coisa}" está certo`,
+    x.nome.startsWith(`${artigoCerto} `), x.nome)
+  // "A Runa Quieto" saiu do gerador antes de a concordância andar nos dois
+  // sentidos. Um nome torto é pior do que campo em branco: o gerador existe
+  // justamente para o DM não ter que pensar nisso.
+  const adjetivo = x.nome.split(' ').slice(2).join(' ')
+  checarSilencioso(`"${x.nome}" concorda`,
+    /\s/.test(adjetivo) || !/[oa]$/.test(adjetivo) ||
+      adjetivo.endsWith(artigoCerto === 'A' ? 'a' : 'o'),
+    x.nome)
+  // O traço não pode ter gênero: o nome tem um, e casar os dois exigiria
+  // etiquetar cada nome — decidir o gênero de uma pessoa para gerar uma frase.
+  const traco = x.vendedor.split(', ')[1]
+  checarSilencioso(`"${traco}" não tem gênero`,
+    /^(de |que |da |do |em |sem )/.test(traco),
+    traco)
+  checarSilencioso(`o traço vem do tema ${x.tema}`,
+    tema.tracos.some((o) => x.vendedor.endsWith(o)), x.vendedor)
+}
+
+// Casa arcana nao e ferraria de vilarejo.
+const arcana = new Set()
+const vila = new Set()
+for (let i = 0; i < 60; i++) {
+  arcana.add(sortearLoja('arcana', semeado(i)).tema)
+  vila.add(sortearLoja('vilarejo', semeado(i)).tema)
+}
+checar('a casa arcana nao sorteia forja', !arcana.has('forja'), [...arcana].join(', '))
+checar('o vilarejo nao sorteia casa arcana', !vila.has('arcano'), [...vila].join(', '))
+checar('mas os dois sorteiam mais de um tema', arcana.size > 1 && vila.size > 1)
+
+// ---------------------------------------------------------------------------
+console.log('O DM monta antes de liberar')
+
+const fechada = { ...lojaVazia(), nome: 'A Bigorna Torta', prateleira: [
+  { id: 'p1', chave: 'Ring of Protection', nome: 'Anel de Protecao', raridade: 'Raro', precoPO: 4000, qtd: 1 },
+] }
+// Loja nao liberada nao e loja vazia: prateleira vazia diria "o vendedor nao
+// tem nada", que e informacao, e errada.
+checar('antes de liberar, o grupo nao ve loja nenhuma', projetarLoja(fechada) === null)
+checar('depois de liberar, ve', projetarLoja({ ...fechada, liberada: true })?.nome === 'A Bigorna Torta')
+checar('e sem loja nao quebra', projetarLoja(null) === null)
+checar('loja nasce fechada', lojaVazia().liberada === false)
+
+const manto = CATALOGO.find((i) => i.nome === 'Cloak of Protection')
+const comMais = adicionarNaPrateleira(fechada, manto, () => 0.5)
+checar('o DM poe item a mao', comMais.prateleira.length === 2)
+checar('com o nome em portugues', comMais.prateleira[1].nome === manto.nomePt)
+checar('e a chave em ingles', comMais.prateleira[1].chave === 'Cloak of Protection')
+checar('com preco calculado', comMais.prateleira[1].precoPO > 0)
+checar('sem mexer na loja de entrada', fechada.prateleira.length === 1)
+
+const semNada = removerDaPrateleira(comMais, comMais.prateleira[1].id)
+checar('e tira o que nao quer', semNada.prateleira.length === 1)
+checar('tirando o certo', semNada.prateleira[0].id === 'p1')
+checar('id que nao existe nao apaga nada',
+  removerDaPrateleira(comMais, 'nao-existe').prateleira.length === 2)
+
+// O DM sempre pode dar o preco que quiser: e a mesa dele.
+const remarcada = precoManual(fechada, 'p1', 250)
+checar('o DM remarca o preco', remarcada.prateleira[0].precoPO === 250)
+checar('e nao aceita preco negativo', precoManual(fechada, 'p1', -50).prateleira[0].precoPO === 0)
+
+// ---------------------------------------------------------------------------
+console.log('O jogador compra do aparelho dele')
+//
+// No banco, quem escreve estado da mesa e so o DM. O jogador paga da propria
+// bolsa e o item entra na propria mochila — tudo dentro do que ele pode
+// escrever. Tirar o item da prateleira e o DM que faz, lendo as fichas.
+
+const lojaLiberada = { ...fechada, liberada: true }
+const compradorRico = { ...FICHA, moedas: bolsa({ po: 9000 }) }
+const compraDoJogador = comprar(compradorRico, lojaLiberada, 'p1', CATALOGO)
+checar('a compra do jogador da certo', compraDoJogador.ok === true, compraDoJogador.motivo)
+checar('e fica anotada na ficha dele',
+  compraDoJogador.char.comprasNaLoja?.includes('p1') === true,
+  JSON.stringify(compraDoJogador.char.comprasNaLoja))
+
+const acertada = comEstoqueDosJogadores(lojaLiberada, [compraDoJogador.char])
+checar('a prateleira do DM se acerta sozinha', acertada.prateleira.length === 0)
+
+// O laco: se isto devolver objeto novo quando nada mudou, o DM publica, o
+// aparelho do jogador acorda, o DM publica de novo, e nao para mais.
+checar('sem compras, devolve a MESMA loja',
+  comEstoqueDosJogadores(lojaLiberada, [FICHA]) === lojaLiberada)
+checar('compra velha nao mexe em nada',
+  comEstoqueDosJogadores(lojaLiberada, [{ comprasNaLoja: ['id-de-outra-sessao'] }]) === lojaLiberada)
+checar('ficha sem lista nenhuma nao quebra',
+  comEstoqueDosJogadores(lojaLiberada, [{}]) === lojaLiberada)
+
+// A lista nao pode virar historico: a ficha atravessa a rede a cada PV.
+let acumulando = { ...FICHA, comprasNaLoja: [] }
+for (let i = 0; i < 45; i++) {
+  const r = comprar(
+    { ...acumulando, moedas: bolsa({ po: 9000 }) }, lojaLiberada, 'p1', CATALOGO)
+  if (r.ok) acumulando = { ...acumulando, comprasNaLoja: [...r.char.comprasNaLoja, `x${i}`] }
+}
+checar('a lista de compras nao cresce sem fim',
+  (acumulando.comprasNaLoja?.length ?? 0) <= 31,
+  `ficou com ${acumulando.comprasNaLoja?.length}`)
 
 if (falhas > 0) {
   console.error(`\n✗ ${falhas} de ${testes} verificações de loja falharam`)

@@ -10,14 +10,20 @@ import type { Character } from '../types'
 import type { ItemDoSrd } from '../data/srd'
 import { carregarItensSrd } from '../data/srd'
 import { Original } from './layout-ui'
+import { sortearLoja } from '../lib/loja-nomes'
 import {
   PORTES,
   type Loja,
   type PorteDeLoja,
+  comEstoqueDosJogadores,
   comprar,
   emOuro,
+  projetarLoja,
+  adicionarNaPrateleira,
   gerarPrateleira,
   loadLoja,
+  precoManual,
+  removerDaPrateleira,
   podePagar,
   porteInfo,
   saveLoja,
@@ -26,11 +32,22 @@ import {
 } from '../lib/loja'
 import { coresDe } from '../lib/equipamento'
 import { loadCharacters, upsertCharacter } from '../lib/storage'
+import { useEstadoMesa, useMesa } from '../hooks/useSync'
+import { CHAVES_MESA } from '../lib/sync/config'
+import { publicarComAtraso } from '../lib/sync/estado'
+import { enviarFicha } from '../lib/sync/personagens'
 import { GlossarioProvider, TextoComTermos } from './glossario-ui'
 
 const ouro = (n: number) => n.toLocaleString('pt-BR', { maximumFractionDigits: 2 })
 
 export function PainelDaLoja() {
+  const { mesa, souDm } = useMesa()
+  return souDm || !mesa
+    ? <LojaDoDm mesaId={mesa && souDm ? mesa.id : null} />
+    : <LojaDoGrupo mesaId={mesa.id} />
+}
+
+function LojaDoDm({ mesaId }: { mesaId: string | null }) {
   const [loja, setLoja] = useState<Loja>(() => loadLoja())
   const [fichas, setFichas] = useState<Character[]>(() => loadCharacters())
   const [compradorId, setCompradorId] = useState('')
@@ -62,10 +79,35 @@ export function PainelDaLoja() {
     }
   }, [carregando, catalogo, loja.prateleira.length])
 
-  function mudar(patch: Partial<Loja>) {
+  /**
+    * A prateleira depois do que os jogadores levaram, e a publicação dela.
+    *
+    * O jogador compra do aparelho dele: paga da própria bolsa e o item entra na
+    * própria mochila. O que ele NÃO consegue é tirar o item da prateleira — no
+    * banco, quem escreve estado da mesa é só o DM. Então a prateleira se acerta
+    * aqui, lendo as fichas, do mesmo jeito que o combate lê os PV.
+    */
+  useEffect(() => {
+    const acertada = comEstoqueDosJogadores(loja, fichas)
+    if (acertada !== loja) {
+      setLoja(acertada)
+      saveLoja(acertada)
+      return
+    }
+    if (!mesaId) return
+    publicarComAtraso(mesaId, CHAVES_MESA.lojaPub, projetarLoja(loja), 900)
+  }, [mesaId, loja, fichas])
+
+  function mudar(patch: Partial<Loja> | Loja) {
     const nova = { ...loja, ...patch, atualizadoEm: Date.now() }
     setLoja(nova)
     saveLoja(nova)
+  }
+
+  /** Sorteia a loja e quem atende, do mesmo tema. */
+  function sortearIdentidade() {
+    const nova = sortearLoja(loja.porte)
+    mudar({ nome: nova.nome, vendedor: nova.vendedor })
   }
 
   function gerar() {
@@ -127,9 +169,30 @@ export function PainelDaLoja() {
       <section className="card p-5">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h3 className="panel-title">Loja</h3>
-          <button className="btn-ghost py-1 text-xs" onClick={gerar}>
-            {carregando ? 'Abrindo o baú…' : loja.prateleira.length ? '↻ Sortear estoque' : '+ Sortear estoque'}
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button className="btn-ghost py-1 text-xs" onClick={gerar}>
+              {carregando ? 'Abrindo o baú…' : loja.prateleira.length ? '↻ Sortear estoque' : '+ Sortear estoque'}
+            </button>
+            {/* Montar a loja é trabalho do DM e acontece ANTES da cena. Sem
+                esta trava o grupo vê a prateleira sendo mexida ao vivo, o que
+                estraga a cena e entrega a mão dele. */}
+            <button
+              type="button"
+              onClick={() => mudar({ liberada: !loja.liberada })}
+              className={`rounded-lg border px-2.5 py-1 text-xs transition ${
+                loja.liberada
+                  ? 'border-emerald-400/60 bg-emerald-500/15 text-emerald-300'
+                  : 'border-white/15 text-parchment-200/60 hover:border-emerald-400/40'
+              }`}
+              title={
+                loja.liberada
+                  ? 'O grupo está vendo esta loja e pode comprar'
+                  : 'Só você vê. Monte a prateleira antes de abrir'
+              }
+            >
+              {loja.liberada ? '🔓 Aberta ao grupo' : '🔒 Fechada — só você vê'}
+            </button>
+          </div>
         </div>
 
         {/* Quem é a loja */}
@@ -153,7 +216,17 @@ export function PainelDaLoja() {
             />
           </label>
           <label className="text-sm">
-            <span className="mb-1 block text-xs text-parchment-200/60">Porte</span>
+            <span className="mb-1 flex items-center justify-between gap-2 text-xs text-parchment-200/60">
+              Porte
+              <button
+                type="button"
+                className="text-[11px] text-arcane-300 hover:text-arcane-200"
+                title="Sorteia o nome e quem atende, combinando com o porte"
+                onClick={sortearIdentidade}
+              >
+                🎲 sortear nome
+              </button>
+            </span>
             <select
               className="input w-full"
               value={loja.porte}
@@ -193,6 +266,17 @@ export function PainelDaLoja() {
           {recado && <p className="text-xs text-parchment-200/70">{recado}</p>}
         </div>
 
+        {/* Pôr item à mão. O sorteio monta a base; o que faz a loja ser DAQUELA
+            vila é o DM acrescentar a espada que o ferreiro guardou para o grupo
+            — e tirar o que não faz sentido ali. */}
+        <AdicionarItem
+          catalogo={catalogo}
+          onAdicionar={(item) => {
+            mudar(adicionarNaPrateleira(loja, item))
+            setRecado(`${item.nomePt} entrou na prateleira.`)
+          }}
+        />
+
         {/* A prateleira */}
         {loja.prateleira.length === 0 ? (
           <p className="mt-4 text-sm text-parchment-200/50">
@@ -223,7 +307,21 @@ export function PainelDaLoja() {
                     </span>
                     <span className="block text-xs text-parchment-200/50">{item.raridade}</span>
                   </button>
-                  <span className="tabular-nums text-sm text-amber-300">{ouro(item.precoPO)} PO</span>
+                  {/* O preço é editável. O modelo dá um número plausível, mas
+                      quem decide quanto o ferreiro cobra do grupo é o DM — e
+                      pechinchar é meia cena de mesa que o app não pode travar. */}
+                  <label className="flex items-center gap-1 text-sm text-amber-300">
+                    <input
+                      type="number"
+                      min={0}
+                      value={item.precoPO}
+                      onChange={(e) => mudar(
+                        precoManual(loja, item.id, Number(e.target.value)),
+                      )}
+                      className="w-24 rounded-md border border-white/10 bg-ink-900/70 px-1 py-1 text-right tabular-nums outline-none focus:border-amber-400"
+                    />
+                    PO
+                  </label>
                   <button
                     className="btn-ghost py-1 text-xs disabled:opacity-30"
                     disabled={!comprador || !cabe}
@@ -231,6 +329,14 @@ export function PainelDaLoja() {
                     onClick={() => aoComprar(item.id)}
                   >
                     Comprar
+                  </button>
+                  <button
+                    className="px-1 text-parchment-200/40 hover:text-dragon-400"
+                    title="Tirar da prateleira"
+                    aria-label={`Tirar ${item.nome} da prateleira`}
+                    onClick={() => mudar(removerDaPrateleira(loja, item.id))}
+                  >
+                    ✕
                   </button>
                 </li>
               )
@@ -325,5 +431,213 @@ function FichaDoItem({ item, onFechar }: { item: ItemDoSrd; onFechar: () => void
         </details>
       </div>
     </div>
+  )
+}
+
+/**
+ * Pôr um item na prateleira à mão.
+ *
+ * O sorteio monta a base, e é bom nisso. O que faz a loja ser DAQUELA vila é o
+ * DM acrescentar a espada que o ferreiro guardou para o grupo — e o sorteio,
+ * por definição, nunca vai adivinhar isso.
+ *
+ * A busca só aparece com o catálogo carregado. Um campo que não acha nada e não
+ * explica por quê é o tipo de coisa que faz a pessoa achar que digitou errado.
+ */
+function AdicionarItem({
+  catalogo,
+  onAdicionar,
+}: {
+  catalogo: ItemDoSrd[] | null
+  onAdicionar: (item: ItemDoSrd) => void
+}) {
+  const [busca, setBusca] = useState('')
+
+  const achados = useMemo(() => {
+    const t = busca.trim().toLowerCase()
+    if (!catalogo || t.length < 2) return []
+    return catalogo
+      .filter((i) => i.nomePt.toLowerCase().includes(t) || i.nome.toLowerCase().includes(t))
+      .slice(0, 8)
+  }, [catalogo, busca])
+
+  if (!catalogo) return null
+
+  return (
+    <div className="mt-4">
+      <input
+        className="input w-full"
+        value={busca}
+        placeholder="Pôr item na prateleira — busque pelo nome…"
+        onChange={(e) => setBusca(e.target.value)}
+      />
+      {achados.length > 0 && (
+        <ul className="mt-1 space-y-1">
+          {achados.map((i) => (
+            <li key={i.nome}>
+              <button
+                type="button"
+                className="flex w-full items-center justify-between gap-2 rounded-lg border border-white/10 bg-ink-900/40 px-2.5 py-1.5 text-left text-sm hover:border-emerald-400/50"
+                onClick={() => {
+                  onAdicionar(i)
+                  setBusca('')
+                }}
+              >
+                <span className="min-w-0 truncate text-parchment-100">
+                  {i.nomePt}
+                  <Original pt={i.nomePt} en={i.nome} />
+                </span>
+                <span className="shrink-0 text-xs text-parchment-200/50">
+                  {i.raridades.join(' ou ')}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {busca.trim().length >= 2 && achados.length === 0 && (
+        <p className="mt-1 text-xs text-parchment-200/50">Nada com esse nome no catálogo do SRD.</p>
+      )}
+    </div>
+  )
+}
+
+/**
+ * A loja do lado do jogador.
+ *
+ * Ele vê a prateleira que o DM liberou e compra sozinho: o dinheiro sai da
+ * bolsa DELE e o item entra na mochila DELE. Todas as escritas são na própria
+ * ficha, que é exatamente o que o banco permite — no `mesa_estado`, quem
+ * escreve é só o DM.
+ *
+ * A prateleira não encolhe aqui, porque tirar o item dela é estado do DM. Em
+ * vez de fingir que encolheu, o item comprado fica marcado como levado até o
+ * DM republicar. Fingir seria pior: dois jogadores comprando o último item ao
+ * mesmo tempo veriam duas prateleiras que discordam da mesa.
+ */
+function LojaDoGrupo({ mesaId }: { mesaId: string }) {
+  const remota = useEstadoMesa<Loja>(mesaId, CHAVES_MESA.lojaPub)
+  const [fichas, setFichas] = useState<Character[]>(() => loadCharacters())
+  const [minhaId, setMinhaId] = useState('')
+  const [catalogo, setCatalogo] = useState<ItemDoSrd[] | null>(null)
+  const [recado, setRecado] = useState('')
+  const [aberto, setAberto] = useState<ItemDoSrd | null>(null)
+
+  const loja = remota && remota.liberada ? remota : null
+  const minha = fichas.find((c) => c.id === minhaId) ?? fichas[0] ?? null
+
+  useEffect(() => {
+    if (!loja || catalogo) return
+    let vivo = true
+    void carregarItensSrd().then((i) => vivo && setCatalogo(i))
+    return () => {
+      vivo = false
+    }
+  }, [loja, catalogo])
+
+  if (remota === undefined) {
+    return (
+      <section className="card p-5 text-sm text-parchment-200/60">Procurando a loja…</section>
+    )
+  }
+  if (!loja) {
+    // Nenhuma loja aberta não é "loja vazia": dizer que o vendedor não tem nada
+    // seria uma informação, e errada.
+    return (
+      <section className="card p-5 text-sm text-parchment-200/60">
+        Nenhuma loja aberta agora. Quando o seu DM abrir uma, ela aparece aqui.
+      </section>
+    )
+  }
+
+  function comprarItem(itemId: string) {
+    if (!minha) return setRecado('Escolha a sua ficha primeiro.')
+    if (!catalogo) return setRecado('O baú ainda está abrindo. Tente de novo em um instante.')
+    const r = comprar(minha, loja!, itemId, catalogo)
+    if (!r.ok) return setRecado(r.motivo ?? 'Não deu.')
+    setFichas(upsertCharacter(r.char))
+    // A ficha vai para a nuvem na hora: é por ela que a prateleira do DM
+    // descobre o que foi levado.
+    void enviarFicha(mesaId, r.char)
+    setRecado(`Comprado. Sobrou ${ouro(emOuro(r.char.moedas))} PO.`)
+  }
+
+  const levados = new Set(minha?.comprasNaLoja ?? [])
+
+  return (
+    <GlossarioProvider>
+      <section className="card p-5">
+        <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
+          <h3 className="font-display text-lg text-parchment-50">{loja.nome || 'Loja'}</h3>
+          <span className="chip border-emerald-400/40 text-emerald-300">aberta</span>
+        </div>
+        {loja.vendedor && (
+          <p className="mb-3 text-sm text-parchment-200/60">{loja.vendedor}</p>
+        )}
+
+        <div className="mb-3 flex flex-wrap items-end gap-3 rounded-lg border border-white/10 bg-white/[0.03] p-2.5">
+          <label className="text-sm">
+            <span className="mb-1 block text-xs text-parchment-200/60">Comprando com</span>
+            <select className="input" value={minha?.id ?? ''} onChange={(e) => setMinhaId(e.target.value)}>
+              {fichas.map((c) => (
+                <option key={c.id} value={c.id}>{c.nome || 'Sem nome'}</option>
+              ))}
+            </select>
+          </label>
+          {minha && (
+            <p className="text-sm text-parchment-100">
+              Bolsa: <b className="text-amber-300">{ouro(emOuro(minha.moedas))} PO</b>
+            </p>
+          )}
+          {recado && <p className="text-xs text-parchment-200/70">{recado}</p>}
+        </div>
+
+        <ul className="space-y-1.5">
+          {loja.prateleira.map((item) => {
+            const cor = coresDe(item.raridade)
+            const doCatalogo = catalogo?.find((i) => i.nome === item.chave)
+            const jaLevei = levados.has(item.id)
+            const cabe = minha ? podePagar(minha.moedas, item.precoPO) : false
+            return (
+              <li
+                key={item.id}
+                className={`flex flex-wrap items-center gap-2 rounded-lg border p-2.5 ${cor.anel} ${cor.fundo} ${jaLevei ? 'opacity-40' : ''}`}
+              >
+                <button
+                  type="button"
+                  className="min-w-0 flex-1 text-left"
+                  onClick={() => doCatalogo && setAberto(doCatalogo)}
+                  title="Ver o que faz"
+                >
+                  <span className={`block truncate text-sm font-medium ${cor.texto}`}>
+                    {item.nome}
+                    <Original pt={item.nome} en={item.chave} />
+                    {item.qtd > 1 && <span className="ml-1 text-parchment-200/50">×{item.qtd}</span>}
+                  </span>
+                  <span className="block text-xs text-parchment-200/50">{item.raridade}</span>
+                </button>
+                <span className="tabular-nums text-sm text-amber-300">{ouro(item.precoPO)} PO</span>
+                <button
+                  className="btn-ghost py-1 text-xs disabled:opacity-30"
+                  disabled={!minha || !cabe || jaLevei}
+                  title={
+                    jaLevei ? 'Você já levou este' : cabe ? '' : 'Dinheiro insuficiente'
+                  }
+                  onClick={() => comprarItem(item.id)}
+                >
+                  {jaLevei ? 'Levado' : 'Comprar'}
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+
+        {loja.prateleira.length === 0 && (
+          <p className="text-sm text-parchment-200/50">O vendedor está sem estoque.</p>
+        )}
+
+        {aberto && <FichaDoItem item={aberto} onFechar={() => setAberto(null)} />}
+      </section>
+    </GlossarioProvider>
   )
 }
