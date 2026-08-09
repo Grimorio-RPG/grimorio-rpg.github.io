@@ -314,7 +314,13 @@ function MagiasDoNivel({
               // No grimório a magia entra desmarcada: preparar é outra decisão,
               // e é a da manhã seguinte. Em quem tem lista fixa, entrar na lista
               // É estar preparada.
-              { id: uid(), nome: m.nomePt, nivel: m.nivel, preparada: m.nivel > 0 && !livro },
+              {
+              id: uid(),
+              nome: m.nomePt,
+              nivel: m.nivel,
+              preparada: m.nivel > 0 && !livro,
+              ...(m.nome !== m.nomePt ? { nomeOriginal: m.nome } : {}),
+            },
             ])
           }
         />

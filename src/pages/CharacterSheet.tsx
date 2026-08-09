@@ -36,7 +36,7 @@ import { loadCharacters } from '../lib/storage'
 import { uid } from '../lib/character'
 import { imageToDataUrl } from '../lib/bestiary'
 import { EscolhaDeSubclasse } from '../components/subclasse-ui'
-import { Modal } from '../components/layout-ui'
+import { Modal, Original } from '../components/layout-ui'
 import { useCharacters } from '../hooks/useCharacters'
 import CharacterSheetView from '../components/CharacterSheetView'
 import {
@@ -777,9 +777,15 @@ function SpellsSection({
     [char.magias],
   )
 
-  function addMagia(nome: string, nivel: number, preparada: boolean) {
+  function addMagia(nome: string, nivel: number, preparada: boolean, original?: string) {
     if (!nome.trim() || jaTem.has(nome.trim().toLowerCase())) return
-    const nova: SpellRef = { id: uid(), nome: nome.trim(), nivel, preparada }
+    const nova: SpellRef = {
+      id: uid(),
+      nome: nome.trim(),
+      nivel,
+      preparada,
+      ...(original && original !== nome.trim() ? { nomeOriginal: original } : {}),
+    }
     update({ magias: [...char.magias, nova] })
   }
   function patch(id: string, p: Partial<SpellRef>) {
@@ -888,7 +894,7 @@ function SpellsSection({
                   // Fora do grimório, anotar é preparar: não há livro por trás
                   // de onde tirar depois. No Mago a magia entra no livro
                   // desmarcada — preparar é a decisão de cada manhã.
-                  addMagia(m.nomePt, m.nivel, m.nivel === 0 ? false : !livro)
+                  addMagia(m.nomePt, m.nivel, m.nivel === 0 ? false : !livro, m.nome)
                 }
               />
             </div>
@@ -922,7 +928,10 @@ function SpellsSection({
                         className="h-4 w-4 accent-arcane-500"
                       />
                     )}
-                    <span className="flex-1 text-sm text-parchment-100">{m.nome}</span>
+                    <span className="flex-1 text-sm text-parchment-100">
+                      {m.nome}
+                      <Original pt={m.nome} en={m.nomeOriginal} />
+                    </span>
                     <select
                       value={m.nivel}
                       onChange={(e) => patch(m.id, { nivel: parseInt(e.target.value, 10) })}

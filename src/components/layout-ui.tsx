@@ -122,6 +122,30 @@ export function Modal({
   )
 }
 
+/**
+ * O nome oficial em inglês, pequeno, entre parênteses.
+ *
+ * Traduzir tudo cria um problema que só aparece na mesa: a pessoa lê "Orbe
+ * Cromático" aqui e "Chromatic Orb" no livro, na planilha do grupo, no fórum e
+ * em qualquer busca. O original precisa estar por perto — mas não pode
+ * competir com o nome que se lê em voz alta, daí pequeno e apagado.
+ *
+ * Some sozinho quando os dois nomes são iguais: "Clone (Clone)" não informa
+ * nada e só suja a linha.
+ */
+export function Original({ pt, en }: { pt: string; en?: string }) {
+  if (!en || en === pt) return null
+  // `font-body` de propósito: os títulos usam Cinzel, que só tem maiúsculas, e
+  // "Sacred Flame" sairia "SACRED FLAME". Esta é a palavra que a pessoa vai
+  // digitar numa busca ou procurar no índice do livro — ela tem de aparecer
+  // com a grafia exata, não com a do enfeite.
+  return (
+    <span className="ml-1.5 font-body text-[11px] font-normal tracking-normal text-parchment-200/35">
+      ({en})
+    </span>
+  )
+}
+
 /** Barra de ferramentas: agrupa busca, filtros e botões. */
 export function Toolbar({ children }: { children: ReactNode }) {
   return <div className="card mb-6 flex flex-wrap items-center gap-2 p-3">{children}</div>

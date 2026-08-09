@@ -5,6 +5,7 @@
 // Furtividade" antes de você vestir. Sem isso, trocar equipamento é apostar.
 
 import { useMemo, useState } from 'react'
+import { Original } from './layout-ui'
 import type { AbilityKey, Character, EfeitoDeItem, Equipamento, SkillKey, SlotEquipamento } from '../types'
 import {
   BONECA,
@@ -230,6 +231,7 @@ export function PainelDeEquipamento({
                     >
                       <span className={`block truncate text-sm font-medium ${cor.texto}`}>
                         {item.nome || 'Sem nome'}
+                        <Original pt={item.nome} en={item.nomeOriginal} />
                         {(item.qtd ?? 1) > 1 && (
                           <span className="ml-1 text-parchment-200/50">×{item.qtd}</span>
                         )}

@@ -7,6 +7,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { carregarMagias, type MagiaDoCatalogo } from '../data/srd/magias'
+import { Original } from './layout-ui'
 
 /** O catálogo desce uma vez por sessão e fica; a tela não precisa saber disso. */
 export function useCatalogoDeMagias(): MagiaDoCatalogo[] | null {
@@ -94,7 +95,10 @@ export function EscolherMagias({
                 }`}
               >
                 <span className="flex flex-wrap items-center gap-2">
-                  <b className="text-sm text-parchment-50">{m.nomePt}</b>
+                  <b className="text-sm text-parchment-50">
+                    {m.nomePt}
+                    <Original pt={m.nomePt} en={m.nome} />
+                  </b>
                   {m.concentracao && (
                     <span className="chip text-[10px] text-amber-300" title="Exige concentração">C</span>
                   )}

@@ -44,6 +44,14 @@ export interface SpellRef {
   nome: string
   nivel: number // 0 = truque
   preparada: boolean
+  /**
+   * O nome oficial em inglês, quando a magia veio do catálogo.
+   *
+   * Fica gravado aqui, e não é buscado na hora, porque o catálogo do SRD são
+   * 300 KB que só descem quando alguém abre o grimório — e a ficha é aberta o
+   * tempo todo. Magia digitada à mão não tem original, e não deve ganhar um.
+   */
+  nomeOriginal?: string
 }
 
 /** Espaços de magia de um nível (1 a 9). */
@@ -140,6 +148,14 @@ export interface Equipamento {
   peso?: number
   /** Quantas peças. Ausente vale 1. A loja também vai precisar disto. */
   qtd?: number
+  /**
+   * O nome oficial em inglês, quando o item veio do SRD.
+   *
+   * Fica gravado no item e não é buscado na hora porque o catálogo do SRD só
+   * desce quando alguém abre a loja — e a mochila é olhada o tempo todo, com a
+   * loja fechada. Item digitado à mão não tem original, e não deve inventar um.
+   */
+  nomeOriginal?: string
   /**
    * Nome da arma do catálogo em que este item se baseia.
    *

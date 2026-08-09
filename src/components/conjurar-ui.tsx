@@ -28,7 +28,7 @@ import {
   magiasParaConjurar,
   menorCirculoLivre,
 } from '../lib/conjuracao'
-import { Modal } from './layout-ui'
+import { Modal, Original } from './layout-ui'
 import { GlossarioProvider, TextoComTermos } from './glossario-ui'
 
 export interface Conjuracao {
@@ -233,7 +233,10 @@ export function SeletorDeMagia({
         ) : (
           <>
             <div className="flex flex-wrap items-baseline gap-2">
-              <h4 className="font-display text-lg text-parchment-50">{escolhida.nomePt}</h4>
+              <h4 className="font-display text-lg text-parchment-50">
+                {escolhida.nomePt}
+                <Original pt={escolhida.nomePt} en={escolhida.nome} />
+              </h4>
               <span className="text-xs text-parchment-200/50">
                 {escolhida.nivel === 0 ? 'truque' : `${escolhida.nivel}º círculo`} · {escolhida.escolaPt}
               </span>
@@ -384,7 +387,10 @@ function Linha({ m, aviso }: { m: MagiaDoCatalogo; aviso?: string }) {
   return (
     <>
       <span className="flex flex-wrap items-center gap-2">
-        <b className="text-sm text-parchment-50">{m.nomePt}</b>
+        <b className="text-sm text-parchment-50">
+          {m.nomePt}
+          <Original pt={m.nomePt} en={m.nome} />
+        </b>
         {m.concentracao && (
           <span className="chip text-[10px] text-amber-300" title="Exige concentração">C</span>
         )}

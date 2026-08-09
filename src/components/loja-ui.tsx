@@ -9,6 +9,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { Character } from '../types'
 import type { ItemDoSrd } from '../data/srd'
 import { carregarItensSrd } from '../data/srd'
+import { Original } from './layout-ui'
 import {
   PORTES,
   type Loja,
@@ -42,8 +43,14 @@ export function PainelDaLoja() {
 
   // O catálogo do SRD passa de 200 KB de texto oficial. Só desce quando alguém
   // abre a loja de verdade — abrir a aba Mundo não pode custar isso.
+  //
+  // "De verdade" inclui CHEGAR COM PRATELEIRA PRONTA. Enquanto a condição era
+  // só o clique em "Sortear", a loja da sessão passada voltava do disco morta:
+  // clicar num item não abria a ficha dele e o botão Comprar não fazia nada —
+  // sem recado, sem erro, sem pista. Prateleira cheia é prova de que esta mesa
+  // usa a loja, e aí os 200 KB já estão pagos.
   useEffect(() => {
-    if (catalogo || !carregando) return
+    if (catalogo || (!carregando && loja.prateleira.length === 0)) return
     let vivo = true
     void carregarItensSrd().then((itens) => {
       if (!vivo) return
@@ -53,7 +60,7 @@ export function PainelDaLoja() {
     return () => {
       vivo = false
     }
-  }, [carregando, catalogo])
+  }, [carregando, catalogo, loja.prateleira.length])
 
   function mudar(patch: Partial<Loja>) {
     const nova = { ...loja, ...patch, atualizadoEm: Date.now() }
@@ -80,7 +87,14 @@ export function PainelDaLoja() {
   }, [catalogo])
 
   function aoComprar(itemId: string) {
-    if (!comprador || !catalogo) return
+    if (!comprador) return
+    // Sem catálogo não dá para montar o item. Antes isto era um `return` mudo,
+    // e um botão que não faz nada e não diz nada é pior do que um botão
+    // desabilitado.
+    if (!catalogo) {
+      setRecado('O baú ainda está abrindo. Tente de novo em um instante.')
+      return
+    }
     const r = comprar(comprador, loja, itemId, catalogo)
     if (!r.ok) {
       setRecado(r.motivo ?? 'Não deu.')
@@ -204,6 +218,7 @@ export function PainelDaLoja() {
                   >
                     <span className={`block truncate text-sm font-medium ${cor.texto}`}>
                       {item.nome}
+                      <Original pt={item.nome} en={item.chave} />
                       {item.qtd > 1 && <span className="ml-1 text-parchment-200/50">×{item.qtd}</span>}
                     </span>
                     <span className="block text-xs text-parchment-200/50">{item.raridade}</span>
@@ -276,7 +291,10 @@ function FichaDoItem({ item, onFechar }: { item: ItemDoSrd; onFechar: () => void
       >
         <div className="mb-2 flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h4 className={`text-lg font-semibold ${cor.texto}`}>{item.nomePt}</h4>
+            <h4 className={`text-lg font-semibold ${cor.texto}`}>
+              {item.nomePt}
+              <Original pt={item.nomePt} en={item.nome} />
+            </h4>
             <p className="text-xs text-parchment-200/50">
               {item.raridades.join(' ou ')}
               {item.sintonia && ' · exige sintonia'}

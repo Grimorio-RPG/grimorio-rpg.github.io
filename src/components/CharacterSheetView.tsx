@@ -12,6 +12,7 @@ import { acharTalento } from '../data/feats'
 import { RollButton, RollTextButton, rolarComModo } from './dice-ui'
 import { LevelUpModal, RestPanel } from './rest-levelup'
 import { oQueFalta, usaGrimorio } from '../lib/conjuracao'
+import { Original } from './layout-ui'
 import {
   abilityMod,
   armorClass,
@@ -298,7 +299,10 @@ export default function CharacterSheetView({
               <h4 className="panel-title">{nivel === 0 ? 'Truques' : `${nivel}º círculo`}</h4>
               <div className="mt-1 flex flex-wrap gap-1.5">
                 {char.magias.filter((m) => m.nivel === nivel).map((m) => (
-                  <span key={m.id} className={`chip ${m.preparada ? 'border-arcane-400/50' : ''}`}>{m.nome}</span>
+                  <span key={m.id} className={`chip ${m.preparada ? 'border-arcane-400/50' : ''}`}>
+                    {m.nome}
+                    <Original pt={m.nome} en={m.nomeOriginal} />
+                  </span>
                 ))}
               </div>
             </div>

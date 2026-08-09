@@ -21,7 +21,7 @@ import {
   type MagiaDoCatalogo,
 } from '../data/srd/magias'
 import { ATRIBUICAO_SRD } from '../data/srd'
-import { EmptyState, FilterChip, PageHeader, Toolbar } from '../components/layout-ui'
+import { EmptyState, FilterChip, Original, PageHeader, Toolbar } from '../components/layout-ui'
 import { GlossarioProvider, TextoComTermos } from '../components/glossario-ui'
 
 const CLASSES_PT = Object.values(CLASSES).sort((a, b) => a.localeCompare(b, 'pt-BR'))
@@ -154,7 +154,10 @@ function CartaDeMagia({
       <button onClick={onToggle} className="flex w-full items-start justify-between gap-3 p-4 text-left">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="font-display text-lg text-parchment-50">{magia.nomePt}</h3>
+            <h3 className="font-display text-lg text-parchment-50">
+              {magia.nomePt}
+              <Original pt={magia.nomePt} en={magia.nome} />
+            </h3>
             {magia.concentracao && (
               <span className="chip text-amber-300" title="Exige concentração">C</span>
             )}
@@ -188,11 +191,6 @@ function CartaDeMagia({
             <TextoComTermos texto={magia.texto} />
           </p>
 
-          {/* O nome em inglês é o que se digita numa busca ou se confere no
-              livro. Fica pequeno, mas fica. */}
-          {magia.nomePt !== magia.nome && (
-            <p className="mt-3 text-[11px] text-parchment-200/35">No original: {magia.nome}</p>
-          )}
         </div>
       )}
     </div>

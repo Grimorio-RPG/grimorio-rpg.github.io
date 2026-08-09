@@ -371,6 +371,9 @@ function equipamentoDoSrd(
   return {
     id: uid(),
     nome: naPrateleira.nome,
+    // O original vai junto: quem comprou "Manto Élfico" vai procurar por "Elven
+    // Cloak" no livro, e a mochila é olhada com a loja fechada.
+    nomeOriginal: doCatalogo && doCatalogo.nome !== naPrateleira.nome ? doCatalogo.nome : undefined,
     slot: slotDaCategoria(doCatalogo?.categoria),
     icone: iconeDaCategoria(doCatalogo?.categoria),
     raridade: naPrateleira.raridade,

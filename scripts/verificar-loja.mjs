@@ -204,6 +204,12 @@ checar('e a raridade', compra.char.equipamentos[0]?.raridade === 'Raro')
 checar('e a descrição traduzida',
   (compra.char.equipamentos[0]?.descricao ?? '').includes('Classe de Armadura'),
   compra.char.equipamentos[0]?.descricao?.slice(0, 60))
+// O nome oficial viaja COM o item. A mochila é olhada com a loja fechada, e o
+// catálogo do SRD só desce quando alguém abre a loja — buscar na hora deixaria
+// a referência vazia justamente onde ela serve, que é para achar no livro.
+checar('o nome em inglês vem junto',
+  compra.char.equipamentos[0]?.nomeOriginal === 'Ring of Protection',
+  compra.char.equipamentos[0]?.nomeOriginal)
 checar('sem entrar vestido', !compra.char.equipamentos[0]?.equipado)
 checar('nem sintonizado sozinho', !compra.char.equipamentos[0]?.sintonizado)
 checar('mas sabendo que exige sintonia', compra.char.equipamentos[0]?.sintonia === true)
