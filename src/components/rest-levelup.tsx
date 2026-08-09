@@ -6,6 +6,7 @@ import { abilityMod, classInfo, proficiencyBonus } from '../lib/calc'
 import { tracosGanhosNoNivel } from '../lib/features'
 import { registrarGanho, reverterNivel } from '../lib/levelup'
 import { ganhoDoNivel, listaFixa, quotaDoNivel, usaGrimorio } from '../lib/conjuracao'
+import { aoDescansar, recursosDoPersonagem } from '../lib/recursos'
 import { EscolherMagias } from './magias-ui'
 import { uid } from '../lib/character'
 import { ABILITIES } from '../data/rules'
@@ -42,9 +43,23 @@ export function RestPanel({ char, update }: { char: Character; update: Update })
     dadosDevolvidos: number
     espacosDevolvidos: number
     exaustaoReduzida: number
+    recursos: string[]
   } | null>(null)
 
   const podeDescansar = disponiveis > 0 && char.pvAtual < char.pvMax
+
+  // Os usos de classe que a hora de descanso devolve, e quais deles estão
+  // queimados agora. Um bárbaro de vida cheia e sem dados de vida ainda tem
+  // motivo para parar uma hora — o Surto de Ação não volta sozinho.
+  const recursos = recursosDoPersonagem(char)
+  const gastosNoCurto = recursos.filter((r) => r.recarga === 'curto' && r.usados > 0)
+  const gastosNoLongo = recursos.filter((r) => r.usados > 0)
+
+  /** O que a hora devolveu, em texto — ou nada, se não havia o que devolver. */
+  function recarregar(tipo: 'curto' | 'longo'): { patch: Partial<Character>; nomes: string[] } {
+    const alvos = tipo === 'curto' ? gastosNoCurto : gastosNoLongo
+    return { patch: aoDescansar(char, tipo), nomes: alvos.map((r) => r.nome) }
+  }
 
   function descansoCurto() {
     const usar = Math.min(qtd, disponiveis)
@@ -53,11 +68,27 @@ export function RestPanel({ char, update }: { char: Character; update: Update })
     addRoll(r)
     const curado = Math.max(usar, r.total) // nunca menos de 1 PV por dado
     const novo = Math.min(char.pvMax, char.pvAtual + curado)
+    // A hora de descanso é a mesma: gastar dados de vida também devolve os usos
+    // de classe que recarregam no curto. Separar as duas coisas faria a pessoa
+    // clicar num botão, achar que descansou, e continuar sem o Surto de Ação.
+    const { patch, nomes } = recarregar('curto')
     update({
       pvAtual: novo,
       dadosDeVidaUsados: (char.dadosDeVidaUsados ?? 0) + usar,
+      ...patch,
     })
-    setUltimo(`Recuperou ${novo - char.pvAtual} PV (${r.dados.join(' + ')} + ${conMod * usar}).`)
+    setUltimo(
+      `Recuperou ${novo - char.pvAtual} PV (${r.dados.join(' + ')} + ${conMod * usar}).` +
+        (nomes.length > 0 ? ` De volta: ${nomes.join(', ')}.` : ''),
+    )
+  }
+
+  /** A hora sem gastar dado nenhum — vida cheia, ou nenhum dado sobrando. */
+  function soDescansar() {
+    const { patch, nomes } = recarregar('curto')
+    if (nomes.length === 0) return
+    update(patch)
+    setUltimo(`Uma hora de descanso. De volta: ${nomes.join(', ')}.`)
   }
 
   /**
@@ -76,6 +107,7 @@ export function RestPanel({ char, update }: { char: Character; update: Update })
       espacos: char.espacosMagia.reduce((t, s) => t + s.usados, 0),
       exaustao: char.exaustao,
     }
+    const { patch, nomes } = recarregar('longo')
     update({
       pvAtual: char.pvMax,
       pvTemporario: 0,
@@ -83,6 +115,7 @@ export function RestPanel({ char, update }: { char: Character; update: Update })
       exaustao: Math.max(0, char.exaustao - 1),
       espacosMagia: char.espacosMagia.map((s) => ({ ...s, usados: 0 })),
       dadosDeVidaUsados: Math.max(0, (char.dadosDeVidaUsados ?? 0) - recupera),
+      ...patch,
     })
     setConfirmando(false)
     setAmanheceu({
@@ -90,6 +123,7 @@ export function RestPanel({ char, update }: { char: Character; update: Update })
       dadosDevolvidos: Math.min(recupera, total - antes.dados),
       espacosDevolvidos: antes.espacos,
       exaustaoReduzida: antes.exaustao > 0 ? 1 : 0,
+      recursos: nomes,
     })
     setUltimo('Descanso longo concluído: vida cheia e recursos recarregados.')
   }
@@ -123,6 +157,13 @@ export function RestPanel({ char, update }: { char: Character; update: Update })
               🎲 Gastar dado(s)
             </button>
           </div>
+          {/* Quem está de vida cheia (ou sem dado nenhum) ainda descansa a hora:
+              é o que devolve o Surto de Ação, o Canalizar e os Pontos de Foco. */}
+          {gastosNoCurto.length > 0 && (
+            <button className="btn-ghost mt-2 w-full py-1.5 text-xs" onClick={soDescansar}>
+              ☕ Só a hora — devolve {gastosNoCurto.map((r) => r.nome).join(', ')}
+            </button>
+          )}
           {disponiveis === 0 && <p className="mt-2 text-xs text-dragon-400">Sem dados de vida — só um descanso longo devolve.</p>}
         </div>
 
@@ -148,6 +189,9 @@ export function RestPanel({ char, update }: { char: Character; update: Update })
             <li>🎲 Metade dos dados de vida ({Math.max(1, Math.floor(total / 2))} de {total})</li>
             {temEspacos(char.classe) && <li>✨ Todos os espaços de magia</li>}
             <li>💀 Testes de morte zerados</li>
+            {gastosNoLongo.length > 0 && (
+              <li>🔥 {gastosNoLongo.map((r) => r.nome).join(', ')}</li>
+            )}
             {char.exaustao > 0 && <li>😮‍💨 Um nível de exaustão ({char.exaustao} → {char.exaustao - 1})</li>}
           </ul>
           <div className="mt-4 flex justify-end gap-2">
@@ -173,7 +217,13 @@ function Amanhecer({
   dados,
   onFim,
 }: {
-  dados: { pvRecuperado: number; dadosDevolvidos: number; espacosDevolvidos: number; exaustaoReduzida: number }
+  dados: {
+    pvRecuperado: number
+    dadosDevolvidos: number
+    espacosDevolvidos: number
+    exaustaoReduzida: number
+    recursos: string[]
+  }
   onFim: () => void
 }) {
   useEffect(() => {
@@ -185,6 +235,7 @@ function Amanhecer({
     dados.pvRecuperado > 0 && `+${dados.pvRecuperado} PV`,
     dados.espacosDevolvidos > 0 && `${dados.espacosDevolvidos} espaço(s) de magia`,
     dados.dadosDevolvidos > 0 && `${dados.dadosDevolvidos} dado(s) de vida`,
+    dados.recursos.length > 0 && dados.recursos.join(', '),
     dados.exaustaoReduzida > 0 && '−1 exaustão',
   ].filter(Boolean) as string[]
 

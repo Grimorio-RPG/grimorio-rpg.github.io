@@ -3,7 +3,7 @@ import { PainelDeAcoes } from './acoes-ui'
 import type { Attack, Character } from '../types'
 import { PainelDeEquipamento } from './equipamento-ui'
 import { GlossarioProvider, TextoComTermos } from './glossario-ui'
-import { bonusForaDasArmas, itensAtivos } from '../lib/equipamento'
+import { bonusForaDasArmas, itensAtivos } from '../lib/equipamento'
 import { ataquesDeArmas, type AtaqueDeArma } from '../lib/weapons'
 import { ABILITIES, CONDICOES, SKILLS, rotuloClasse } from '../data/rules'
 import { ACOES_GERAIS, ROTULO_TIPO, acoesDaClasse, type AcaoInfo } from '../data/actions'
@@ -11,6 +11,7 @@ import { spellsDaClasse } from '../data/spells'
 import { acharTalento } from '../data/feats'
 import { RollButton, RollTextButton, rolarComModo } from './dice-ui'
 import { LevelUpModal, RestPanel } from './rest-levelup'
+import { PainelDeRecursos } from './recursos-ui'
 import { oQueFalta, usaGrimorio } from '../lib/conjuracao'
 import { Estrada } from './estrada-ui'
 import { Original } from './layout-ui'
@@ -193,6 +194,11 @@ export default function CharacterSheetView({
           )}
         </section>
       )}
+
+      {/* Os usos que a classe dá. Ficam junto do estado, e não lá embaixo com os
+          traços: quantas Fúrias sobraram é coisa que se olha no meio da luta,
+          na mesma passada do PV. */}
+      <PainelDeRecursos char={char} update={update} />
 
       {/* O turno da pessoa: tudo o que dá para fazer, com o dado a um clique */}
       <section className="card p-5">

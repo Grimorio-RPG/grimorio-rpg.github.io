@@ -19,9 +19,25 @@ export function espacosPorNivel(classe: string, nivel: number): SpellSlot[] {
   return Array.from({ length: 9 }, (_, i) => ({ total: espacos[i] ?? 0, usados: 0 }))
 }
 
-/** A classe conjura magias com espaços? */
+/**
+ * A classe conjura?
+ *
+ * Antes bastava estar na tabela do SRD, porque só as conjuradoras estavam lá. A
+ * tabela passou a trazer TODAS as classes — é dela que saem as Fúrias, os
+ * Pontos de Foco e o Retomar o Fôlego —, e "está na tabela" deixou de
+ * significar "lança magia". Sem esta conta o bárbaro ganha uma linha de magia
+ * com zero em tudo, e um aviso de "faltam magias" na ficha de quem nunca
+ * conjurou nada.
+ *
+ * Sai dos números, e não de uma lista à mão: no nível 20 toda classe que
+ * conjura tem espaço, truque ou magia preparada — quem não tem nenhum dos três
+ * não conjura.
+ */
 export function temEspacos(classe: string): boolean {
-  return classe in PROGRESSAO_SRD
+  const tabela = PROGRESSAO_SRD[classe]
+  if (!tabela?.length) return false
+  const topo = tabela[tabela.length - 1]
+  return topo[0] > 0 || topo[1] > 0 || topo[2].some((n) => n > 0)
 }
 
 /** O maior círculo que a classe alcança naquele nível. 0 = nenhum. */

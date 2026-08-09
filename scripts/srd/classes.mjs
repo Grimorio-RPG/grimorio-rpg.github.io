@@ -25,14 +25,48 @@ import { writeFileSync } from 'node:fs'
 const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
 const PDF = 'C:/Users/gabri/OneDrive/Área de Trabalho/Grimorio - Projeto/SRD_CC_v5.2.1.pdf'
 
-// Onde mora a tabela "<Classe> Features" de cada conjurador.
+// Onde mora a tabela "<Classe> Features" de cada classe.
+//
+// `recursos` são as colunas de USOS que a tabela traz — Fúrias, Retomar o
+// Fôlego, Canalizar Divindade. Elas estavam ali o tempo todo, e o app contava
+// esses usos na cabeça da mesa. A chave é o ÚLTIMO pedaço do cabeçalho, que é
+// o que a extração enxerga: "Second Wind" quebra em duas linhas e só "Wind"
+// fica na linha das colunas.
 const PAGINAS = {
-  Bardo: { pagina: 31, titulo: 'Bard Features' },
-  Clérigo: { pagina: 36, titulo: 'Cleric Features' },
-  Druida: { pagina: 41, titulo: 'Druid Features' },
-  Paladino: { pagina: 53, titulo: 'Paladin Features' },
+  Bárbaro: {
+    pagina: 28, titulo: 'Barbarian Features', semMagia: true,
+    recursos: [{ coluna: 'Rages', nome: 'Fúria', recarga: 'longo' }],
+  },
+  Bardo: {
+    pagina: 31, titulo: 'Bard Features',
+    // Os usos da Inspiração são o modificador de Carisma, e não uma coluna: a
+    // coluna traz o DADO. Fica de fora daqui e entra por atributo.
+  },
+  Clérigo: {
+    pagina: 36, titulo: 'Cleric Features',
+    recursos: [{ coluna: 'Divinity', nome: 'Canalizar Divindade', recarga: 'curto' }],
+  },
+  Druida: {
+    pagina: 41, titulo: 'Druid Features',
+    recursos: [{ coluna: 'Shape', nome: 'Forma Selvagem', recarga: 'curto' }],
+  },
+  Guerreiro: {
+    pagina: 47, titulo: 'Fighter Features', semMagia: true,
+    recursos: [{ coluna: 'Wind', nome: 'Retomar o Fôlego', recarga: 'curto' }],
+  },
+  Monge: {
+    pagina: 50, titulo: 'Monk Features', semMagia: true,
+    recursos: [{ coluna: 'Points', nome: 'Ponto de Foco', recarga: 'curto' }],
+  },
+  Paladino: {
+    pagina: 53, titulo: 'Paladin Features',
+    recursos: [{ coluna: 'Divinity', nome: 'Canalizar Divindade', recarga: 'curto' }],
+  },
   Patrulheiro: { pagina: 58, titulo: 'Ranger Features' },
-  Feiticeiro: { pagina: 65, titulo: 'Sorcerer Features' },
+  Feiticeiro: {
+    pagina: 65, titulo: 'Sorcerer Features',
+    recursos: [{ coluna: 'Points', nome: 'Ponto de Feitiçaria', recarga: 'longo' }],
+  },
   // O Bruxo tem Magia de Pacto: poucos espaços, todos do mesmo círculo. A
   // tabela dele traz "Spell Slots" e "Slot Level" no lugar das nove colunas.
   Bruxo: { pagina: 71, titulo: 'Warlock Features', pacto: true },
@@ -69,7 +103,7 @@ function numero(s) {
   return n
 }
 
-function extrair(nomePt, { pagina, pacto }, linhas) {
+function extrair(nomePt, { pagina, pacto, semMagia, recursos = [] }, linhas) {
   // O cabeçalho das colunas: a linha que começa em "Level" e traz "Class
   // Features". É ela que define onde cada coluna começa.
   const iCab = linhas.findIndex(
@@ -85,9 +119,12 @@ function extrair(nomePt, { pagina, pacto }, linhas) {
   }
   // "Prepared Spells" quebra em duas linhas: só "Spells" está no cabeçalho.
   const cTruques = colunas.some((c) => c.s === 'Cantrips') ? onde('Cantrips') : null
-  const cPreparadas = onde('Spells')
+  // Classe sem magia não tem coluna de preparadas — e cobrar uma faria a
+  // extração morrer no Bárbaro em vez de dizer que ele não conjura.
+  const cPreparadas = semMagia ? null : onde('Spells')
+  const cRecursos = recursos.map((r) => ({ ...r, coluna: onde(r.coluna) }))
   // Nove colunas numeradas nos conjuradores comuns; o Bruxo tem duas próprias.
-  const cEspacos = pacto
+  const cEspacos = pacto || semMagia
     ? null
     : colunas.map((c, i) => (/^[1-9]$/.test(c.s) ? i : -1)).filter((i) => i >= 0)
   const cQtdPacto = pacto ? onde('Slots') : null
@@ -95,7 +132,9 @@ function extrair(nomePt, { pagina, pacto }, linhas) {
   // última é o círculo dos espaços de pacto.
   const cNivelPacto = pacto ? colunas.map((c) => c.s).lastIndexOf('Level') : null
 
-  if (cEspacos && cEspacos.length !== 9 && cEspacos.length !== 5) {
+  if (semMagia) {
+    // Sem magia não há espaço para conferir; o que vale é o recurso.
+  } else if (cEspacos && cEspacos.length !== 9 && cEspacos.length !== 5) {
     throw new Error(`${nomePt}: ${cEspacos.length} colunas de espaço, esperava 5 ou 9`)
   }
 
@@ -116,7 +155,10 @@ function extrair(nomePt, { pagina, pacto }, linhas) {
     }
 
     const espacos = Array.from({ length: 9 }, () => 0)
-    if (cEspacos) {
+    if (semMagia) {
+      // Bárbaro, Guerreiro e Ladino não conjuram: a tabela deles não tem
+      // coluna de espaço nenhuma, e é isso que os zeros dizem.
+    } else if (cEspacos) {
       cEspacos.forEach((c, i) => {
         espacos[i] = numero(celulas[c])
       })
@@ -128,8 +170,9 @@ function extrair(nomePt, { pagina, pacto }, linhas) {
 
     porNivel.set(nivel, {
       truques: cTruques == null ? 0 : numero(celulas[cTruques]),
-      preparadas: numero(celulas[cPreparadas]),
+      preparadas: cPreparadas == null ? 0 : numero(celulas[cPreparadas]),
       espacos,
+      recursos: Object.fromEntries(cRecursos.map((r) => [r.nome, numero(celulas[r.coluna])])),
     })
   }
 
@@ -152,7 +195,21 @@ function extrair(nomePt, { pagina, pacto }, linhas) {
       throw new Error(`${nomePt}: preparadas caem do nível ${i} para o ${i + 1}`)
     }
   }
-  if (tabela[0].preparadas < 1) throw new Error(`${nomePt}: nível 1 sem magias preparadas`)
+  if (!semMagia && tabela[0].preparadas < 1) {
+    throw new Error(`${nomePt}: nível 1 sem magias preparadas`)
+  }
+  // Recurso também não anda para trás, e um que nasce zerado no nível em que a
+  // classe já o tem é coluna lida da posição errada.
+  for (const r of recursos) {
+    for (let i = 1; i < 20; i++) {
+      if (tabela[i].recursos[r.nome] < tabela[i - 1].recursos[r.nome]) {
+        throw new Error(`${nomePt}: ${r.nome} cai do nível ${i} para o ${i + 1}`)
+      }
+    }
+    if (tabela[19].recursos[r.nome] < 1) {
+      throw new Error(`${nomePt}: ${r.nome} nunca sai do zero`)
+    }
+  }
 
   return tabela
 }
@@ -174,9 +231,13 @@ for (const [nomePt, onde] of Object.entries(PAGINAS)) {
 
 // Uma linha por nível, e não JSON indentado: a tabela inteira cabe numa tela e
 // dá para conferir contra o livro com o dedo.
-const linhaTs = (n) =>
-  `    [${String(n.truques)}, ${String(n.preparadas).padStart(2)}, ` +
-  `[${n.espacos.join(', ')}]],`
+const linhaTs = (n) => {
+  const recursos = Object.keys(n.recursos ?? {}).length
+    ? `, ${JSON.stringify(n.recursos)}`
+    : ''
+  return `    [${String(n.truques)}, ${String(n.preparadas).padStart(2)}, ` +
+    `[${n.espacos.join(', ')}]${recursos}],`
+}
 
 const corpo = Object.entries(saida)
   .map(([classe, niveis]) => `  ${JSON.stringify(classe)}: [\n${niveis.map(linhaTs).join('\n')}\n  ],`)
@@ -189,8 +250,15 @@ const ts = `// GERADO por scripts/srd/classes.mjs — não edite à mão.
 //
 // SRD 5.2.1, Creative Commons Attribution 4.0.
 
-/** [truques conhecidos, magias preparadas, espaços por círculo do 1º ao 9º] */
-export type LinhaDeConjuracao = [number, number, number[]]
+/**
+ * [truques, preparadas, espaços do 1º ao 9º, usos de recurso por nome]
+ *
+ * O quarto item só existe nas classes que têm coluna de uso na tabela — Fúria,
+ * Retomar o Fôlego, Canalizar Divindade, Forma Selvagem, Pontos de Foco e de
+ * Feitiçaria. Ele estava no livro o tempo todo, e o app deixava essa conta na
+ * cabeça da mesa.
+ */
+export type LinhaDeConjuracao = [number, number, number[], Record<string, number>?]
 
 export const PROGRESSAO_SRD: Record<string, LinhaDeConjuracao[]> = {
 ${corpo}

@@ -20,7 +20,7 @@
 
 import type { Character, SpellRef } from '../types'
 import { PROGRESSAO_SRD } from '../data/srd/classes-srd'
-import { maiorCirculo } from '../data/progression'
+import { maiorCirculo, temEspacos } from '../data/progression'
 
 /**
  * Quantas magias cabem no grimório do Mago naquele nível.
@@ -53,6 +53,7 @@ export function usaGrimorio(classe: string): boolean {
   return classe === 'Mago'
 }
 
+
 /**
  * A lista de preparadas desta classe só muda ao SUBIR DE NÍVEL?
  *
@@ -78,6 +79,8 @@ export function listaFixa(classe: string): boolean {
  * para Mago não receberia truque nenhum.
  */
 export function quotaDoNivel(classe: string, nivel: number): Quota | null {
+  // O bárbaro está na tabela por causa da Fúria, não da magia.
+  if (!temEspacos(classe)) return null
   const linha = PROGRESSAO_SRD[classe]?.[Math.min(20, nivel) - 1]
   if (!linha) return null
   return {

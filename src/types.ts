@@ -287,6 +287,14 @@ export interface Character {
    * descobre o que já foi levado, do mesmo jeito que o combate lê os PV.
    */
   comprasNaLoja?: string[]
+  /**
+   * Usos já gastos dos recursos de classe, pelo nome.
+   *
+   * Fúria, Surto de Ação, Canalizar Divindade, Pontos de Foco. O TOTAL vem da
+   * tabela do SRD e do nível — guardar aqui só o gasto significa que subir de
+   * nível aumenta o disponível sozinho, sem migração nenhuma.
+   */
+  usosDeRecursos?: Record<string, number>
   exaustao: number // 0-6 (regra 2024)
   condicoes: string[] // nomes das condições ativas
 

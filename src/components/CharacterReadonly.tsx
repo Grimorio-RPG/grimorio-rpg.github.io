@@ -12,6 +12,8 @@ import {
   spellAttackBonus,
   spellSaveDC,
 } from '../lib/calc'
+import { recursosDoPersonagem } from '../lib/recursos'
+import { RecursosEmChips } from './recursos-ui'
 
 /** Exibição somente-leitura de uma ficha — usada no Painel do DM. */
 export default function CharacterReadonly({ char }: { char: Character }) {
@@ -47,6 +49,13 @@ export default function CharacterReadonly({ char }: { char: Character }) {
         <Mini label="Prof." valor={`+${proficiencyBonus(char.nivel)}`} />
         <Mini label="Perc.Pass." valor={passivePerception(char)} />
       </div>
+
+      {/* Usos de classe — a pergunta é se ainda dá para apertar o grupo */}
+      {recursosDoPersonagem(char).length > 0 && (
+        <Bloco titulo="Usos de classe">
+          <RecursosEmChips char={char} />
+        </Bloco>
+      )}
 
       {/* Atributos */}
       <Bloco titulo="Atributos">
