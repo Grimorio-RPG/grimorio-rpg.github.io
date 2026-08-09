@@ -26,6 +26,7 @@ import { loadBestiary } from '../lib/bestiary'
 import { loadCharacters } from '../lib/storage'
 import { armorClass, passiveSkill } from '../lib/calc'
 import { precisaRolar } from '../lib/morte'
+import { QuemReage, SelosDeAcao } from './acoes-turno-ui'
 import { proximoDaVez } from '../lib/battle'
 
 const ROTULO_ACAO: Record<string, string> = {
@@ -99,6 +100,11 @@ export function PainelDeMesa({
             Próximo turno →
           </button>
         )}
+        {/* Quem ainda pode reagir, no turno de quem está agindo. É a pergunta
+            que o DM faz em voz alta a cada movimento do grupo. */}
+        <div className="w-full">
+          <QuemReage combatentes={ordenados} idDaVez={atual?.id ?? null} />
+        </div>
       </div>
 
       {ordenados.map((c) => (
@@ -271,6 +277,10 @@ function LinhaDeMesa({
             ))}
           </select>
         </div>
+
+      {/* Ação, bônus e reação. Compacto: na tela de mesa só o que JÁ foi
+          gasto aparece, para a linha não crescer três selos por criatura. */}
+      <SelosDeAcao c={c} onPatch={onPatch} compacto={!daVez} />
 
       {/* Os ataques do inimigo, na linha dele. Abrir o bestiário no meio do
           turno é o que faz a luta parar — e é o motivo número um de o DM

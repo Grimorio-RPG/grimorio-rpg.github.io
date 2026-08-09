@@ -607,6 +607,19 @@ export type CategoriaMonstro = 'comum' | 'elite' | 'miniboss' | 'boss' | 'bbeg'
 // Batalhas (rastreador de combate)
 // ---------------------------------------------------------------------------
 
+/**
+ * O que já foi gasto no turno.
+ *
+ * Mora aqui, e não em `lib/acoes-turno`, porque `Combatant` o usa: pôr o tipo
+ * na biblioteca faria `types` importar de `lib` e `lib` importar de `types` —
+ * um ciclo que o TypeScript tolera e o empacotador nem sempre.
+ */
+export interface Gastos {
+  acao?: boolean
+  bonus?: boolean
+  reacao?: boolean
+}
+
 export interface Combatant {
   id: string
   origem: 'inimigo' | 'aliado'
@@ -644,6 +657,17 @@ export interface Combatant {
   concentracao?: string
   /** Quando conjurou pela última vez — é o que faz o token brilhar no mapa. */
   conjurouEm?: number
+  /**
+   * O que já foi gasto no turno: ação, bônus e reação.
+   *
+   * Ausente = nada gasto, que é o estado da imensa maioria das criaturas na
+   * imensa maioria dos turnos — guardar `{}` em todo mundo engordaria a
+   * batalha que atravessa a rede a cada golpe.
+   *
+   * Movimento não entra: ele já está desenhado na régua do tabuleiro e na
+   * miniatura que andou.
+   */
+  gastos?: Gastos
   /**
    * Testes de morte deste combate.
    *

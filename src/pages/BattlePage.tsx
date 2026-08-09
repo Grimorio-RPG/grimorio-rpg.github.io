@@ -76,6 +76,8 @@ import { SelosDaMesa } from '../components/mesa-ui'
 import { aoMudar, passouNoTeste, semConcentracao } from '../lib/concentracao'
 import { SeletorDeMagia, type Conjuracao } from '../components/conjurar-ui'
 import { PainelDeMesa } from '../components/mesa-fisica'
+import { QuemReage, SelosDeAcao } from '../components/acoes-turno-ui'
+import { aoComecarOTurno, zerarTodos } from '../lib/acoes-turno'
 import {
   aoCurar,
   aoRolar,
@@ -521,7 +523,14 @@ function DmView({
       ),
     })
   }
-  function iniciar() { update({ emAndamento: true, rodada: 1, turnoIndex: 0 }) }
+  function iniciar() {
+    update({
+      emAndamento: true,
+      rodada: 1,
+      turnoIndex: 0,
+      combatentes: zerarTodos(battle.combatentes),
+    })
+  }
   /**
    * Inimigo caído não tem turno; personagem caído tem.
    *
@@ -597,9 +606,17 @@ function DmView({
     // turnos dela que ele é gasto.
     // As condições de quem vai começar andam uma rodada, e o que acabou é
     // contado — senão o contador zeraria em silêncio e ninguém saberia.
-    const { combatentes, expiradas } = correrCondicoes(
-      recarregarLendarias(battle.combatentes, ordenados[i]?.id ?? ''),
-      ordenados[i]?.id ?? '',
+    const idDaVez = ordenados[i]?.id ?? ''
+    const { combatentes: comCondicoes, expiradas } = correrCondicoes(
+      recarregarLendarias(battle.combatentes, idDaVez),
+      idDaVez,
+    )
+    // A economia de quem VAI agir volta ao cheio — inclusive a reação, que a
+    // regra devolve no início do turno e não no fim. Quem gastou a reação no
+    // turno do inimigo passa o intervalo inteiro sem ela, e é justamente isso
+    // que faz gastá-la ser uma decisão.
+    const combatentes = comCondicoes.map((c) =>
+      c.id === idDaVez ? { ...c, ...aoComecarOTurno() } : c,
     )
 
     let registro = battle.registro
@@ -912,6 +929,13 @@ function DmView({
           num formato que precisa de mais espaço do que informa. */}
       {!modoMesa && <PartyBar combatentes={ordenados} atualId={atual?.id} />}
 
+      {/* Quem ainda pode reagir. A reação é a única das três que se gasta no
+          turno dos OUTROS, e por isso a única que some da vista bem na hora em
+          que importa. */}
+      {!modoMesa && battle.emAndamento && (
+        <QuemReage combatentes={ordenados} idDaVez={atual?.id ?? null} />
+      )}
+
       {/* Duas colunas no monitor: o mapa fica parado à esquerda enquanto a
           coluna da direita rola. No celular tudo empilha, e aí vale mais ainda
           poder desligar o mapa. */}
@@ -1200,6 +1224,8 @@ function CombatantRow({
           {c.inspiracaoHeroica ? '✨ Com inspiração heroica' : '✨ Conceder inspiração'}
         </button>
       )}
+
+      <SelosDeAcao c={c} onPatch={onPatch} />
 
       <CondicoesEditor
         c={c}
