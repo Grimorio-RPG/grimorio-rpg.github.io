@@ -12,8 +12,10 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { MapScene, Token } from '../types'
 import { encaixar } from '../lib/mapscene'
 import { conjurandoAgora } from '../lib/battle'
+import { apanhados, contorno, rotulo, type Gabarito, type Ponto } from '../lib/gabaritos'
+import type { FormaDeArea } from './gabarito-ui'
 
-export type Ferramenta = 'mover' | 'medir'
+export type Ferramenta = 'mover' | 'medir' | 'area'
 
 /** Vida de um token, quando ele for uma criatura em combate. */
 export interface VidaNoTabuleiro {
@@ -33,6 +35,8 @@ export function Tabuleiro({
   setSelecionado,
   vidas = {},
   atualId,
+  forma,
+  onDentroDaArea,
   alturaMax = '58vh',
 }: {
   scene: MapScene
@@ -46,6 +50,10 @@ export function Tabuleiro({
   vidas?: Record<string, VidaNoTabuleiro>
   /** Quem está no turno, para o anel pulsante. */
   atualId?: string
+  /** A forma da área, quando a ferramenta é o gabarito. O tamanho vem de fora. */
+  forma?: FormaDeArea
+  /** Quem a área pega, para o painel de fora contar. */
+  onDentroDaArea?: (tokens: Token[]) => void
   /**
    * Teto de altura do quadro, em vh. O mapa rola por dentro em vez de empurrar
    * o resto da tela para baixo — foi o que aconteceu quando ele entrou na
@@ -69,6 +77,26 @@ export function Tabuleiro({
   const [medida, setMedida] = useState<{ ax: number; ay: number; bx: number; by: number } | null>(null)
   const [medindo, setMedindo] = useState(false)
 
+  // Onde a área foi colocada, EM QUADRADOS. Em quadrados porque é a unidade da
+  // regra: fração muda com o zoom e pixel muda com o tamanho da tela, e o raio
+  // da Bola de Fogo não muda com nenhum dos dois.
+  const [area, setArea] = useState<{ origem: Ponto; mira: Ponto } | null>(null)
+  const [mirando, setMirando] = useState(false)
+
+  // O tamanho do quadro em pixels, medido. Precisa disso para ir de fração a
+  // quadrado e voltar — e precisa acompanhar o zoom, senão o gabarito desenhado
+  // fica no lugar de antes.
+  const [caixa, setCaixa] = useState({ largura: 0, altura: 0 })
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const medir = () => setCaixa({ largura: el.clientWidth, altura: el.clientHeight })
+    medir()
+    const observador = new ResizeObserver(medir)
+    observador.observe(el)
+    return () => observador.disconnect()
+  }, [])
+
   const visiveis = visaoJogador ? tokens.filter((t) => !t.oculto) : tokens
 
   function fracDoEvento(e: React.PointerEvent) {
@@ -79,12 +107,32 @@ export function Tabuleiro({
     }
   }
 
+  /** De fração do quadro para quadrado da grade — a unidade da regra. */
+  function emQuadrados(p: { x: number; y: number }): Ponto {
+    return {
+      x: (p.x * caixa.largura - scene.offsetX) / scene.celPx,
+      y: (p.y * caixa.altura - scene.offsetY) / scene.celPx,
+    }
+  }
+
+  /** De quadrado para pixel do quadro — o que o SVG desenha. */
+  function emPixels(p: Ponto): { x: number; y: number } {
+    return { x: p.x * scene.celPx + scene.offsetX, y: p.y * scene.celPx + scene.offsetY }
+  }
+
   function onPointerDownBoard(e: React.PointerEvent) {
     if (visaoJogador) return
     if (ferramenta === 'medir') {
       const p = fracDoEvento(e)
       setMedida({ ax: p.x, ay: p.y, bx: p.x, by: p.y })
       setMedindo(true)
+    } else if (ferramenta === 'area') {
+      // Onde o dedo encosta é a ORIGEM: o centro da esfera, a ponta do cone, o
+      // começo da linha. Arrastar dali escolhe só a direção — o tamanho é o da
+      // magia, e esticá-lo no olho devolveria a discussão que isto encerra.
+      const p = emQuadrados(fracDoEvento(e))
+      setArea({ origem: p, mira: p })
+      setMirando(true)
     } else {
       setSelecionado(null)
     }
@@ -101,12 +149,15 @@ export function Tabuleiro({
     } else if (medindo && medida) {
       const p = fracDoEvento(e)
       setMedida({ ...medida, bx: p.x, by: p.y })
+    } else if (mirando && area) {
+      setArea({ ...area, mira: emQuadrados(fracDoEvento(e)) })
     }
   }
 
   function onPointerUp() {
     setArrastando(null)
     setMedindo(false)
+    setMirando(false)
   }
 
   // Distância da régua, em quadrados e em metros.
@@ -119,12 +170,50 @@ export function Tabuleiro({
     return { cells: Math.round(cells * 10) / 10, metros: Math.round(cells * 1.5 * 10) / 10 }
   }, [medida, scene.celPx])
 
+  // O gabarito colocado. O jogador nunca vê: mostrar o desenho antes de a magia
+  // sair entregaria de graça onde a Bola de Fogo vai cair.
+  const gabarito: Gabarito | null = useMemo(() => {
+    if (visaoJogador || !forma || !area) return null
+    return {
+      tipo: forma.tipo,
+      origem: area.origem,
+      mira: area.mira,
+      quadrados: forma.quadrados,
+      largura: forma.largura,
+    }
+  }, [visaoJogador, forma, area])
+
+  const dentro = useMemo(() => {
+    if (!gabarito || caixa.largura === 0) return []
+    const alvos = visiveis.map((t) => ({
+      id: t.id,
+      x: (t.x * caixa.largura - scene.offsetX) / scene.celPx,
+      y: (t.y * caixa.altura - scene.offsetY) / scene.celPx,
+      tamanho: t.tamanho,
+    }))
+    const ids = new Set(apanhados(gabarito, alvos).map((a) => a.id))
+    return visiveis.filter((t) => ids.has(t.id))
+  }, [gabarito, visiveis, caixa, scene.celPx, scene.offsetX, scene.offsetY])
+
+  // Avisa o painel de fora só quando a lista MUDA. Sem esta comparação, cada
+  // redesenho mandaria uma lista nova e o pai voltaria a redesenhar — o mapa
+  // ficaria girando sozinho enquanto o gabarito estivesse na tela.
+  const ultimaLista = useRef('')
+  useEffect(() => {
+    const chave = dentro.map((t) => t.id).join(',')
+    if (chave === ultimaLista.current) return
+    ultimaLista.current = chave
+    onDentroDaArea?.(dentro)
+  }, [dentro, onDentroDaArea])
+
+  const idsNaArea = useMemo(() => new Set(dentro.map((t) => t.id)), [dentro])
+
   return (
     <div className="card overflow-auto p-2" style={{ maxHeight: alturaMax }}>
       <div
         ref={ref}
         className={`relative mx-auto select-none ${
-          ferramenta === 'medir' && !visaoJogador ? 'cursor-crosshair' : ''
+          (ferramenta === 'medir' || ferramenta === 'area') && !visaoJogador ? 'cursor-crosshair' : ''
         }`}
         style={{ width: `${(scene.zoom ?? 1) * 100}%`, touchAction: 'none' }}
         onPointerDown={onPointerDownBoard}
@@ -151,6 +240,25 @@ export function Tabuleiro({
           />
         )}
 
+        {/* O gabarito vai ATRÁS dos tokens: quem está dentro precisa continuar
+            legível, e uma mancha por cima do rosto do goblin esconde justamente
+            a informação que o desenho veio dar. */}
+        {gabarito && (
+          <svg className="pointer-events-none absolute inset-0 h-full w-full">
+            <polygon
+              points={contorno(gabarito)
+                .map((p) => {
+                  const q = emPixels(p)
+                  return `${q.x},${q.y}`
+                })
+                .join(' ')}
+              fill="rgba(200,81,75,0.22)"
+              stroke="#c8514b"
+              strokeWidth={2}
+            />
+          </svg>
+        )}
+
         {visiveis.map((t) => (
           <TokenView
             key={t.id}
@@ -160,6 +268,7 @@ export function Tabuleiro({
             selecionado={selecionado === t.id}
             vida={vidas[t.id]}
             daVez={atualId === t.id}
+            naArea={idsNaArea.has(t.id)}
             agora={agora}
             onPointerDown={(e) => {
               if (visaoJogador || ferramenta !== 'mover') return
@@ -189,6 +298,13 @@ export function Tabuleiro({
             </foreignObject>
           </svg>
         )}
+
+        {/* O selo do gabarito: nas duas unidades, e com a conta já feita. */}
+        {gabarito && (
+          <div className="pointer-events-none absolute left-2 top-2 rounded-lg bg-ink-900/85 px-2 py-1 text-xs text-parchment-50 shadow">
+            {rotulo(gabarito)} · <b>{dentro.length}</b> na área
+          </div>
+        )}
       </div>
     </div>
   )
@@ -201,6 +317,7 @@ function TokenView({
   selecionado,
   vida,
   daVez,
+  naArea,
   agora,
   onPointerDown,
 }: {
@@ -210,6 +327,8 @@ function TokenView({
   selecionado: boolean
   vida?: VidaNoTabuleiro
   daVez?: boolean
+  /** O gabarito de área pega esta criatura. */
+  naArea?: boolean
   /** A hora do último tique, para o brilho de conjuração saber quando parar. */
   agora: number
   onPointerDown: (e: React.PointerEvent) => void
@@ -240,7 +359,12 @@ function TokenView({
         height: size,
         transform: 'translate(-50%, -50%)',
         background: img ? undefined : t.cor,
-        boxShadow: `0 0 0 3px ${daVez ? '#fbbf24' : t.cor}, 0 2px 6px rgba(0,0,0,.5)`,
+        // Quem está na área ganha um anel próprio. A mancha do gabarito sozinha
+        // não responde o caso que importa — o do token na borda, metade dentro,
+        // que é exatamente o que a mesa discute.
+        boxShadow: naArea
+          ? `0 0 0 3px #fff, 0 0 0 6px #c8514b, 0 2px 6px rgba(0,0,0,.5)`
+          : `0 0 0 3px ${daVez ? '#fbbf24' : t.cor}, 0 2px 6px rgba(0,0,0,.5)`,
         outline: selecionado ? '2px solid #fff' : undefined,
         outlineOffset: 2,
       }}

@@ -427,6 +427,8 @@ export function FerramentasDoMapa({
       {([
         ['mover', '✋ Mover'],
         ['medir', '📏 Medir'],
+        // "A Bola de Fogo pega quem?" era o dedo sobre o mapa e uma discussão.
+        ['area', '🔥 Área'],
       ] as const).map(([v, label]) => (
         <button
           key={v}

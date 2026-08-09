@@ -7,6 +7,7 @@ import type {
   MapScene,
   Monster,
   MonsterAction,
+  Token,
 } from '../types'
 import { useBattle } from '../hooks/useBattle'
 import { useBestiary } from '../hooks/useBestiary'
@@ -38,6 +39,7 @@ import {
   type Ferramenta,
   type VidaNoTabuleiro,
 } from '../components/tabuleiro'
+import { QuemAArea, SeletorDeGabarito, type FormaDeArea } from '../components/gabarito-ui'
 import { useMapScene } from '../hooks/useMapScene'
 import {
   CoisasNaCena,
@@ -2583,6 +2585,11 @@ function CenaDaBatalha({
   const local = useMapScene()
   const [ferramenta, setFerramenta] = useState<Ferramenta>('mover')
   const [selecionado, setSelecionado] = useState<string | null>(null)
+  // A forma da área e quem ela pega. Fica aqui e não no tabuleiro porque o
+  // painel que lista os atingidos precisa dos dois, e o tabuleiro só sabe
+  // desenhar.
+  const [forma, setForma] = useState<FormaDeArea>({ tipo: 'esfera', quadrados: 4 })
+  const [naArea, setNaArea] = useState<Token[]>([])
 
   // No aparelho de um jogador a cena vem da mesa. `useMapScene` lê a cena DESTE
   // aparelho, que para ele é a dele — vazia — e nunca a que o DM montou.
@@ -2622,6 +2629,15 @@ function CenaDaBatalha({
     <div className="space-y-2">
       {!visaoJogador && <FerramentasDoMapa ferramenta={ferramenta} setFerramenta={setFerramenta} />}
 
+      {/* O gabarito é do DM. Nada disto é publicado: mostrar o desenho antes de
+          a magia sair entregaria de graça onde a Bola de Fogo vai cair. */}
+      {!visaoJogador && ferramenta === 'area' && (
+        <div className="space-y-2">
+          <SeletorDeGabarito forma={forma} setForma={setForma} />
+          <QuemAArea dentro={naArea} />
+        </div>
+      )}
+
       {/* A faixa flutua sobre o tabuleiro em vez de empurrá-lo para cima: o
           mapa é a tela, e a fila é o que se consulta sem tirar os olhos dele. */}
       <div className="relative">
@@ -2635,6 +2651,8 @@ function CenaDaBatalha({
           setSelecionado={setSelecionado}
           vidas={vidas}
           atualId={atualId}
+          forma={ferramenta === 'area' ? forma : undefined}
+          onDentroDaArea={setNaArea}
         />
         {battle.emAndamento && (
           <FaixaDeIniciativa
