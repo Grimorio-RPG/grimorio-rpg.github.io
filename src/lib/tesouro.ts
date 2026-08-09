@@ -69,6 +69,17 @@ export function sortearTesouro(t?: Tesouro): Saque {
 
   for (const m of t.moedas) {
     if (!m.dado.trim()) continue
+    // Moeda que não existe é ignorada, e RECLAMA.
+    //
+    // Sem esta guarda, `saque.moedas[undefined] += ...` criava uma chave lixo
+    // com NaN dentro e o dinheiro sumia sem uma palavra — a tela dizia "nenhuma
+    // moeda" para um tesouro que tinha 2d6 PO escritos nele. O editor de
+    // tesouro usa uma lista fechada e não produz isso; um backup editado à mão
+    // ou vindo de uma versão futura, sim.
+    if (!(m.moeda in saque.moedas)) {
+      console.warn('[grimório] tesouro com moeda desconhecida, ignorada:', m)
+      continue
+    }
     saque.moedas[m.moeda] += rolarDado(m.dado)
   }
   for (const item of t.itens) {

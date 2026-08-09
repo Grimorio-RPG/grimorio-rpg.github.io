@@ -129,6 +129,38 @@ checar('mas com uma moeda, conta',
   temTesouro({ moedas: [{ moeda: 'po', dado: '1d6' }], itens: [] }))
 checar('e sem tesouro nenhum, não', !temTesouro(undefined))
 
+// ---------------------------------------------------------------------------
+console.log('Tesouro malformado não come dinheiro calado')
+//
+// Descoberto por acidente, escrevendo um fixture de teste: eu digitei `tipo`
+// no lugar de `moeda`, e a tela de recompensa disse "Nenhuma moeda" para um
+// tesouro com 2d6 PO escritos nele. Nenhum erro, nenhum aviso — o dinheiro
+// simplesmente não existia.
+//
+// Por dentro era pior: `saque.moedas[undefined] += ...` criava uma chave lixo
+// com NaN, que ia junto no objeto guardado. O editor de tesouro usa lista
+// fechada e não produz isso; um backup editado à mão ou de uma versão futura,
+// sim — e é exatamente aí que ninguém está olhando.
+
+const silenciar = console.warn
+console.warn = () => {}
+const malformado = sortearTesouro({ moedas: [{ tipo: 'po', dado: '2d6' }], itens: [] })
+console.warn = silenciar
+
+checar('moeda desconhecida não vira chave lixo',
+  Object.keys(malformado.moedas).join(',') === 'pc,pp,pe,po,pl',
+  Object.keys(malformado.moedas).join(','))
+checar('e não deixa NaN em lugar nenhum',
+  Object.values(malformado.moedas).every((v) => Number.isFinite(v)),
+  JSON.stringify(malformado.moedas))
+checar('nem soma em moeda nenhuma',
+  Object.values(malformado.moedas).every((v) => v === 0))
+
+// E o caminho bom continua funcionando: a guarda não pode ter fechado a porta.
+const bemFormado = sortearTesouro({ moedas: [{ moeda: 'po', dado: '10' }], itens: [] })
+checar('o tesouro bem formado continua caindo', bemFormado.moedas.po === 10,
+  JSON.stringify(bemFormado.moedas))
+
 if (falhas > 0) {
   console.error(`\n✗ ${falhas} de ${testes} verificações de tesouro falharam`)
   process.exit(1)
