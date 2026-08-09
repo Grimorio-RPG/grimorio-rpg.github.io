@@ -12,6 +12,7 @@ import { acharTalento } from '../data/feats'
 import { RollButton, RollTextButton, rolarComModo } from './dice-ui'
 import { LevelUpModal, RestPanel } from './rest-levelup'
 import { oQueFalta, usaGrimorio } from '../lib/conjuracao'
+import { Estrada } from './estrada-ui'
 import { Original } from './layout-ui'
 import {
   abilityMod,
@@ -229,6 +230,11 @@ export default function CharacterSheetView({
 
       {/* Cheat sheet de ações */}
       <AcoesCheatSheet char={char} />
+
+      {/* A estrada. Fica DEPOIS do combate e ANTES do equipamento: é leitura
+          de entre-sessões — quem abre a ficha no meio da luta quer PV e ações,
+          não o nível 14. */}
+      <Estrada char={char} />
 
       {/* Magias */}
       {(char.magias.length > 0 || espacos.length > 0 || char.atributoConjuracao || faltaMagia) && (
