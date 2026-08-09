@@ -24,7 +24,9 @@ const dir = mkdtempSync(join(tmpdir(), 'conf-'))
 execSync(
   `npx esbuild src/lib/conferencia.ts --bundle --outdir=${dir} --format=esm --log-level=error`,
 )
-const { conferir, resumo } = await import(pathToFileURL(join(dir, 'conferencia.js')).href)
+const { conferir, resumo, silenciados, silenciar, voltarAAvisar } = await import(
+  pathToFileURL(join(dir, 'conferencia.js')).href
+)
 
 let falhas = 0
 let testes = 0
@@ -256,13 +258,77 @@ checar('nenhum achado repete id', new Set(lista.map((a) => a.id)).size === lista
   lista.map((a) => a.id).join(', '))
 
 // ---------------------------------------------------------------------------
+console.log('\n"Isto não é erro"')
+//
+// Uma conferência que não se cala vira decoração: a pessoa aprende a ignorar a
+// lista inteira, e no dia do erro de verdade ele está no meio das mesmas linhas.
+// Mas uma dispensa eterna é pior — silencia justamente o lugar onde alguém já
+// mexeu. Por isso a marca guarda o TEXTO, e o aviso volta quando o número muda.
+
+const comPvEstranho = certo({ pvMax: 200 })
+const oAchado = acha(comPvEstranho, 'pv-fora-da-faixa')
+checar('o achado existe antes de dispensar', oAchado != null)
+
+const dispensado = { ...comPvEstranho, ...silenciar(comPvEstranho, oAchado) }
+checar('depois de dispensar, some da lista', !tem(dispensado, 'pv-fora-da-faixa'))
+checar('e não conta no placar', resumo(conferir(dispensado)).erro === 0,
+  JSON.stringify(resumo(conferir(dispensado))))
+
+// Some da lista, mas não do app: uma dispensa invisível é uma conferência cega
+// que ninguém pode auditar.
+const calados = silenciados(dispensado)
+checar('mas continua listado como dispensado', calados.length === 1)
+checar('com o título de sempre', calados[0]?.titulo === oAchado.titulo)
+
+// O caso que decide o desenho: quem disse que 200 PV está certo por causa de um
+// item de campanha não disse nada sobre 300.
+const outroNumero = { ...dispensado, pvMax: 300 }
+const voltou = acha(outroNumero, 'pv-fora-da-faixa')
+checar('mudando o número, o aviso volta', voltou != null)
+checar('e a linha avisa que voltou', voltou?.voltou === true)
+checar('e ele não aparece mais como dispensado',
+  silenciados(outroNumero).length === 0)
+// Voltando ao número dispensado, o silêncio volta com ele — a marca continua lá.
+checar('voltando ao número de antes, cala de novo',
+  !tem({ ...outroNumero, pvMax: 200 }, 'pv-fora-da-faixa'))
+
+// Desfazer.
+const revertido = { ...dispensado, ...voltarAAvisar(dispensado, 'pv-fora-da-faixa') }
+checar('"voltar a avisar" traz o achado de volta', tem(revertido, 'pv-fora-da-faixa'))
+checar('e sem a marca de "voltou"', acha(revertido, 'pv-fora-da-faixa')?.voltou !== true)
+checar('desfazer o que não estava dispensado não muda nada',
+  Object.keys(voltarAAvisar(certo(), 'pv-fora-da-faixa')).length === 0)
+
+// Dispensar um achado não cala os outros.
+const doisProblemas = certo({ pvMax: 200, periciasExpertise: ['furtividade'] })
+const soUm = {
+  ...doisProblemas,
+  ...silenciar(doisProblemas, acha(doisProblemas, 'pv-fora-da-faixa')),
+}
+checar('dispensar um não cala o outro', tem(soUm, 'expertise-sem-proficiencia'))
+checar('e o placar acompanha', resumo(conferir(soUm)).erro === 1,
+  JSON.stringify(resumo(conferir(soUm))))
+
+// E dispensar o segundo não pode ressuscitar o primeiro: a marca é uma lista, e
+// sobrescrevê-la inteira devolveria um aviso que a pessoa já resolveu.
+const osDois = { ...soUm, ...silenciar(soUm, acha(soUm, 'expertise-sem-proficiencia')) }
+checar('dispensar o segundo não traz o primeiro de volta',
+  !tem(osDois, 'pv-fora-da-faixa'), conferir(osDois).map((a) => a.id).join(', '))
+checar('e os dois ficam listados como dispensados', silenciados(osDois).length === 2,
+  String(silenciados(osDois).length))
+
+// Dispensar não mexe na ficha de entrada.
+checar('silenciar não mexe na ficha original', comPvEstranho.conferenciaIgnorada === undefined)
+
+// ---------------------------------------------------------------------------
 console.log('\nLigado na tela')
 
 const painel = readFileSync('src/components/conferencia-ui.tsx', 'utf-8')
 const leitura = readFileSync('src/components/CharacterSheetView.tsx', 'utf-8')
 const card = readFileSync('src/components/ficha-card.tsx', 'utf-8')
 
-checar('a ficha mostra a conferência', leitura.includes('<Conferencia char={char} />'))
+checar('a ficha mostra a conferência',
+  leitura.includes('<Conferencia char={char} update={update} />'))
 checar('o painel chama a biblioteca', painel.includes('conferir(char)'))
 checar('e mostra o detalhe de cada achado', painel.includes('{achado.detalhe}'))
 // Aberta o tempo todo viraria decoração: a pessoa aprende a não ler, e o erro
@@ -276,6 +342,16 @@ checar('a lista de fichas ganha o selo', card.includes('<SeloDeConferencia char=
 // A ficha é da pessoa: item de campanha e regra caseira aparecem aqui sem
 // estarem errados, e transformar isso em bloqueio seria discutir com a mesa.
 checar('o painel diz que aponta e não corrige', painel.includes('aponta, e não corrige'))
+// Sem o botão, a única saída para um falso alarme seria conviver com ele — e é
+// assim que a lista inteira deixa de ser lida.
+// Procurar só pelo texto não vale: o parágrafo do rodapé explica o botão e
+// contém as mesmas palavras. O que precisa existir é o BOTÃO.
+checar('cada linha traz o botão "não é erro"',
+  painel.includes('title="Marcar como certo e parar de avisar'))
+checar('e ele grava pelo lib', painel.includes('silenciar(char, a)'))
+checar('o que foi dispensado continua visível', painel.includes('silenciados(char)'))
+checar('e dá para desfazer', painel.includes('voltarAAvisar(char, a.id)'))
+checar('a volta por mudança de número é explicada', painel.includes('achado.voltou'))
 
 if (falhas > 0) {
   console.error(`\n✗ ${falhas} de ${testes} verificações de conferência falharam`)

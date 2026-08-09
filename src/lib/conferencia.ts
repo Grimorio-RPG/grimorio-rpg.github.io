@@ -37,6 +37,14 @@ export interface Achado {
   titulo: string
   /** O porquê, com o número. Sem número, um achado é só uma opinião. */
   detalhe: string
+  /**
+   * Estava silenciado, e voltou porque o NÚMERO mudou.
+   *
+   * Quem disse que 120 PV está certo por causa de um item de campanha não disse
+   * nada sobre 200. Sem esta volta, a primeira dispensa valeria para sempre e a
+   * conferência ficaria cega justo onde alguém já tinha mexido.
+   */
+  voltou?: boolean
 }
 
 const PESO: Record<Gravidade, number> = { erro: 0, aviso: 1, dica: 2 }
@@ -49,14 +57,59 @@ const PESO: Record<Gravidade, number> = { erro: 0, aviso: 1, dica: 2 }
  * meio de três lembretes de escolha pendente.
  */
 export function conferir(char: Character): Achado[] {
-  const achados: Achado[] = [
+  return todos(char)
+    .filter((a) => !estaSilenciado(char, a))
+    .map((a) => (foiSilenciadoAntes(char, a) ? { ...a, voltou: true } : a))
+    .sort((a, b) => PESO[a.gravidade] - PESO[b.gravidade])
+}
+
+/** Tudo o que a ficha produz, silenciado ou não. */
+function todos(char: Character): Achado[] {
+  return [
     ...daClasse(char),
     ...deVida(char),
     ...deMagia(char),
     ...deEquipamento(char),
     ...dePericias(char),
   ]
-  return achados.sort((a, b) => PESO[a.gravidade] - PESO[b.gravidade])
+}
+
+/**
+ * Este achado foi dispensado, e continua sendo a MESMA afirmação?
+ *
+ * A comparação é com o texto inteiro, e não só com o id, porque é o texto que
+ * carrega o número. Dispensar "a ficha tem 120 PV" não é dispensar "a ficha tem
+ * 200 PV" — a segunda é outra coisa, e nunca foi conferida por ninguém.
+ */
+function estaSilenciado(char: Character, a: Achado): boolean {
+  return char.conferenciaIgnorada?.[a.id] === a.detalhe
+}
+
+/** Já foi dispensado alguma vez, mas o texto mudou desde então. */
+function foiSilenciadoAntes(char: Character, a: Achado): boolean {
+  const marca = char.conferenciaIgnorada?.[a.id]
+  return marca != null && marca !== a.detalhe
+}
+
+/** O que está silenciado agora, para a tela poder mostrar e desfazer. */
+export function silenciados(char: Character): Achado[] {
+  return todos(char).filter((a) => estaSilenciado(char, a))
+}
+
+/** "Isto não é erro." Guarda o texto junto, para o aviso voltar se ele mudar. */
+export function silenciar(char: Character, achado: Achado): Partial<Character> {
+  return {
+    conferenciaIgnorada: { ...(char.conferenciaIgnorada ?? {}), [achado.id]: achado.detalhe },
+  }
+}
+
+/** Voltar a avisar sobre um achado dispensado. */
+export function voltarAAvisar(char: Character, id: string): Partial<Character> {
+  const atual = char.conferenciaIgnorada ?? {}
+  if (!(id in atual)) return {}
+  const novo = { ...atual }
+  delete novo[id]
+  return { conferenciaIgnorada: novo }
 }
 
 /** Quantos achados de cada peso — para o selo da tela. */

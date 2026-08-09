@@ -1,6 +1,15 @@
 import { useState } from 'react'
 import type { Character } from '../types'
-import { conferir, resumo, TUDO_CERTO, type Achado, type Gravidade } from '../lib/conferencia'
+import {
+  conferir,
+  resumo,
+  silenciados,
+  silenciar,
+  voltarAAvisar,
+  TUDO_CERTO,
+  type Achado,
+  type Gravidade,
+} from '../lib/conferencia'
 
 const CARA: Record<Gravidade, { icone: string; cor: string; borda: string }> = {
   erro: { icone: '⛔', cor: 'text-dragon-300', borda: 'border-dragon-400/40 bg-dragon-500/10' },
@@ -19,8 +28,16 @@ const CARA: Record<Gravidade, { icone: string; cor: string; borda: string }> = {
  * e um personagem de suplemento produzem achados que são falsos alarmes, e um
  * app que os transformasse em bloqueio viraria um app que discute com a mesa.
  */
-export function Conferencia({ char }: { char: Character }) {
+export function Conferencia({
+  char,
+  update,
+}: {
+  char: Character
+  /** Sem isto o painel só mostra — é como o DM lê a ficha de outra pessoa. */
+  update?: (patch: Partial<Character>) => void
+}) {
   const achados = conferir(char)
+  const dispensados = silenciados(char)
   const placar = resumo(achados)
   const [aberta, setAberta] = useState(placar.erro > 0)
 
@@ -59,13 +76,47 @@ export function Conferencia({ char }: { char: Character }) {
           ) : (
             <ul className="space-y-1.5">
               {achados.map((a) => (
-                <LinhaDoAchado key={a.id} achado={a} />
+                <LinhaDoAchado
+                  key={a.id}
+                  achado={a}
+                  onDispensar={update && (() => update(silenciar(char, a)))}
+                />
               ))}
             </ul>
           )}
+
+          {/* O que a pessoa já disse que está certo. Fica visível e reversível:
+              uma dispensa que some de vez é uma conferência que ficou cega sem
+              ninguém poder conferir o que foi calado. */}
+          {dispensados.length > 0 && (
+            <div className="mt-3 rounded-lg border border-white/10 bg-white/[0.02] p-2">
+              <p className="text-xs text-parchment-200/50">
+                Você marcou {dispensados.length} como certo
+                {dispensados.length > 1 ? 's' : ''}:
+              </p>
+              <ul className="mt-1 space-y-1">
+                {dispensados.map((a) => (
+                  <li key={a.id} className="flex flex-wrap items-baseline gap-x-2 text-xs">
+                    <span className="text-parchment-200/60 line-through">{a.titulo}</span>
+                    {update && (
+                      <button
+                        type="button"
+                        onClick={() => update(voltarAAvisar(char, a.id))}
+                        className="text-arcane-400 hover:underline"
+                      >
+                        voltar a avisar
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           <p className="mt-3 text-[11px] text-parchment-200/40">
             A conferência aponta, e não corrige. Item de campanha, regra caseira e personagem de
-            suplemento aparecem aqui sem estarem errados.
+            suplemento aparecem aqui sem estarem errados — marque <b>não é erro</b> e a linha some.
+            Se o número mudar depois, o aviso volta sozinho.
           </p>
         </div>
       )}
@@ -73,15 +124,40 @@ export function Conferencia({ char }: { char: Character }) {
   )
 }
 
-function LinhaDoAchado({ achado }: { achado: Achado }) {
+function LinhaDoAchado({
+  achado,
+  onDispensar,
+}: {
+  achado: Achado
+  onDispensar?: () => void
+}) {
   const cara = CARA[achado.gravidade]
   return (
     <li className={`rounded-lg border p-2 ${cara.borda}`}>
-      <p className={`text-sm font-medium ${cara.cor}`}>
-        {cara.icone} {achado.titulo}
-      </p>
+      <div className="flex flex-wrap items-baseline gap-x-2">
+        <p className={`text-sm font-medium ${cara.cor}`}>
+          {cara.icone} {achado.titulo}
+        </p>
+        {onDispensar && (
+          <button
+            type="button"
+            onClick={onDispensar}
+            title="Marcar como certo e parar de avisar. Se o número mudar, o aviso volta."
+            className="ml-auto shrink-0 text-[11px] text-parchment-200/40 hover:text-parchment-100"
+          >
+            não é erro
+          </button>
+        )}
+      </div>
       {/* O número vem sempre junto: sem ele, um achado é só uma opinião. */}
       <p className="mt-0.5 text-xs text-parchment-200/70">{achado.detalhe}</p>
+      {/* Voltou porque o número mudou desde a dispensa. Dizer isso evita que a
+          pessoa ache que o app esqueceu o que ela marcou. */}
+      {achado.voltou && (
+        <p className="mt-0.5 text-[11px] text-parchment-200/45">
+          Você tinha marcado como certo, mas o número mudou desde então.
+        </p>
+      )}
     </li>
   )
 }

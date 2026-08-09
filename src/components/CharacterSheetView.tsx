@@ -212,7 +212,7 @@ export default function CharacterSheetView({
       {/* A conferência. Vem recolhida e mostra só o placar — aberta o tempo
           todo viraria decoração, e no dia do erro de verdade ele estaria no
           meio das mesmas dez linhas amarelas. */}
-      <Conferencia char={char} />
+      <Conferencia char={char} update={update} />
 
       {/* Os usos que a classe dá. Ficam junto do estado, e não lá embaixo com os
           traços: quantas Fúrias sobraram é coisa que se olha no meio da luta,

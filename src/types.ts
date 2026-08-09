@@ -295,6 +295,16 @@ export interface Character {
    * nível aumenta o disponível sozinho, sem migração nenhuma.
    */
   usosDeRecursos?: Record<string, number>
+  /**
+   * Achados da conferência que a pessoa marcou como "isto não é erro".
+   *
+   * Guarda o id do achado E o texto que ela leu ao marcar. Guardar só o id
+   * silenciaria para sempre: quem disser que 120 PV está certo por causa de um
+   * item de campanha continuaria sem aviso quando o número virasse 200 — que é
+   * outra afirmação, e ela nunca a fez. Com o texto junto, o aviso volta
+   * sozinho quando o número muda.
+   */
+  conferenciaIgnorada?: Record<string, string>
   exaustao: number // 0-6 (regra 2024)
   condicoes: string[] // nomes das condições ativas
 
