@@ -22,7 +22,9 @@ import {
   tipoInfo,
   raridadeIndefinida,
   comEstoqueDosJogadores,
+  compradorEscolhido,
   comprar,
+  fichasQueCompram,
   emOuro,
   projetarLoja,
   adicionarNaPrateleira,
@@ -43,7 +45,8 @@ import { loadCharacters, upsertCharacter } from '../lib/storage'
 import { useEstadoMesa, useMesa } from '../hooks/useSync'
 import { CHAVES_MESA } from '../lib/sync/config'
 import { publicarComAtraso } from '../lib/sync/estado'
-import { enviarFicha } from '../lib/sync/personagens'
+import { enviarFicha, listarFichasDaMesa } from '../lib/sync/personagens'
+import { getConta } from '../lib/sync/auth'
 import { GlossarioProvider, TextoComTermos } from './glossario-ui'
 
 const ouro = (n: number) => n.toLocaleString('pt-BR', { maximumFractionDigits: 2 })
@@ -593,9 +596,36 @@ function LojaDoGrupo({ mesaId }: { mesaId: string }) {
   const [catalogo, setCatalogo] = useState<ItemDoSrd[] | null>(null)
   const [recado, setRecado] = useState('')
   const [aberto, setAberto] = useState<ItemDoSrd | null>(null)
+  /** Ids das fichas MINHAS que estão nesta mesa. Nulo = ainda perguntando. */
+  const [naMesa, setNaMesa] = useState<Set<string> | null>(null)
 
   const loja = remota && remota.liberada ? remota : null
-  const minha = fichas.find((c) => c.id === minhaId) ?? fichas[0] ?? null
+
+  /**
+   * Só compra quem está NA MESA.
+   *
+   * Não é preciosismo: a prateleira do DM se acerta lendo `comprasNaLoja` das
+   * fichas da mesa. Uma compra feita com uma ficha que não está lá some — o
+   * jogador paga, ganha o item, e o DM nunca fica sabendo que o último exemplar
+   * saiu da prateleira.
+   *
+   * E são as MINHAS: no aparelho do jogador, `loadCharacters()` traz as fichas
+   * da conta dele, mas um aparelho compartilhado pode ter mais.
+   */
+  useEffect(() => {
+    let vivo = true
+    void listarFichasDaMesa(mesaId).then((doGrupo) => {
+      if (!vivo) return
+      const eu = getConta()?.id
+      setNaMesa(new Set(doGrupo.filter((f) => !eu || f.donoId === eu).map((f) => f.ficha.id)))
+    })
+    return () => {
+      vivo = false
+    }
+  }, [mesaId])
+
+  const minhas = fichasQueCompram(fichas, naMesa)
+  const minha = compradorEscolhido(minhas, minhaId)
 
   useEffect(() => {
     if (!loja || catalogo) return
@@ -647,18 +677,36 @@ function LojaDoGrupo({ mesaId }: { mesaId: string }) {
         )}
 
         <div className="mb-3 flex flex-wrap items-end gap-3 rounded-lg border border-white/10 bg-white/[0.03] p-2.5">
-          <label className="text-sm">
-            <span className="mb-1 block text-xs text-parchment-200/60">Comprando com</span>
-            <select className="input" value={minha?.id ?? ''} onChange={(e) => setMinhaId(e.target.value)}>
-              {fichas.map((c) => (
-                <option key={c.id} value={c.id}>{c.nome || 'Sem nome'}</option>
-              ))}
-            </select>
-          </label>
-          {minha && (
-            <p className="text-sm text-parchment-100">
-              Bolsa: <b className="text-amber-300">{ouro(emOuro(minha.moedas))} PO</b>
+          {minhas.length === 0 ? (
+            <p className="text-sm text-parchment-200/70">
+              Nenhuma ficha sua está nesta mesa. Abra a sua ficha e use{' '}
+              <b>Enviar para a mesa</b> — é assim que o DM enxerga o que você comprar.
             </p>
+          ) : minhas.length === 1 ? (
+            <p className="text-sm text-parchment-100">
+              Comprando com <b>{minha?.nome || 'a sua ficha'}</b> · Bolsa:{' '}
+              <b className="text-amber-300">{ouro(emOuro(minhas[0].moedas))} PO</b>
+            </p>
+          ) : (
+            <>
+              <label className="text-sm">
+                <span className="mb-1 block text-xs text-parchment-200/60">Comprando com</span>
+                <select className="input" value={minhaId} onChange={(e) => setMinhaId(e.target.value)}>
+                  {/* Vazio de propósito: com mais de uma ficha, escolher é do
+                      jogador. O padrão silencioso fazia o dinheiro sair da
+                      primeira da lista, que é sorte, não decisão. */}
+                  <option value="">— escolha a sua ficha —</option>
+                  {minhas.map((c) => (
+                    <option key={c.id} value={c.id}>{c.nome || 'Sem nome'}</option>
+                  ))}
+                </select>
+              </label>
+              {minha && (
+                <p className="text-sm text-parchment-100">
+                  Bolsa: <b className="text-amber-300">{ouro(emOuro(minha.moedas))} PO</b>
+                </p>
+              )}
+            </>
           )}
           {recado && <p className="text-xs text-parchment-200/70">{recado}</p>}
         </div>

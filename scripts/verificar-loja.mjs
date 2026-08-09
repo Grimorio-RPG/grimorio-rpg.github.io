@@ -39,7 +39,7 @@ const {
   semente, valorDeMercado, precoDaPrateleira, arredondarPreco, PECHINCHA,
   projetarLoja, adicionarNaPrateleira, removerDaPrateleira, precoManual,
   TIPOS, tipoInfo, raridadeIndefinida,
-  comEstoqueDosJogadores,
+  comEstoqueDosJogadores, fichasQueCompram, compradorEscolhido,
 } = await carregar('lib/loja')
 const { sortearLoja, TEMAS } = await carregar('lib/loja-nomes')
 const { comTraducao, PRECO_POR_RARIDADE } = await carregar('data/srd/index')
@@ -564,6 +564,38 @@ for (let i = 0; i < 45; i++) {
 checar('a lista de compras nao cresce sem fim',
   (acumulando.comprasNaLoja?.length ?? 0) <= 31,
   `ficou com ${acumulando.comprasNaLoja?.length}`)
+
+// ---------------------------------------------------------------------------
+console.log('Quem compra, do lado do jogador')
+//
+// A prateleira do DM se acerta lendo `comprasNaLoja` das fichas DA MESA. Uma
+// compra feita com uma ficha que nao esta la some: o jogador paga, ganha o
+// item, e o DM nunca fica sabendo que o ultimo exemplar saiu da prateleira.
+
+const locais = [{ id: 'a', nome: 'Elara' }, { id: 'b', nome: 'Rascunho' }]
+
+checar('so quem esta na mesa compra',
+  fichasQueCompram(locais, new Set(['a'])).map((c) => c.id).join(',') === 'a')
+checar('quem nao esta fica de fora',
+  fichasQueCompram(locais, new Set(['a'])).every((c) => c.id !== 'b'))
+// Nulo e "a nuvem ainda nao respondeu". Travar a loja esperando a rede seria
+// pior do que deixar comprar: numa mesa presencial ninguem espera.
+checar('sem resposta da nuvem, vale o que esta no aparelho',
+  fichasQueCompram(locais, null).length === 2)
+checar('ninguem na mesa, ninguem compra',
+  fichasQueCompram(locais, new Set()).length === 0)
+
+// Com UMA ficha ela e a escolha. Com mais de uma, ninguem e escolhido sozinho:
+// o padrao silencioso tirava o dinheiro da primeira da lista, que numa conta
+// com dois personagens e sorte, nao decisao.
+checar('com uma ficha so, ela compra',
+  compradorEscolhido([locais[0]], '')?.id === 'a')
+checar('com duas e nenhuma escolhida, ninguem compra',
+  compradorEscolhido(locais, '') === null)
+checar('com duas e uma escolhida, e ela', compradorEscolhido(locais, 'b')?.id === 'b')
+checar('escolha que nao existe nao vira a primeira',
+  compradorEscolhido(locais, 'fantasma') === null)
+checar('sem ficha nenhuma, ninguem compra', compradorEscolhido([], 'a') === null)
 
 if (falhas > 0) {
   console.error(`\n✗ ${falhas} de ${testes} verificações de loja falharam`)

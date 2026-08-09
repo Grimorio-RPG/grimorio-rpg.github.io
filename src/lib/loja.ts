@@ -758,3 +758,41 @@ export function loadLoja(): Loja {
 export function saveLoja(loja: Loja): void {
   writeJson(CHAVES.loja, loja)
 }
+
+// ---------------------------------------------------------------------------
+// Quem compra, do lado do jogador
+// ---------------------------------------------------------------------------
+
+/**
+ * As fichas que podem comprar nesta mesa.
+ *
+ * Não é preciosismo: a prateleira do DM se acerta lendo `comprasNaLoja` das
+ * fichas DA MESA. Uma compra feita com uma ficha que não está lá some — o
+ * jogador paga, ganha o item, e o DM nunca fica sabendo que o último exemplar
+ * saiu da prateleira.
+ *
+ * `naMesa` nulo é "a nuvem ainda não respondeu", e aí vale o que está no
+ * aparelho: melhor deixar comprar do que travar a loja esperando a rede.
+ */
+export function fichasQueCompram<T extends { id: string }>(
+  locais: T[],
+  naMesa: Set<string> | null,
+): T[] {
+  return naMesa ? locais.filter((c) => naMesa.has(c.id)) : locais
+}
+
+/**
+ * Quem está comprando agora.
+ *
+ * Com UMA ficha, ela é a escolha — não há o que perguntar. Com mais de uma,
+ * ninguém é escolhido sozinho: o padrão silencioso de antes tirava o dinheiro
+ * da primeira da lista, que numa conta com dois personagens é sorte, não
+ * decisão.
+ */
+export function compradorEscolhido<T extends { id: string }>(
+  candidatas: T[],
+  escolhidaId: string,
+): T | null {
+  if (candidatas.length === 1) return candidatas[0]
+  return candidatas.find((c) => c.id === escolhidaId) ?? null
+}
