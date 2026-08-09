@@ -11,12 +11,18 @@
 //
 // O porte filtra os temas: casa arcana não é ferraria de vilarejo.
 
-import type { PorteDeLoja } from './loja'
+import type { TipoDeLoja } from './loja'
 
 export interface Tema {
-  id: string
-  /** Onde este tema cabe. Vazio = em qualquer porte. */
-  portes?: PorteDeLoja[]
+  /**
+   * O tipo da loja, que É o tema.
+   *
+   * A primeira versão escolhia o tema pelo PORTE, e o resultado saía torto:
+   * uma botica de metrópole podia se chamar "O Grimório que Observa". O tipo
+   * já diz o que a loja é — deixar o nome sair de outra coisa era inventar uma
+   * segunda verdade sobre o mesmo balcão.
+   */
+  id: TipoDeLoja
   /**
    * Substantivos do lugar, cada um com o seu artigo.
    *
@@ -53,8 +59,7 @@ export interface Tema {
  */
 export const TEMAS: Tema[] = [
   {
-    id: 'forja',
-    portes: ['vilarejo', 'cidade', 'metropole'],
+    id: 'ferreiro',
     coisas: [['Bigorna', 'A'], ['Martelo', 'O'], ['Forja', 'A'], ['Brasa', 'A'], ['Fornalha', 'A'], ['Malho', 'O'], ['Tenaz', 'A'], ['Fole', 'O']],
     adjetivos: [
       'Torta', 'de Ferro', 'Fria', 'do Anão', 'Rachada', 'Vermelha',
@@ -70,7 +75,6 @@ export const TEMAS: Tema[] = [
   },
   {
     id: 'botica',
-    portes: ['vilarejo', 'cidade', 'metropole'],
     coisas: [['Caldeirão', 'O'], ['Almofariz', 'O'], ['Raiz', 'A'], ['Erva', 'A'], ['Folha', 'A'], ['Frasco', 'O'], ['Alambique', 'O'], ['Semente', 'A']],
     adjetivos: [
       'Amarga', 'de Prata', 'do Pântano', 'que Cura', 'Verde', 'Seca',
@@ -85,8 +89,22 @@ export const TEMAS: Tema[] = [
     ],
   },
   {
+    id: 'feira',
+    coisas: [['Barraca', 'A'], ['Tenda', 'A'], ['Carroça', 'A'], ['Lona', 'A'], ['Banca', 'A'], ['Praça', 'A'], ['Toldo', 'O'], ['Cesto', 'O']],
+    adjetivos: [
+      'do Meio-Dia', 'Remendada', 'de Todo Mundo', 'que Nunca Fecha',
+      'de Domingo', 'Torta', 'da Beira', 'de Sempre',
+    ],
+    tracos: [
+      'que grita mais alto que os vizinhos',
+      'que jura ter vindo de longe',
+      'de mãos rápidas demais',
+      'que conhece todo mundo pelo nome',
+      'que fecha cedo quando chove',
+    ],
+  },
+  {
     id: 'curiosidades',
-    portes: ['cidade', 'metropole'],
     coisas: [['Baú', 'O'], ['Gaveta', 'A'], ['Prateleira', 'A'], ['Bugiganga', 'A'], ['Relíquia', 'A'], ['Achado', 'O'], ['Caixa', 'A'], ['Nó', 'O']],
     adjetivos: [
       'Sem Fundo', 'do Viajante', 'Empoeirada', 'de Longe', 'Esquecida',
@@ -102,7 +120,6 @@ export const TEMAS: Tema[] = [
   },
   {
     id: 'relicario',
-    portes: ['metropole', 'arcana'],
     coisas: [['Relicário', 'O'], ['Ossuário', 'O'], ['Cripta', 'A'], ['Urna', 'A'], ['Mão', 'A'], ['Coroa', 'A'], ['Véu', 'O'], ['Chave', 'A']],
     adjetivos: [
       'do Santo', 'de Marfim', 'Selada', 'que Sangra', 'do Rei Morto',
@@ -117,8 +134,7 @@ export const TEMAS: Tema[] = [
     ],
   },
   {
-    id: 'arcano',
-    portes: ['metropole', 'arcana'],
+    id: 'arcana',
     coisas: [['Sigilo', 'O'], ['Grimório', 'O'], ['Círculo', 'O'], ['Runa', 'A'], ['Olho', 'O'], ['Torre', 'A'], ['Vela', 'A'], ['Espelho', 'O']],
     adjetivos: [
       'Trincado', 'de Vidro', 'que Observa', 'Quieto', 'Torto', 'da Sexta Casa',
@@ -169,7 +185,7 @@ const pegar = <T,>(lista: T[], aleatorio: () => number): T =>
 export interface NomeSorteado {
   nome: string
   vendedor: string
-  tema: string
+  tema: TipoDeLoja
 }
 
 /**
@@ -180,11 +196,10 @@ export interface NomeSorteado {
  * roda.
  */
 export function sortearLoja(
-  porte: PorteDeLoja,
+  tipo: TipoDeLoja,
   aleatorio: () => number = Math.random,
 ): NomeSorteado {
-  const cabem = TEMAS.filter((t) => !t.portes || t.portes.includes(porte))
-  const tema = pegar(cabem.length ? cabem : TEMAS, aleatorio)
+  const tema = TEMAS.find((t) => t.id === tipo) ?? TEMAS[2]
 
   const [coisa, artigo] = pegar(tema.coisas, aleatorio)
   const adjetivo = concordar(pegar(tema.adjetivos, aleatorio), artigo)

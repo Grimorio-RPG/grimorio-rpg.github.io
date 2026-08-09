@@ -8,13 +8,18 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { Character } from '../types'
 import type { ItemDoSrd } from '../data/srd'
+import type { RaridadeItem } from '../types'
 import { carregarItensSrd } from '../data/srd'
 import { Original } from './layout-ui'
 import { sortearLoja } from '../lib/loja-nomes'
 import {
   PORTES,
+  TIPOS,
   type Loja,
   type PorteDeLoja,
+  type TipoDeLoja,
+  tipoInfo,
+  raridadeIndefinida,
   comEstoqueDosJogadores,
   comprar,
   emOuro,
@@ -106,7 +111,7 @@ function LojaDoDm({ mesaId }: { mesaId: string | null }) {
 
   /** Sorteia a loja e quem atende, do mesmo tema. */
   function sortearIdentidade() {
-    const nova = sortearLoja(loja.porte)
+    const nova = sortearLoja(loja.tipo)
     mudar({ nome: nova.nome, vendedor: nova.vendedor })
   }
 
@@ -115,7 +120,7 @@ function LojaDoDm({ mesaId }: { mesaId: string | null }) {
       setCarregando(true)
       return
     }
-    mudar({ prateleira: gerarPrateleira(catalogo, loja.porte, loja.margem) })
+    mudar({ prateleira: gerarPrateleira(catalogo, loja.porte, loja.margem, Math.random, loja.tipo) })
     setRecado('')
   }
 
@@ -123,7 +128,7 @@ function LojaDoDm({ mesaId }: { mesaId: string | null }) {
   // prateleira sem exigir um segundo clique.
   useEffect(() => {
     if (catalogo && loja.prateleira.length === 0) {
-      mudar({ prateleira: gerarPrateleira(catalogo, loja.porte, loja.margem) })
+      mudar({ prateleira: gerarPrateleira(catalogo, loja.porte, loja.margem, Math.random, loja.tipo) })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [catalogo])
@@ -170,6 +175,13 @@ function LojaDoDm({ mesaId }: { mesaId: string | null }) {
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h3 className="panel-title">Loja</h3>
           <div className="flex flex-wrap items-center gap-2">
+            {/* Este botão estava escondido como um link de 11px no canto do
+                rótulo "Porte", e a mesa simplesmente não o viu. Sortear o nome
+                é a primeira coisa que se faz numa loja nova — ele merece o
+                mesmo peso de "Sortear estoque". */}
+            <button className="btn-ghost py-1 text-xs" onClick={sortearIdentidade}>
+              🎲 Sortear nome
+            </button>
             <button className="btn-ghost py-1 text-xs" onClick={gerar}>
               {carregando ? 'Abrindo o baú…' : loja.prateleira.length ? '↻ Sortear estoque' : '+ Sortear estoque'}
             </button>
@@ -216,17 +228,7 @@ function LojaDoDm({ mesaId }: { mesaId: string | null }) {
             />
           </label>
           <label className="text-sm">
-            <span className="mb-1 flex items-center justify-between gap-2 text-xs text-parchment-200/60">
-              Porte
-              <button
-                type="button"
-                className="text-[11px] text-arcane-300 hover:text-arcane-200"
-                title="Sorteia o nome e quem atende, combinando com o porte"
-                onClick={sortearIdentidade}
-              >
-                🎲 sortear nome
-              </button>
-            </span>
+            <span className="mb-1 block text-xs text-parchment-200/60">Porte</span>
             <select
               className="input w-full"
               value={loja.porte}
@@ -241,7 +243,24 @@ function LojaDoDm({ mesaId }: { mesaId: string | null }) {
             </select>
           </label>
         </div>
-        <p className="mt-1 text-xs text-parchment-200/50">{porteInfo(loja.porte).descricao}</p>
+        {/* O tipo decide O QUE aparece; o porte, QUÃO BOM. Sem o tipo, o
+            ferreiro, a feira e a botica do mesmo vilarejo vendiam da mesma
+            sacola — e a mesa apontou isso antes de mim. */}
+        <label className="mt-2 block text-sm">
+          <span className="mb-1 block text-xs text-parchment-200/60">O que é esta loja</span>
+          <select
+            className="input w-full sm:w-auto"
+            value={loja.tipo}
+            onChange={(e) => mudar({ tipo: e.target.value as TipoDeLoja })}
+          >
+            {TIPOS.map((x) => (
+              <option key={x.valor} value={x.valor}>{x.nome}</option>
+            ))}
+          </select>
+        </label>
+        <p className="mt-1 text-xs text-parchment-200/50">
+          {tipoInfo(loja.tipo).descricao} · {porteInfo(loja.porte).descricao}
+        </p>
 
         {/* Quem está comprando */}
         <div className="mt-4 flex flex-wrap items-end gap-3 rounded-lg border border-white/10 bg-white/[0.03] p-2.5">
@@ -271,8 +290,16 @@ function LojaDoDm({ mesaId }: { mesaId: string | null }) {
             — e tirar o que não faz sentido ali. */}
         <AdicionarItem
           catalogo={catalogo}
-          onAdicionar={(item) => {
-            mudar(adicionarNaPrateleira(loja, item))
+          onAdicionar={(item, raridade) => {
+            const nova = adicionarNaPrateleira(loja, item, Math.random, raridade)
+            // Nulo aqui é o app dizendo que não soube a raridade. A tela não
+            // pode responder "entrou" a isso — foi exatamente o que aconteceu
+            // com a Poção de Cura.
+            if (!nova) {
+              setRecado(`${item.nomePt} não tem raridade fixa. Escolha uma na lista.`)
+              return
+            }
+            mudar(nova)
             setRecado(`${item.nomePt} entrou na prateleira.`)
           }}
         />
@@ -449,9 +476,13 @@ function AdicionarItem({
   onAdicionar,
 }: {
   catalogo: ItemDoSrd[] | null
-  onAdicionar: (item: ItemDoSrd) => void
+  onAdicionar: (item: ItemDoSrd, raridade?: RaridadeItem) => void
 }) {
   const [busca, setBusca] = useState('')
+  // Qual item está esperando o DM dizer a raridade. Oito itens do SRD não têm
+  // uma — e são justamente Poção de Cura, Pergaminho de Magia, Pedra Ioun e
+  // Estatueta do Poder Maravilhoso, os que uma loja mais teria.
+  const [escolhendo, setEscolhendo] = useState<ItemDoSrd | null>(null)
 
   const achados = useMemo(() => {
     const t = busca.trim().toLowerCase()
@@ -479,6 +510,10 @@ function AdicionarItem({
                 type="button"
                 className="flex w-full items-center justify-between gap-2 rounded-lg border border-white/10 bg-ink-900/40 px-2.5 py-1.5 text-left text-sm hover:border-emerald-400/50"
                 onClick={() => {
+                  if (raridadeIndefinida(i)) {
+                    setEscolhendo(i)
+                    return
+                  }
                   onAdicionar(i)
                   setBusca('')
                 }}
@@ -488,14 +523,46 @@ function AdicionarItem({
                   <Original pt={i.nomePt} en={i.nome} />
                 </span>
                 <span className="shrink-0 text-xs text-parchment-200/50">
-                  {i.raridades.join(' ou ')}
+                  {raridadeIndefinida(i) ? 'raridade varia' : i.raridades.join(' ou ')}
                 </span>
               </button>
             </li>
           ))}
         </ul>
       )}
-      {busca.trim().length >= 2 && achados.length === 0 && (
+      {escolhendo && (
+        <div className="mt-2 rounded-lg border border-amber-400/40 bg-amber-500/10 p-2.5">
+          <p className="text-xs text-amber-200/90">
+            <b>{escolhendo.nomePt}</b> não tem raridade fixa no livro — ela varia com a versão.
+            Escolha qual entra na prateleira:
+          </p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {(['Comum', 'Incomum', 'Raro', 'Muito raro', 'Lendário'] as RaridadeItem[]).map((r) => (
+              <button
+                key={r}
+                type="button"
+                className="chip hover:border-emerald-400/60"
+                onClick={() => {
+                  onAdicionar(escolhendo, r)
+                  setEscolhendo(null)
+                  setBusca('')
+                }}
+              >
+                {r}
+              </button>
+            ))}
+            <button
+              type="button"
+              className="chip text-parchment-200/40"
+              onClick={() => setEscolhendo(null)}
+            >
+              cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {busca.trim().length >= 2 && achados.length === 0 && !escolhendo && (
         <p className="mt-1 text-xs text-parchment-200/50">Nada com esse nome no catálogo do SRD.</p>
       )}
     </div>

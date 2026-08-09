@@ -105,6 +105,68 @@ export const FRACAO_DE_VENDA = 0.5
  */
 export type PorteDeLoja = 'vilarejo' | 'cidade' | 'metropole' | 'arcana'
 
+/**
+ * O que a loja É.
+ *
+ * O porte sozinho não bastava, e a mesa apontou: um vilarejo tem ferreiro,
+ * feira e taverna, e os três têm estoques completamente diferentes. Porte diz
+ * QUÃO BOM é o que aparece; tipo diz O QUÊ aparece. Sem o tipo, todo vendedor
+ * de toda cidade vendia da mesma sacola.
+ */
+export type TipoDeLoja =
+  | 'ferreiro' | 'botica' | 'feira' | 'curiosidades' | 'relicario' | 'arcana'
+
+export interface TipoInfo {
+  valor: TipoDeLoja
+  nome: string
+  descricao: string
+  /** Categorias do SRD que ela vende. Lista vazia = vende de tudo. */
+  categorias: ItemDoSrd['categoria'][]
+}
+
+export const TIPOS: TipoInfo[] = [
+  {
+    valor: 'ferreiro',
+    nome: 'Ferreiro',
+    descricao: 'Armas, armaduras e escudos. Nada que brilhe sem motivo.',
+    categorias: ['Armor', 'Weapon'],
+  },
+  {
+    valor: 'botica',
+    nome: 'Botica',
+    descricao: 'Frascos, óleos e o que se bebe antes de descer o buraco.',
+    categorias: ['Potion'],
+  },
+  {
+    valor: 'feira',
+    nome: 'Feira',
+    descricao: 'Um pouco de tudo, espalhado em pano no chão.',
+    categorias: [],
+  },
+  {
+    valor: 'curiosidades',
+    nome: 'Curiosidades',
+    descricao: 'Bugigangas com história. Metade da história é invenção.',
+    categorias: ['Wondrous Item', 'Ring'],
+  },
+  {
+    valor: 'relicario',
+    nome: 'Relicário',
+    descricao: 'Peças de igreja, de tumba e de guerra antiga.',
+    categorias: ['Wondrous Item', 'Ring', 'Rod'],
+  },
+  {
+    valor: 'arcana',
+    nome: 'Casa arcana',
+    descricao: 'Varinhas, cajados e pergaminhos. Não tem placa na porta.',
+    categorias: ['Wand', 'Staff', 'Rod', 'Scroll'],
+  },
+]
+
+export function tipoInfo(tipo: TipoDeLoja): TipoInfo {
+  return TIPOS.find((t) => t.valor === tipo) ?? TIPOS[2]
+}
+
 export interface Porte {
   valor: PorteDeLoja
   nome: string
@@ -144,8 +206,12 @@ export const PORTES: Porte[] = [
   },
   {
     valor: 'arcana',
-    nome: 'Casa arcana',
-    descricao: 'Não tem placa na porta. Você precisa ser apresentado.',
+    // O rótulo mudou porque "Casa arcana" passou a ser um TIPO de loja, e dois
+    // campos com o mesmo nome significando coisas diferentes na mesma tela é
+    // como se ensina alguém a escolher errado. O valor guardado continua o
+    // mesmo: renomear a chave quebraria as lojas já salvas.
+    nome: 'Mercado negro',
+    descricao: 'Sem placa na porta. Você precisa ser apresentado — e paga por isso.',
     raridades: ['Incomum', 'Raro', 'Muito raro', 'Lendário'],
     itens: 8,
     margem: 1.5,
@@ -170,6 +236,8 @@ export interface Loja {
   nome: string
   porte: PorteDeLoja
   vendedor: string
+  /** O que ela é: ferreiro, botica, feira… Decide O QUE aparece. */
+  tipo: TipoDeLoja
   /** Multiplicador aplicado sobre o preço de tabela. */
   margem: number
   /** Quanto o vendedor paga, como fração do preço de tabela. */
@@ -192,6 +260,7 @@ export function lojaVazia(): Loja {
   return {
     nome: '',
     porte: 'cidade',
+    tipo: 'feira',
     vendedor: '',
     margem: 1,
     fracaoDeVenda: FRACAO_DE_VENDA,
@@ -213,16 +282,38 @@ export function projetarLoja(loja: Loja | null): Loja | null {
   return loja
 }
 
-/** Põe um item do catálogo na prateleira, com o preço desta loja. */
+/**
+ * Oito itens do SRD não têm raridade fixa.
+ *
+ * São os que o livro marca como "Rarity Varies" — e não são itens obscuros:
+ * são a Poção de Cura, o Pergaminho de Magia, a Pedra Ioun, a Estatueta do
+ * Poder Maravilhoso. Justamente os que uma loja mais teria.
+ *
+ * A primeira versão disto devolvia a loja INTACTA quando o item não tinha
+ * raridade, enquanto a tela dizia "entrou na prateleira". O jogador pôs uma
+ * Poção de Cura e ela não apareceu — e o app afirmou que tinha aparecido.
+ */
+export function raridadeIndefinida(item: ItemDoSrd): boolean {
+  return item.raridades.length === 0
+}
+
+/**
+ * Põe um item do catálogo na prateleira, com o preço desta loja.
+ *
+ * Devolve `null` quando não sabe a raridade e ninguém informou uma. Nulo e não
+ * "a loja como estava": quem chama tem de conseguir distinguir "não deu" de
+ * "deu e nada mudou", senão volta a mentir na tela.
+ */
 export function adicionarNaPrateleira(
   loja: Loja,
   item: ItemDoSrd,
   aleatorio: () => number = Math.random,
-): Loja {
+  raridadeEscolhida?: RaridadeItem,
+): Loja | null {
   // A raridade que vale é a mais baixa que o item tem: uma Arma +1/+2/+3
   // colocada à mão entra como a +1, igual ao que o sorteio faz.
-  const raridade = item.raridades[0]
-  if (!raridade) return loja
+  const raridade = raridadeEscolhida ?? item.raridades[0]
+  if (!raridade) return null
   const novo: ItemNaPrateleira = {
     id: uid(),
     chave: item.nome,
@@ -377,10 +468,17 @@ export function gerarPrateleira(
   porte: PorteDeLoja,
   margem: number,
   aleatorio: () => number = Math.random,
+  tipo: TipoDeLoja = 'feira',
 ): ItemNaPrateleira[] {
   const info = porteInfo(porte)
+  const doTipo = tipoInfo(tipo).categorias
   const cabem = catalogo.filter(
-    (i) => i.raridades.length > 0 && i.raridades.some((r) => info.raridades.includes(r)),
+    (i) =>
+      i.raridades.length > 0 &&
+      i.raridades.some((r) => info.raridades.includes(r)) &&
+      // Lista vazia é a feira: ela vende de tudo, e é o único jeito honesto de
+      // dizer "sem filtro" sem repetir as nove categorias.
+      (doTipo.length === 0 || doTipo.includes(i.categoria)),
   )
 
   // Fisher-Yates: embaralha e pega os primeiros.

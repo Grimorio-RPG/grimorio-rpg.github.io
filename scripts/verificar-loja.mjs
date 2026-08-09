@@ -38,6 +38,7 @@ const {
   lojaVazia, precoNaLoja, ehConsumivel,
   semente, valorDeMercado, precoDaPrateleira, arredondarPreco, PECHINCHA,
   projetarLoja, adicionarNaPrateleira, removerDaPrateleira, precoManual,
+  TIPOS, tipoInfo, raridadeIndefinida,
   comEstoqueDosJogadores,
 } = await carregar('lib/loja')
 const { sortearLoja, TEMAS } = await carregar('lib/loja-nomes')
@@ -407,60 +408,100 @@ checar('e nenhum preco sai quebrado',
 // ---------------------------------------------------------------------------
 console.log('Sortear a loja e o vendedor')
 
-const sorteada = sortearLoja('cidade', semeado(3))
+const fechada = { ...lojaVazia(), nome: 'A Bigorna Torta', prateleira: [
+  { id: 'p1', chave: 'Ring of Protection', nome: 'Anel de Protecao', raridade: 'Raro', precoPO: 4000, qtd: 1 },
+] }
+const manto = CATALOGO.find((i) => i.nome === 'Cloak of Protection')
+
+const sorteada = sortearLoja('ferreiro', semeado(3))
 checar('sai um nome', sorteada.nome.length > 4, sorteada.nome)
-checar('e um vendedor com nome e oficio', /,/.test(sorteada.vendedor), sorteada.vendedor)
-checar('o artigo concorda com a coisa',
-  !/^A \w+o /.test(sorteada.nome) && !/^O \w+a /.test(sorteada.nome), sorteada.nome)
+checar('e um vendedor com nome e traco', /,/.test(sorteada.vendedor), sorteada.vendedor)
 
-// O tema tem de mandar nos DOIS. Sortear separado da "A Bigorna Torta, de
-// Sylvara, elfa que vende ervas": cada metade plausivel, conjunto sem sentido.
+// O tema É o tipo da loja. Antes o tema saía do PORTE, e uma botica de
+// metrópole podia se chamar "O Grimório que Observa" — o nome contava uma
+// segunda história sobre o mesmo balcão.
+for (const tipo of TIPOS) {
+  const tem = TEMAS.find((t) => t.id === tipo.valor)
+  checar(`${tipo.nome} tem tema de nome`, !!tem, tipo.valor)
+}
 for (let i = 0; i < 40; i++) {
-  const x = sortearLoja('cidade', semeado(i))
-  const tema = TEMAS.find((t) => t.id === x.tema)
-  const coisa = x.nome.split(' ')[1]
-  checarSilencioso(`o nome vem do tema ${x.tema}`,
-    tema.coisas.some(([c]) => c === coisa), x.nome)
-  // O artigo tem de bater com o do dado: "A Martelo Torta" é o erro que faz a
-  // mesa rir do app em vez de com ele.
-  const [, artigoCerto] = tema.coisas.find(([c]) => c === coisa) ?? []
-  checarSilencioso(`o artigo de "${coisa}" está certo`,
-    x.nome.startsWith(`${artigoCerto} `), x.nome)
-  // "A Runa Quieto" saiu do gerador antes de a concordância andar nos dois
-  // sentidos. Um nome torto é pior do que campo em branco: o gerador existe
-  // justamente para o DM não ter que pensar nisso.
-  const adjetivo = x.nome.split(' ').slice(2).join(' ')
-  checarSilencioso(`"${x.nome}" concorda`,
-    /\s/.test(adjetivo) || !/[oa]$/.test(adjetivo) ||
-      adjetivo.endsWith(artigoCerto === 'A' ? 'a' : 'o'),
-    x.nome)
-  // O traço não pode ter gênero: o nome tem um, e casar os dois exigiria
-  // etiquetar cada nome — decidir o gênero de uma pessoa para gerar uma frase.
-  const traco = x.vendedor.split(', ')[1]
-  checarSilencioso(`"${traco}" não tem gênero`,
-    /^(de |que |da |do |em |sem )/.test(traco),
-    traco)
-  checarSilencioso(`o traço vem do tema ${x.tema}`,
-    tema.tracos.some((o) => x.vendedor.endsWith(o)), x.vendedor)
+  for (const tipo of ['ferreiro', 'botica', 'feira', 'arcana']) {
+    const x = sortearLoja(tipo, semeado(i))
+    const tema = TEMAS.find((t) => t.id === tipo)
+    checarSilencioso(`${tipo} sorteia do proprio tema`, x.tema === tipo, x.tema)
+    const coisa = x.nome.split(' ')[1]
+    checarSilencioso(`o nome vem do tema ${x.tema}`,
+      tema.coisas.some(([c]) => c === coisa), x.nome)
+    const [, artigoCerto] = tema.coisas.find(([c]) => c === coisa) ?? []
+    checarSilencioso(`o artigo de "${coisa}" esta certo`,
+      x.nome.startsWith(`${artigoCerto} `), x.nome)
+    // "A Runa Quieto" saiu do gerador antes de a concordancia andar nos dois
+    // sentidos. Um nome torto e pior do que campo em branco.
+    const adjetivo = x.nome.split(' ').slice(2).join(' ')
+    checarSilencioso(`"${x.nome}" concorda`,
+      /\s/.test(adjetivo) || !/[oa]$/.test(adjetivo) ||
+        adjetivo.endsWith(artigoCerto === 'A' ? 'a' : 'o'),
+      x.nome)
+    // O traco nao pode ter genero: o nome tem um, e casar os dois exigiria
+    // etiquetar cada nome — decidir o genero de uma pessoa para gerar frase.
+    const traco = x.vendedor.split(', ')[1]
+    checarSilencioso(`"${traco}" nao tem genero`,
+      /^(de |que |da |do |em |sem )/.test(traco), traco)
+  }
 }
 
-// Casa arcana nao e ferraria de vilarejo.
-const arcana = new Set()
-const vila = new Set()
-for (let i = 0; i < 60; i++) {
-  arcana.add(sortearLoja('arcana', semeado(i)).tema)
-  vila.add(sortearLoja('vilarejo', semeado(i)).tema)
+// ---------------------------------------------------------------------------
+console.log('O tipo decide O QUE aparece')
+//
+// Porte diz quao bom; tipo diz o que. Sem o tipo, o ferreiro, a feira e a
+// botica do mesmo vilarejo vendiam da mesma sacola.
+
+for (const tipo of TIPOS) {
+  const prat = gerarPrateleira(CATALOGO, 'metropole', 1, semeado(5), tipo.valor)
+  if (tipo.categorias.length === 0) {
+    checar(`${tipo.nome} vende de tudo`, prat.length > 0)
+    continue
+  }
+  const fora = prat.filter((i) => {
+    const doCat = CATALOGO.find((c) => c.nome === i.chave)
+    return doCat && !tipo.categorias.includes(doCat.categoria)
+  })
+  checar(`${tipo.nome} so vende o que e dele`, fora.length === 0,
+    fora.map((i) => i.nome).join(', '))
+  checar(`${tipo.nome} tem estoque`, prat.length > 0)
 }
-checar('a casa arcana nao sorteia forja', !arcana.has('forja'), [...arcana].join(', '))
-checar('o vilarejo nao sorteia casa arcana', !vila.has('arcano'), [...vila].join(', '))
-checar('mas os dois sorteiam mais de um tema', arcana.size > 1 && vila.size > 1)
+
+const soArmas = gerarPrateleira(CATALOGO, 'metropole', 1, semeado(9), 'ferreiro')
+const soPocoes = gerarPrateleira(CATALOGO, 'metropole', 1, semeado(9), 'botica')
+checar('o ferreiro e a botica nao vendem a mesma coisa',
+  soArmas.every((a) => !soPocoes.some((b) => b.chave === a.chave)))
+
+// ---------------------------------------------------------------------------
+console.log('Os oito itens de raridade que varia')
+//
+// Sao a Pocao de Cura, o Pergaminho de Magia, a Pedra Ioun, a Estatueta do
+// Poder Maravilhoso — os que uma loja mais teria. A primeira versao devolvia a
+// loja INTACTA para eles enquanto a tela dizia "entrou na prateleira".
+
+const pocaoDeCura = CATALOGO.find((i) => i.nome === 'Potions of Healing')
+checar('a Pocao de Cura existe no catalogo', !!pocaoDeCura)
+checar('e o app sabe que a raridade dela varia', raridadeIndefinida(pocaoDeCura) === true)
+checar('poe sem raridade devolve NADA, e nao a loja intacta',
+  adicionarNaPrateleira(fechada, pocaoDeCura, () => 0.5) === null)
+const comPocaoDeCura = adicionarNaPrateleira(fechada, pocaoDeCura, () => 0.5, 'Comum')
+checar('com a raridade escolhida, entra', comPocaoDeCura?.prateleira.length === 2)
+checar('com a raridade que o DM disse', comPocaoDeCura?.prateleira[1].raridade === 'Comum')
+checar('e com preco de consumivel',
+  (comPocaoDeCura?.prateleira[1].precoPO ?? 0) < 100,
+  String(comPocaoDeCura?.prateleira[1].precoPO))
+
+// Item de raridade normal continua entrando sem perguntar nada.
+checar('item com raridade nao pede escolha',
+  adicionarNaPrateleira(fechada, manto, () => 0.5) !== null)
 
 // ---------------------------------------------------------------------------
 console.log('O DM monta antes de liberar')
 
-const fechada = { ...lojaVazia(), nome: 'A Bigorna Torta', prateleira: [
-  { id: 'p1', chave: 'Ring of Protection', nome: 'Anel de Protecao', raridade: 'Raro', precoPO: 4000, qtd: 1 },
-] }
 // Loja nao liberada nao e loja vazia: prateleira vazia diria "o vendedor nao
 // tem nada", que e informacao, e errada.
 checar('antes de liberar, o grupo nao ve loja nenhuma', projetarLoja(fechada) === null)
@@ -468,7 +509,6 @@ checar('depois de liberar, ve', projetarLoja({ ...fechada, liberada: true })?.no
 checar('e sem loja nao quebra', projetarLoja(null) === null)
 checar('loja nasce fechada', lojaVazia().liberada === false)
 
-const manto = CATALOGO.find((i) => i.nome === 'Cloak of Protection')
 const comMais = adicionarNaPrateleira(fechada, manto, () => 0.5)
 checar('o DM poe item a mao', comMais.prateleira.length === 2)
 checar('com o nome em portugues', comMais.prateleira[1].nome === manto.nomePt)
