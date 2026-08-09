@@ -13,6 +13,7 @@ import { RollButton, RollTextButton, rolarComModo } from './dice-ui'
 import { LevelUpModal, RestPanel } from './rest-levelup'
 import { PainelDeRecursos } from './recursos-ui'
 import { custoDeArmadura, emPalavras, proficienciasDe } from '../lib/proficiencias'
+import { Conferencia } from './conferencia-ui'
 import { oQueFalta, usaGrimorio } from '../lib/conjuracao'
 import { Estrada } from './estrada-ui'
 import { Original } from './layout-ui'
@@ -207,6 +208,11 @@ export default function CharacterSheetView({
           )}
         </section>
       )}
+
+      {/* A conferência. Vem recolhida e mostra só o placar — aberta o tempo
+          todo viraria decoração, e no dia do erro de verdade ele estaria no
+          meio das mesmas dez linhas amarelas. */}
+      <Conferencia char={char} />
 
       {/* Os usos que a classe dá. Ficam junto do estado, e não lá embaixo com os
           traços: quantas Fúrias sobraram é coisa que se olha no meio da luta,

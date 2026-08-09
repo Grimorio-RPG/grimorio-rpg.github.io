@@ -2,6 +2,7 @@ import type { Character } from '../types'
 import { abilityMod, armorClass, fmtMod } from '../lib/calc'
 import { classInfo } from '../lib/calc'
 import { progressoDeXp } from '../data/progression'
+import { SeloDeConferencia } from './conferencia-ui'
 
 /**
  * Ícone e cor de cada condição.
@@ -153,8 +154,11 @@ export function FichaCard({
           </div>
 
           <div className="min-w-0 flex-1">
-            <p className="truncate font-display text-lg leading-tight text-parchment-50">
-              {char.nome || 'Sem nome'}
+            <p className="flex items-center gap-1.5 truncate font-display text-lg leading-tight text-parchment-50">
+              <span className="truncate">{char.nome || 'Sem nome'}</span>
+              {/* A ficha errada do jogador vira problema do DM na hora em que o
+                  número entra na mesa. O selo faz a pergunta chegar antes. */}
+              <SeloDeConferencia char={char} />
             </p>
             <p className="truncate text-xs text-parchment-200/60">
               {[char.especie, info ? info.nome : char.classe].filter(Boolean).join(' · ') ||
