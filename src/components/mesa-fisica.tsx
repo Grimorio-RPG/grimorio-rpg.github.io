@@ -27,6 +27,7 @@ import { loadCharacters } from '../lib/storage'
 import { armorClass, passiveSkill } from '../lib/calc'
 import { precisaRolar } from '../lib/morte'
 import { QuemReage, SelosDeAcao } from './acoes-turno-ui'
+import { TextoComTermos } from './glossario-ui'
 import { proximoDaVez } from '../lib/battle'
 
 const ROTULO_ACAO: Record<string, string> = {
@@ -297,7 +298,8 @@ function LinhaDeMesa({
                   {ROTULO_ACAO[a.tipo ?? 'acao']}
                 </span>
               )}
-              <b className="text-parchment-100">{a.nome}.</b> {a.descricao}
+              <b className="text-parchment-100">{a.nome}.</b>{' '}
+              <TextoComTermos texto={a.descricao} />
             </li>
           ))}
         </ul>

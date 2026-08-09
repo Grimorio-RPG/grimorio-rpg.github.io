@@ -76,6 +76,7 @@ import { SelosDaMesa } from '../components/mesa-ui'
 import { aoMudar, passouNoTeste, semConcentracao } from '../lib/concentracao'
 import { SeletorDeMagia, type Conjuracao } from '../components/conjurar-ui'
 import { PainelDeMesa } from '../components/mesa-fisica'
+import { GlossarioProvider, TextoComTermos } from '../components/glossario-ui'
 import { QuemReage, SelosDeAcao } from '../components/acoes-turno-ui'
 import { aoComecarOTurno, zerarTodos } from '../lib/acoes-turno'
 import {
@@ -720,6 +721,7 @@ function DmView({
   } | null>(null)
 
   return (
+    <GlossarioProvider>
     <div className="space-y-5">
       {/* Quem está caído rola no começo do próprio turno. O painel aparece
           sozinho porque é isso que a mesa perde de vista: a luta continua, e
@@ -1047,6 +1049,7 @@ function DmView({
         </div>
       </div>
     </div>
+    </GlossarioProvider>
   )
 }
 
@@ -1783,6 +1786,7 @@ function PlayerView({
   }
 
   return (
+    <GlossarioProvider>
     <div className="space-y-5">
       {/* O chefe da vez, em destaque. Vem antes de tudo porque é a resposta
           para "contra o que estamos lutando". */}
@@ -1859,6 +1863,7 @@ function PlayerView({
         </div>
       )}
     </div>
+    </GlossarioProvider>
   )
 }
 
@@ -2038,7 +2043,9 @@ function TurnoDoInimigo({ combatente, monstro }: { combatente: Combatant; monstr
           <summary className="cursor-pointer text-xs text-parchment-200/60">
             🙈 Suas táticas
           </summary>
-          <p className="mt-1 whitespace-pre-wrap text-xs text-parchment-200/70">{monstro.taticas}</p>
+          <p className="mt-1 whitespace-pre-wrap text-xs text-parchment-200/70">
+            <TextoComTermos texto={monstro.taticas} />
+          </p>
         </details>
       )}
     </div>
@@ -2120,7 +2127,9 @@ function LinhaDeAcao({
             </span>
           )}
         </p>
-        <p className="text-xs leading-relaxed text-parchment-200/70">{acao.descricao}</p>
+        <p className="text-xs leading-relaxed text-parchment-200/70">
+          <TextoComTermos texto={acao.descricao} />
+        </p>
       </div>
       {bonus && (
         <button
@@ -2334,7 +2343,9 @@ function RegistroDeCombate({ registro }: { registro: EventoCombate[] }) {
                 R{e.rodada}
               </span>
               <span aria-hidden="true">{estilo.icone}</span>
-              <span className={estilo.classe}>{e.texto}</span>
+              <span className={estilo.classe}>
+                <TextoComTermos texto={e.texto} />
+              </span>
             </li>
           )
         })}

@@ -41,6 +41,7 @@ import { EmptyState, PageHeader, Toolbar, ViewToggle } from '../components/layou
 import { useEstadoMesa, useMesa } from '../hooks/useSync'
 import { CHAVES_MESA } from '../lib/sync/config'
 import { SelosDaMesa } from '../components/mesa-ui'
+import { GlossarioProvider, TextoComTermos } from '../components/glossario-ui'
 import {
   BarraDeFiltros,
   FILTROS_VAZIOS,
@@ -496,6 +497,13 @@ function PlayerView({
   )
 }
 
+/**
+ * O cartão do monstro.
+ *
+ * O provedor do glossário mora AQUI, e não na página: este é o menor pedaço
+ * que contém todo o texto de regra da criatura. Envolver a página inteira
+ * exigiria mexer em quatro raízes diferentes por causa de dois parágrafos.
+ */
 function PlayerMonsterCard({ m, setAmpliada }: { m: Monster; setAmpliada?: (url: string) => void }) {
   const nivel = nivelInfo(m.conhecimento)
   const cat = categoriaInfo(m.categoria)
@@ -504,6 +512,7 @@ function PlayerMonsterCard({ m, setAmpliada }: { m: Monster; setAmpliada?: (url:
   const mostraFicha = m.conhecimento === 'completo'
 
   return (
+    <GlossarioProvider>
     <div className={`card overflow-hidden ${m.derrotado ? 'opacity-75' : ''}`}>
       <div className="relative h-52 w-full overflow-hidden bg-ink-900/60">
         {img ? (
@@ -573,7 +582,9 @@ function PlayerMonsterCard({ m, setAmpliada }: { m: Monster; setAmpliada?: (url:
             {m.tracos && (
               <div>
                 <h4 className="mb-1 panel-title">Traços</h4>
-                <p className="whitespace-pre-wrap leading-relaxed text-parchment-100">{m.tracos}</p>
+                <p className="whitespace-pre-wrap leading-relaxed text-parchment-100">
+                  <TextoComTermos texto={m.tracos} />
+                </p>
               </div>
             )}
             {m.acoes.length > 0 && (
@@ -583,7 +594,9 @@ function PlayerMonsterCard({ m, setAmpliada }: { m: Monster; setAmpliada?: (url:
                   {m.acoes.map((a) => (
                     <li key={a.id}>
                       <span className="font-medium text-parchment-50">{a.nome || '—'}.</span>{' '}
-                      <span className="text-parchment-200/80">{a.descricao}</span>
+                      <span className="text-parchment-200/80">
+                        <TextoComTermos texto={a.descricao} />
+                      </span>
                     </li>
                   ))}
                 </ul>
@@ -593,6 +606,7 @@ function PlayerMonsterCard({ m, setAmpliada }: { m: Monster; setAmpliada?: (url:
         )}
       </div>
     </div>
+    </GlossarioProvider>
   )
 }
 

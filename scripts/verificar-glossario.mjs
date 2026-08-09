@@ -6,7 +6,7 @@
 // "ação bônus" virando "ação" seguida de um "bônus" solto continua parecendo
 // certo até você clicar.
 
-import { mkdtempSync } from 'node:fs'
+import { readFileSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -155,6 +155,69 @@ console.log('Texto vazio')
 
 checar('texto vazio não quebra', fatiarTexto('').length === 0)
 checar('nem indefinido', fatiarTexto(undefined).length === 0)
+
+// ---------------------------------------------------------------------------
+console.log('Onde o glossário chega')
+//
+// O termo clicável não vale nada se estiver só onde ninguém lê. Ele nasceu na
+// ficha e nas magias, e ficou de fora justamente dos dois lugares onde a mesa
+// mais para para perguntar: a ficha do MONSTRO ("o que é Agarrado mesmo?") e o
+// REGISTRO do combate ("salvaguarda de Constituição CD 12" passando na tela).
+//
+// A checagem é sobre o CÓDIGO, e não sobre o comportamento, porque o defeito é
+// de omissão: nada quebra quando um `{texto}` volta a ser texto cru. Ele só
+// deixa de ser clicável, e ninguém repara — foi assim que estes quatro lugares
+// ficaram de fora por meses.
+
+const fonte = (caminho) => readFileSync(caminho, 'utf8')
+
+const LUGARES = [
+  ['src/pages/BestiaryPage.tsx', ['m.tracos', 'a.descricao'],
+   'a ficha do monstro'],
+  ['src/pages/BattlePage.tsx', ['acao.descricao', 'e.texto', 'monstro.taticas'],
+   'o combate: ação do inimigo, registro e táticas'],
+  ['src/components/mesa-fisica.tsx', ['a.descricao'],
+   'a tela de mesa física'],
+]
+
+for (const [caminho, campos, oque] of LUGARES) {
+  const texto = fonte(caminho)
+  checar(`${oque} usa o glossário`, texto.includes('TextoComTermos'), caminho)
+  for (const campo of campos) {
+    // O que se cobra é a forma ENVOLVIDA existir. Cobrar a ausência de
+    // `{campo}` não funciona: `texto={m.tracos}` contém `{m.tracos}`, e a
+    // primeira versão desta checagem reprovou o próprio conserto.
+    checar(`${oque}: ${campo} passa pelo glossário`,
+      texto.includes(`texto={${campo}}`), caminho)
+    // `>{campo}<` é a assinatura do render cru inline, e essa sim tem de
+    // sumir. O separador de rodada fica de fora porque não é `>{...}<`: ele é
+    // "— Rodada 3 —", e não tem termo de regra nenhum.
+    checar(`${oque}: ${campo} não volta a sair cru`,
+      !texto.includes(`>{${campo}}<`), caminho)
+  }
+}
+
+// Sem provedor, `TextoComTermos` desenha texto normal e o clique não existe —
+// e isso não dá erro nenhum, o que é exatamente o problema.
+//
+// A conta é por QUANTIDADE, e não por presença. O BattlePage tem duas raízes
+// independentes — a visão do DM e a do jogador —, e "existe pelo menos um
+// provedor no arquivo" continuava verdadeiro depois de tirar o do DM. A
+// sabotagem passou batido exatamente assim.
+const contar = (texto, alvo) => texto.split(alvo).length - 1
+for (const [caminho, quantos, quais] of [
+  ['src/pages/BestiaryPage.tsx', 1, 'o cartão do monstro'],
+  ['src/pages/BattlePage.tsx', 2, 'a visão do DM e a do jogador'],
+]) {
+  checar(`${caminho} tem ${quantos} provedor(es): ${quais}`,
+    contar(fonte(caminho), '<GlossarioProvider>') === quantos,
+    `achei ${contar(fonte(caminho), '<GlossarioProvider>')}`)
+}
+
+// A tela de mesa NÃO pode ter o dela: ela vive dentro da visão do DM, e dois
+// provedores empilhados abrem dois painéis de verbete.
+checar('a tela de mesa não abre um segundo provedor',
+  !fonte('src/components/mesa-fisica.tsx').includes('<GlossarioProvider>'))
 
 if (falhas > 0) {
   console.error(`\n✗ ${falhas} de ${testes} verificações de glossário falharam`)
