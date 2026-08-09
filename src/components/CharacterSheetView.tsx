@@ -12,6 +12,7 @@ import { acharTalento } from '../data/feats'
 import { RollButton, RollTextButton, rolarComModo } from './dice-ui'
 import { LevelUpModal, RestPanel } from './rest-levelup'
 import { PainelDeRecursos } from './recursos-ui'
+import { custoDeArmadura, emPalavras, proficienciasDe } from '../lib/proficiencias'
 import { oQueFalta, usaGrimorio } from '../lib/conjuracao'
 import { Estrada } from './estrada-ui'
 import { Original } from './layout-ui'
@@ -47,8 +48,10 @@ export default function CharacterSheetView({
   const info = classInfo(char.classe)
   const dc = spellSaveDC(char)
   const atk = spellAttackBonus(char)
+  const treino = emPalavras(proficienciasDe(char))
+  const custoDaArmadura = custoDeArmadura(char)
   const temMoedas = MOEDAS.some((m) => char.moedas[m.key] > 0)
-  const temEstado = char.condicoes.length > 0 || char.exaustao > 0 || char.testesMorte.sucessos > 0 || char.testesMorte.falhas > 0
+  const temEstado = char.condicoes.length > 0 || char.exaustao > 0 || char.testesMorte.sucessos > 0 || char.testesMorte.falhas > 0 || custoDaArmadura != null
   const espacos = char.espacosMagia.map((s, i) => ({ nivel: i + 1, ...s })).filter((s) => s.total > 0)
   const magiasPorNivel = [...new Set(char.magias.map((m) => m.nivel))].sort((a, b) => a - b)
   const faltaMagia = useMemo(() => oQueFalta(char), [char])
@@ -180,6 +183,16 @@ export default function CharacterSheetView({
             )}
             {char.exaustao > 0 && <span>Exaustão: <b className="text-parchment-50">nível {char.exaustao}</b></span>}
           </div>
+
+          {/* Vestir o que não se sabe vestir some sem deixar rastro: a CA sobe,
+              a ficha fica plausível, e ninguém percebe que a magia acabou. */}
+          {custoDaArmadura && (
+            <p className="mt-3 rounded-lg border border-dragon-400/40 bg-dragon-500/10 p-2 text-sm text-dragon-300">
+              ⚠ Sem treino para {custoDaArmadura.pecas.join(' e ')}:{' '}
+              <b>desvantagem</b> em todo teste de d20 de Força ou Destreza — ataques inclusive — e{' '}
+              <b>você não consegue conjurar</b>.
+            </p>
+          )}
           {char.condicoes.length > 0 && (
             <ul className="mt-3 space-y-1 text-sm">
               {CONDICOES.filter((c) => char.condicoes.includes(c.nome)).map((c) => (
@@ -364,10 +377,17 @@ export default function CharacterSheetView({
             )}
           </section>
         )}
-        {(char.idiomas || char.proficienciasEquipamentos) && (
+        {(char.idiomas || char.proficienciasEquipamentos || char.classe) && (
           <section className="card p-5">
             <h3 className="mb-2 panel-title">Idiomas & Proficiências</h3>
             {char.idiomas && <p className="text-sm text-parchment-100"><span className="text-parchment-200/60">Idiomas:</span> {char.idiomas}</p>}
+            {/* O treino sai do SRD e é o que a conta do ataque usa. Estava só no
+                campo de texto, que ninguém preenchia e nada lia. */}
+            {char.classe && (
+              <p className="mt-1 text-sm text-parchment-100">
+                <span className="text-parchment-200/60">Treino:</span> {treino.armas} · {treino.armaduras}
+              </p>
+            )}
             {char.proficienciasEquipamentos && <p className="mt-1 whitespace-pre-wrap text-sm text-parchment-200/80">{char.proficienciasEquipamentos}</p>}
           </section>
         )}

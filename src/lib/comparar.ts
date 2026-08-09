@@ -17,6 +17,7 @@ import { ABILITIES, SKILLS } from '../data/rules'
 import { armorClass, passivePerception, saveBonus, skillBonus } from './calc'
 import { deslocamentoEfetivo } from './features'
 import { armaduraVestida, atributoComEquipamento, equiparEm } from './equipamento'
+import { custoDeArmadura } from './proficiencias'
 
 /**
  * O retrato da ficha que interessa numa troca.
@@ -42,6 +43,14 @@ export interface Retrato {
   furtividadeRuim: boolean
   /** Força mínima da armadura: abaixo dela, a pessoa anda mais devagar. */
   forcaMinima: number
+  /**
+   * Está vestindo algo sem ter treino.
+   *
+   * Pertence aqui pelo mesmo motivo da Furtividade: a placa achada na masmorra
+   * mostrava "+6 de CA" para o mago, e o resto — desvantagem em tudo que usa
+   * Força ou Destreza, e nada de conjurar — ele descobriria na luta seguinte.
+   */
+  semTreino: boolean
 }
 
 export function retratar(char: Character): Retrato {
@@ -63,6 +72,7 @@ export function retratar(char: Character): Retrato {
     salvaguardas,
     furtividadeRuim: !!armadura?.furtividadeRuim,
     forcaMinima: armadura?.forcaMinima ?? 0,
+    semTreino: custoDeArmadura(char) != null,
   }
 }
 
@@ -122,6 +132,16 @@ export function diferencas(antes: Retrato, depois: Retrato): Diferenca[] {
   }
   if (depois.forcaMinima !== antes.forcaMinima && depois.forcaMinima > 0) {
     fora.push({ texto: `exige FOR ${depois.forcaMinima}`, bom: false })
+  }
+  // A pior das três, e a que menos aparece: a CA sobe, a ficha fica plausível,
+  // e a pessoa só descobre na hora de conjurar.
+  if (depois.semTreino !== antes.semTreino) {
+    fora.push({
+      texto: depois.semTreino
+        ? 'sem treino: desvantagem em FOR/DES e não conjura'
+        : 'volta a poder conjurar',
+      bom: !depois.semTreino,
+    })
   }
   return fora
 }

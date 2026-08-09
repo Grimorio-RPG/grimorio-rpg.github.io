@@ -11,11 +11,13 @@ import {
   CONDICOES,
   ESPECIES,
   SKILLS,
+  rotuloClasse,
 } from '../data/rules'
 import { EscolherMagias } from '../components/magias-ui'
 import { oQueFalta, usaGrimorio } from '../lib/conjuracao'
 import { ARMAS, ITENS_MAGICOS, acharArma } from '../data/equipment'
 import { armaduraVestida } from '../lib/equipamento'
+import { custoDeArmadura, emPalavras, proficienciasDe } from '../lib/proficiencias'
 import { TALENTOS } from '../data/feats'
 import { ataqueDaArma } from '../lib/weapons'
 import {
@@ -141,10 +143,24 @@ export default function CharacterSheet() {
               <Field label="Idiomas">
                 <TextField value={char.idiomas} onChange={(v) => update({ idiomas: v })} placeholder="Comum, Élfico…" />
               </Field>
+              {/* O que a classe treina sai do SRD e é o que o app USA na hora
+                  de somar o ataque. Antes tudo isto era o campo de baixo, que
+                  ninguém preenchia e que nada lia — enquanto a conta do ataque
+                  dava proficiência a toda arma que entrasse na mão. */}
+              <TreinoDaClasse char={char} />
               <div className="mt-3">
-                <Field label="Proficiências (armas, armaduras, ferramentas)">
-                  <TextArea value={char.proficienciasEquipamentos} onChange={(v) => update({ proficienciasEquipamentos: v })} rows={3} />
+                <Field label="Proficiências além da classe (multiclasse, talento, o que o DM deu)">
+                  <TextArea
+                    value={char.proficienciasEquipamentos}
+                    onChange={(v) => update({ proficienciasEquipamentos: v })}
+                    rows={3}
+                    placeholder="Ex: armas marciais, armadura pesada, escudos, Ferramentas de Ladrão…"
+                  />
                 </Field>
+                <p className="mt-1 text-[11px] text-parchment-200/45">
+                  O app reconhece <b>simples</b>, <b>marciais</b>, <b>armadura leve/média/pesada</b> e{' '}
+                  <b>escudos</b> escritos aqui, e passa a somar a proficiência nesses ataques.
+                </p>
               </div>
             </SectionCard>
             <SectionCard title="Anotações">
@@ -1009,6 +1025,30 @@ function SpellsSection({
   )
 }
 
+/**
+ * O que a classe treina, do SRD.
+ *
+ * Está aqui em vez de dentro do campo de texto porque é a lista que o app
+ * CONSULTA: é ela que decide se o bônus de proficiência entra no ataque e se a
+ * armadura vestida está cobrando desvantagem. Ver na tela o que a conta usou é
+ * o que faltava para o número parar de aparecer sozinho.
+ */
+function TreinoDaClasse({ char }: { char: Character }) {
+  const p = proficienciasDe(char)
+  const texto = emPalavras(p)
+  if (!char.classe) return null
+  return (
+    <div className="mt-3 rounded-lg border border-white/10 bg-ink-900/40 p-2.5">
+      <p className="panel-title">Treino de {rotuloClasse(char.classe)}</p>
+      <ul className="mt-1 space-y-0.5 text-xs text-parchment-200/70">
+        <li>⚔️ {texto.armas}</li>
+        <li>🛡️ {texto.armaduras}</li>
+        {p.ferramentas && <li>🧰 {p.ferramentas}</li>}
+      </ul>
+    </div>
+  )
+}
+
 /** Um contador "3/4" que fica âmbar quando falta e vermelho quando passa. */
 function Cota({ rotulo, tem, de }: { rotulo: string; tem: number; de: number }) {
   const cor = tem > de ? 'text-dragon-400' : tem < de ? 'text-amber-300' : 'text-emerald-400'
@@ -1088,6 +1128,7 @@ function SpellSlots({ char, update }: { char: Character; update: (p: Partial<Cha
  */
 function EquipSection({ char, update }: { char: Character; update: (p: Partial<Character>) => void }) {
   const armadura = armaduraVestida(char)
+  const custo = custoDeArmadura(char)
   const usandoManual = char.classeArmaduraManual != null
   return (
     <SectionCard
@@ -1103,6 +1144,16 @@ function EquipSection({ char, update }: { char: Character; update: (p: Partial<C
         <p className="mt-3 text-xs text-amber-400">
           ⚠ {armadura.furtividadeRuim && 'Desvantagem em testes de Furtividade. '}
           {armadura.forcaMinima && `Exige Força ${armadura.forcaMinima} (senão seu deslocamento cai 3 m).`}
+        </p>
+      )}
+
+      {/* Vestir o que não se sabe vestir é uma das penalidades mais duras do
+          jogo, e sumia sem deixar rastro: o mago de armadura de placas ficava
+          com CA 18 na ficha e nada dizia que ele tinha perdido a magia. */}
+      {custo && (
+        <p className="mt-2 rounded-lg border border-dragon-400/40 bg-dragon-500/10 p-2 text-xs text-dragon-300">
+          ⚠ Sem treino para {custo.pecas.join(' e ')}: <b>desvantagem</b> em todo teste de d20 de
+          Força ou Destreza — ataques inclusive — e <b>você não consegue conjurar</b>.
         </p>
       )}
 

@@ -11,6 +11,7 @@ import {
   itensAtivos,
   ocupaDuasMaos,
 } from './equipamento'
+import { proficienteComArma } from './proficiencias'
 
 /**
  * Qual atributo a arma usa: Força por padrão, Destreza para armas à distância,
@@ -25,19 +26,29 @@ export function atributoDaArma(char: Character, arma: Arma): 'for' | 'des' {
 }
 
 /**
- * Monta o ataque já calculado. Assume proficiência com a arma — o jogador pode
- * editar o bônus depois se não for proficiente.
+ * Monta o ataque já calculado.
+ *
+ * O bônus de proficiência só entra se a pessoa for proficiente com a arma.
+ * Antes entrava sempre: o bardo que pegasse uma espada grande ganhava um +3 que
+ * não é dele, e a ficha ficava inteira plausível com o número errado no meio.
+ * Era o campo "Proficiências" existindo como anotação enquanto a conta ao lado
+ * o ignorava.
  */
 export function ataqueDaArma(char: Character, arma: Arma, duasMaos = false): Attack {
   const chave = atributoDaArma(char, arma)
   const mod = modEfetivo(char, chave)
+  const proficiente = proficienteComArma(char, arma)
   // A exaustão entra no ATAQUE e não no dano: o livro reduz o teste de d20, e
   // dano não é teste de d20. Descontar dos dois puniria duas vezes.
-  const bonus = mod + proficiencyBonus(char.nivel) + penalidadeDeExaustao(char)
+  const bonus =
+    mod + (proficiente ? proficiencyBonus(char.nivel) : 0) + penalidadeDeExaustao(char)
   const dadoDano = duasMaos && arma.versatil ? arma.versatil : arma.dano
   const dano = `${dadoDano}${mod !== 0 ? fmtMod(mod) : ''} ${arma.tipoDano}`
   const notas = [
     arma.categoria,
+    // Fica junto das outras notas porque é o mesmo tipo de coisa: um fato da
+    // arma NA MÃO DESTA PESSOA, e não um defeito da ficha.
+    proficiente ? '' : 'sem proficiência',
     ...arma.propriedades,
     arma.alcance ? `Alcance ${arma.alcance}` : '',
     duasMaos && arma.versatil ? 'Duas mãos' : '',
