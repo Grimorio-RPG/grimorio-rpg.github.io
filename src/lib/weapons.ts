@@ -1,6 +1,6 @@
 import type { Attack, Character, Equipamento } from '../types'
 import type { Arma } from '../data/equipment'
-import { fmtMod, modEfetivo, proficiencyBonus } from './calc'
+import { fmtMod, modEfetivo, penalidadeDeExaustao, proficiencyBonus } from './calc'
 import { uid } from './character'
 import {
   type BonusCondicional,
@@ -31,7 +31,9 @@ export function atributoDaArma(char: Character, arma: Arma): 'for' | 'des' {
 export function ataqueDaArma(char: Character, arma: Arma, duasMaos = false): Attack {
   const chave = atributoDaArma(char, arma)
   const mod = modEfetivo(char, chave)
-  const bonus = mod + proficiencyBonus(char.nivel)
+  // A exaustão entra no ATAQUE e não no dano: o livro reduz o teste de d20, e
+  // dano não é teste de d20. Descontar dos dois puniria duas vezes.
+  const bonus = mod + proficiencyBonus(char.nivel) + penalidadeDeExaustao(char)
   const dadoDano = duasMaos && arma.versatil ? arma.versatil : arma.dano
   const dano = `${dadoDano}${mod !== 0 ? fmtMod(mod) : ''} ${arma.tipoDano}`
   const notas = [

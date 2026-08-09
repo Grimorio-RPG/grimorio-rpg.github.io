@@ -93,7 +93,12 @@ export function bonusDeslocamento(char: Character): number {
  * para sempre, porque a conta nunca chegava aqui.
  */
 export function deslocamentoEfetivo(char: Character): number {
-  return char.deslocamento + bonusDeslocamento(char) + bonusDeEquipamento(char).deslocamento
+  // 1,5 m por nível de exaustão — os 5 pés do livro na medida que o app usa.
+  const exausto = 1.5 * Math.max(0, Math.min(6, char.exaustao ?? 0))
+  return Math.max(
+    0,
+    char.deslocamento + bonusDeslocamento(char) + bonusDeEquipamento(char).deslocamento - exausto,
+  )
 }
 
 export interface EscolhaPendente {

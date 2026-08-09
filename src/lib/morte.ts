@@ -147,3 +147,64 @@ export function precisaRolar(c: {
 export function aoCurar(): { testesMorte: TestesMorte; estavel: boolean } {
   return { testesMorte: zerado(), estavel: false }
 }
+
+// ---------------------------------------------------------------------------
+// Pontos de vida temporários
+//
+// O campo existia na ficha, aparecia no cartão do grupo, vinha preenchido da
+// importação do D&D Beyond e era zerado no descanso longo. E NENHUM caminho de
+// dano o consumia: o guerreiro com 10 de vida temporária levava 7 e perdia 7
+// de vida de verdade, com o "+10 temp" intacto ao lado.
+//
+// SRD 5.2.1: "If you have Temporary Hit Points and take damage, those points
+// are lost first, and any leftover damage carries over to your Hit Points."
+// ---------------------------------------------------------------------------
+
+export interface EstadoDeVida {
+  pvAtual: number
+  pvTemporario?: number
+}
+
+/**
+ * O dano comendo a vida temporária primeiro.
+ *
+ * O piso do PV NÃO é zero: quem cai abaixo dele precisa do excedente para a
+ * regra de dano massivo saber se a pessoa morreu na hora. Quem chama é que
+ * decide onde parar.
+ */
+export function aplicarDano(alvo: EstadoDeVida, dano: number): EstadoDeVida {
+  if (dano <= 0) return { pvAtual: alvo.pvAtual, pvTemporario: alvo.pvTemporario }
+  const temp = Math.max(0, alvo.pvTemporario ?? 0)
+  const comido = Math.min(temp, dano)
+  return {
+    pvAtual: alvo.pvAtual - (dano - comido),
+    pvTemporario: temp - comido,
+  }
+}
+
+/**
+ * A cura NÃO restaura vida temporária.
+ *
+ * "Temporary Hit Points can't be added to your Hit Points, healing can't
+ * restore them." Curar quem tem 10 temporários devolve vida de verdade, e o
+ * colchão continua o que era.
+ */
+export function aplicarCura(alvo: EstadoDeVida & { pvMax: number }, cura: number): EstadoDeVida {
+  if (cura <= 0) return { pvAtual: alvo.pvAtual, pvTemporario: alvo.pvTemporario }
+  return {
+    pvAtual: Math.min(alvo.pvMax, Math.max(0, alvo.pvAtual) + cura),
+    pvTemporario: alvo.pvTemporario,
+  }
+}
+
+/**
+ * Vida temporária NÃO se soma: escolhe-se a maior.
+ *
+ * "Temporary Hit Points can't be added together. If you have Temporary Hit
+ * Points and receive more of them, you decide whether to keep the ones you
+ * have or to gain the new ones." Somar seria o erro generoso de sempre — não
+ * quebra nada e deixa o jogo mais fácil em silêncio.
+ */
+export function receberTemporarios(atual: number | undefined, novos: number): number {
+  return Math.max(Math.max(0, atual ?? 0), Math.max(0, novos))
+}

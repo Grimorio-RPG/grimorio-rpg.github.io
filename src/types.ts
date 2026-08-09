@@ -669,6 +669,13 @@ export interface Combatant {
    */
   gastos?: Gastos
   /**
+   * Vida temporária que o combatente carrega.
+   *
+   * O campo existia na FICHA e não chegava ao combate — então o colchão de
+   * Vida Falsa ou Auxílio simplesmente sumia no momento em que ele serve.
+   */
+  pvTemporario?: number
+  /**
    * Testes de morte deste combate.
    *
    * Só faz sentido para aliado: monstro morre no instante em que chega a 0, e

@@ -27,7 +27,7 @@ execSync(
 const carregar = (n) => import(pathToFileURL(join(dir, `${n}.js`)).href)
 const {
   aoRolar, aoSofrerDanoCaido, morteInstantanea, precisaRolar, aoCurar, zerado,
-  CD_TESTE_DE_MORTE,
+  CD_TESTE_DE_MORTE, aplicarDano, aplicarCura, receberTemporarios,
 } = await carregar('morte')
 const { foraDoCombate, proximoDaVez } = await carregar('battle')
 
@@ -194,6 +194,48 @@ checar('lista vazia não tem próximo', proximoDaVez([], 0) === null)
 // Todo mundo fora: devolver o primeiro seria inventar um turno que não existe.
 checar('todos fora devolve nada',
   proximoDaVez([vivo('g1', 'inimigo', 0), vivo('g2', 'inimigo', 0)], 0) === null)
+
+// ---------------------------------------------------------------------------
+console.log('Vida temporária: o campo que ninguém consumia')
+//
+// Ele existia na ficha, aparecia no cartão do grupo, vinha preenchido da
+// importação do D&D Beyond e era zerado no descanso longo. E NENHUM caminho de
+// dano o consumia: o guerreiro com 10 temporários levava 7 e perdia 7 de vida
+// de verdade, com o "+10 temp" intacto ao lado.
+
+const comColchao = { pvAtual: 30, pvMax: 30, pvTemporario: 10 }
+
+const levou7 = aplicarDano(comColchao, 7)
+checar('o dano come o temporário primeiro', levou7.pvAtual === 30, String(levou7.pvAtual))
+checar('e o colchão encolhe', levou7.pvTemporario === 3, String(levou7.pvTemporario))
+
+const levou15 = aplicarDano(comColchao, 15)
+checar('o que passa do colchão vai para a vida', levou15.pvAtual === 25, String(levou15.pvAtual))
+checar('e o colchão zera', levou15.pvTemporario === 0)
+
+checar('dano exato ao colchão não toca a vida', aplicarDano(comColchao, 10).pvAtual === 30)
+checar('sem colchão, o dano é direto',
+  aplicarDano({ pvAtual: 30, pvMax: 30 }, 7).pvAtual === 23)
+// O piso NÃO é zero: o excedente é o que decide a morte instantânea.
+checar('o PV pode ficar negativo, para a regra de dano massivo funcionar',
+  aplicarDano({ pvAtual: 5, pvMax: 30 }, 40).pvAtual === -35)
+checar('dano zero não mexe em nada', aplicarDano(comColchao, 0).pvTemporario === 10)
+
+// A cura NÃO restaura o temporário. Somar ali seria o erro generoso de sempre.
+const curado = aplicarCura({ pvAtual: 10, pvMax: 30, pvTemporario: 4 }, 8)
+checar('a cura vai para a vida de verdade', curado.pvAtual === 18)
+checar('e não mexe no colchão', curado.pvTemporario === 4)
+checar('a cura respeita o máximo',
+  aplicarCura({ pvAtual: 28, pvMax: 30 }, 10).pvAtual === 30)
+// Quem está a -35 e recebe 8 de cura vai para 8, e não para -27.
+checar('curar quem está negativo começa do zero',
+  aplicarCura({ pvAtual: -35, pvMax: 30 }, 8).pvAtual === 8)
+
+// Temporário NÃO se soma: escolhe-se o maior.
+checar('recebe o maior', receberTemporarios(5, 12) === 12)
+checar('e mantém o maior que já tinha', receberTemporarios(12, 5) === 12)
+checar('sem nada antes, vale o novo', receberTemporarios(undefined, 7) === 7)
+checar('e não soma os dois', receberTemporarios(5, 12) !== 17)
 
 if (falhas > 0) {
   console.error(`\n✗ ${falhas} de ${testes} verificações de morte falharam`)

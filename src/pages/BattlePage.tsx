@@ -83,6 +83,8 @@ import { doCatalogo as equipavelDoCatalogo } from '../data/itens-equipaveis'
 import { QuemReage, SelosDeAcao } from '../components/acoes-turno-ui'
 import { aoComecarOTurno, zerarTodos } from '../lib/acoes-turno'
 import {
+  aplicarCura,
+  aplicarDano,
   aoCurar,
   aoRolar,
   aoSofrerDanoCaido,
@@ -388,6 +390,7 @@ function DmView({
           fichas.map((f) => ({
             id: f.ficha.id,
             pvAtual: f.ficha.pvAtual,
+            pvTemporario: f.ficha.pvTemporario,
             condicoes: f.ficha.condicoes,
           })),
         )
@@ -476,8 +479,8 @@ function DmView({
 
     if (alvo?.origem !== 'aliado' || !alvo.refId) return
     if (
-      p.pvAtual == null && p.condicoes == null &&
-      p.inspiracaoHeroica == null && p.testesMorte == null
+      p.pvAtual == null && p.condicoes == null && p.inspiracaoHeroica == null &&
+      p.testesMorte == null && p.pvTemporario == null
     ) return
 
     const ficha = loadCharacters().find((f) => f.id === alvo.refId)
@@ -489,6 +492,7 @@ function DmView({
         ...(p.condicoes != null ? { condicoes: p.condicoes } : {}),
         ...(p.inspiracaoHeroica != null ? { inspiracaoHeroica: p.inspiracaoHeroica } : {}),
         ...(p.testesMorte != null ? { testesMorte: p.testesMorte } : {}),
+        ...(p.pvTemporario != null ? { pvTemporario: p.pvTemporario } : {}),
       })
       return
     }
@@ -500,6 +504,7 @@ function DmView({
         ...(p.condicoes != null ? { condicoes: p.condicoes } : {}),
         ...(p.inspiracaoHeroica != null ? { inspiracaoHeroica: p.inspiracaoHeroica } : {}),
         ...(p.testesMorte != null ? { testesMorte: p.testesMorte } : {}),
+        ...(p.pvTemporario != null ? { pvTemporario: p.pvTemporario } : {}),
       })
     }
   }
@@ -1106,7 +1111,13 @@ function CombatantRow({
   onVirarFase?: () => void
 }) {
   const st = statusPV(c.pvAtual, c.pvMax)
-  const ajusta = (d: number) => onPatch({ pvAtual: Math.max(0, Math.min(c.pvMax, c.pvAtual + d)) })
+  // O dano come a vida temporária ANTES da de verdade, e a cura não a
+  // restaura. Antes disto o "+10 temp" ficava intacto ao lado enquanto a vida
+  // de verdade caía — o campo aparecia na tela e não valia nada.
+  const ajusta = (d: number) => {
+    const novo = d < 0 ? aplicarDano(c, -d) : aplicarCura(c, d)
+    onPatch({ pvAtual: Math.max(0, Math.min(c.pvMax, novo.pvAtual)), pvTemporario: novo.pvTemporario })
+  }
   const inimigo = c.origem === 'inimigo'
   const caido = c.pvAtual <= 0
 
@@ -1166,6 +1177,16 @@ function CombatantRow({
           <PainelDeDano c={c} onPatch={onPatch} />
           <button className="btn-ghost px-2 py-1 text-xs" onClick={() => ajusta(-1)}>−1</button>
           <div className="w-16 text-center">
+            {/* O colchão fica ao lado do PV, e não escondido: ele é a
+                primeira coisa que o dano vai comer. */}
+            {(c.pvTemporario ?? 0) > 0 && (
+              <span
+                className="rounded-md border border-arcane-400/40 bg-arcane-500/15 px-1.5 py-0.5 text-xs text-arcane-300"
+                title="Vida temporária — o dano come isto primeiro"
+              >
+                +{c.pvTemporario}
+              </span>
+            )}
             <input type="number" value={c.pvAtual} onChange={(e) => { const n = parseInt(e.target.value, 10); onPatch({ pvAtual: Math.max(0, Math.min(c.pvMax, Number.isNaN(n) ? 0 : n)) }) }} className="w-16 rounded-md border border-white/10 bg-ink-900/70 px-1 py-0.5 text-center text-sm outline-none focus:border-arcane-400" />
             {/* O que falta aparece em vermelho por baixo: ver o quanto já se
                 perdeu é a informação que importa numa fila de iniciativa. */}

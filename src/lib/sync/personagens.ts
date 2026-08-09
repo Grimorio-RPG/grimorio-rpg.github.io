@@ -153,6 +153,7 @@ export async function ajustarFichaDaMesa(
     condicoes?: string[]
     inspiracaoHeroica?: boolean
     testesMorte?: TestesMorte
+    pvTemporario?: number
   },
 ): Promise<boolean> {
   const sb = await getSupabase()

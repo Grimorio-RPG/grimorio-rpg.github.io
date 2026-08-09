@@ -41,8 +41,30 @@ export function saveBonus(char: Character, key: AbilityKey): number {
   const base = modEfetivo(char, key)
   const prof = char.salvaguardasProficientes.includes(key) ? proficiencyBonus(char.nivel) : 0
   const item = bonusDeEquipamento(char)
-  return base + prof + item.salvaguardaGeral + (item.salvaguardas[key] ?? 0)
+  return base + prof + item.salvaguardaGeral + (item.salvaguardas[key] ?? 0) +
+    penalidadeDeExaustao(char)
 }
+
+/**
+ * A exaustão pesando em toda rolagem de d20.
+ *
+ * Ela era rastreada, mostrada na ficha, mostrada no cartão do grupo, reduzida
+ * pelo descanso longo — e NÃO ENTRAVA EM CONTA NENHUMA. O personagem exausto
+ * rolava exatamente igual ao descansado, e a única diferença era um rótulo.
+ *
+ * SRD 5.2.1, Exhaustion: "When you make a D20 Test, the roll is reduced by 2
+ * times your Exhaustion level." No 2024 isso é um número — no 2014 era uma
+ * tabela de efeitos variados —, e por ser número dá para o app fazer.
+ *
+ * A CD de magia NÃO leva a penalidade: ela não é um d20 que você rola, é o
+ * número contra o qual o inimigo rola. Aplicá-la ali seria punir duas vezes.
+ */
+export function penalidadeDeExaustao(char: Character): number {
+  return -2 * Math.max(0, Math.min(6, char.exaustao ?? 0))
+}
+
+/** Nível 6 mata. É a regra, e a ficha precisa dizer. */
+export const EXAUSTAO_FATAL = 6
 
 /** Bônus de uma perícia, considerando proficiência e expertise. */
 export function skillBonus(char: Character, key: SkillKey): number {
@@ -52,7 +74,8 @@ export function skillBonus(char: Character, key: SkillKey): number {
   let prof = 0
   if (char.periciasExpertise.includes(key)) prof = pb * 2
   else if (char.periciasProficientes.includes(key)) prof = pb
-  return base + prof + (bonusDeEquipamento(char).pericias[key] ?? 0)
+  return base + prof + (bonusDeEquipamento(char).pericias[key] ?? 0) +
+    penalidadeDeExaustao(char)
 }
 
 /**
@@ -155,7 +178,8 @@ export function armorClassDetalhe(char: Character): string {
 
 /** Bônus de iniciativa: mod DES + bônus manual. */
 export function initiative(char: Character): number {
-  return modEfetivo(char, 'des') + char.iniciativaBonus
+  // Iniciativa é um teste de Destreza, e teste de Destreza é teste de d20.
+  return modEfetivo(char, 'des') + char.iniciativaBonus + penalidadeDeExaustao(char)
 }
 
 /** CD de magia: 8 + PB + mod do atributo de conjuração. */
@@ -167,7 +191,8 @@ export function spellSaveDC(char: Character): number | null {
 /** Bônus de ataque com magia: PB + mod do atributo de conjuração. */
 export function spellAttackBonus(char: Character): number | null {
   if (!char.atributoConjuracao) return null
-  return proficiencyBonus(char.nivel) + modEfetivo(char, char.atributoConjuracao)
+  return proficiencyBonus(char.nivel) + modEfetivo(char, char.atributoConjuracao) +
+    penalidadeDeExaustao(char)
 }
 
 /** Valor passivo de uma perícia: 10 + bônus da perícia. */

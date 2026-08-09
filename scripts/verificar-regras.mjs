@@ -28,7 +28,10 @@ execSync(
 
 const { normalizeCharacter } = await import(pathToFileURL(saidaChar).href)
 
-const { armorClass, armorClassDetalhe } = await import(pathToFileURL(saida).href)
+const {
+  armorClass, armorClassDetalhe, skillBonus, saveBonus, initiative,
+  spellSaveDC, spellAttackBonus, penalidadeDeExaustao, EXAUSTAO_FATAL,
+} = await import(pathToFileURL(saida).href)
 const {
   ataquesPorAcao,
   dadosDeAtaqueFurtivo,
@@ -317,6 +320,58 @@ checar('e guarda o valor novo', h2[0].pvGanho, 7)
 checar('piso de 1 PV', reverterNivel(ficha({ nivel: 3 }), 6, -5).pvGanho, 1)
 
 console.log('')
+// ---------------------------------------------------------------------------
+console.log('Exaustão: o número que a ficha mostrava e não usava')
+//
+// Ela era rastreada, mostrada na ficha, mostrada no cartão do grupo, reduzida
+// pelo descanso longo — e NÃO ENTRAVA EM CONTA NENHUMA. O personagem exausto
+// rolava igualzinho ao descansado, e a única diferença era um rótulo.
+//
+// SRD 5.2.1, Exhaustion: "When you make a D20 Test, the roll is reduced by 2
+// times your Exhaustion level." E: "Your Speed is reduced by a number of feet
+// equal to 5 times your Exhaustion level."
+
+const descansado = ficha({
+  nivel: 5,
+  atributos: { for: 16, des: 14, con: 14, int: 10, sab: 12, car: 8 },
+  periciasProficientes: ['atletismo'],
+  salvaguardasProficientes: ['for'],
+})
+const exausto2 = { ...descansado, exaustao: 2 }
+
+checar('sem exaustão, sem penalidade', penalidadeDeExaustao(descansado), 0)
+checar('dois níveis tiram 4', penalidadeDeExaustao(exausto2), -4)
+checar('e é 2 por nível', penalidadeDeExaustao({ ...descansado, exaustao: 3 }), -6)
+checar('o nível 6 mata, e é o teto', EXAUSTAO_FATAL, 6)
+checar('acima de 6 não piora além do teto',
+  penalidadeDeExaustao({ ...descansado, exaustao: 9 }), -12)
+checar('exaustão negativa não vira bônus',
+  penalidadeDeExaustao({ ...descansado, exaustao: -3 }), 0)
+
+checar('a perícia sente',
+  skillBonus(exausto2, 'atletismo'), skillBonus(descansado, 'atletismo') - 4)
+checar('a salvaguarda sente',
+  saveBonus(exausto2, 'for'), saveBonus(descansado, 'for') - 4)
+// Iniciativa é um teste de Destreza, e teste de Destreza é teste de d20.
+checar('a iniciativa sente', initiative(exausto2), initiative(descansado) - 4)
+
+// A CD de magia NÃO sente: ela não é um d20 que você rola, é o número contra o
+// qual o INIMIGO rola. Descontar ali seria punir duas vezes.
+const magoDescansado = ficha({
+  nivel: 5, classe: 'Mago', atributoConjuracao: 'int',
+  atributos: { for: 8, des: 12, con: 12, int: 18, sab: 12, car: 10 },
+})
+const magoExausto = { ...magoDescansado, exaustao: 2 }
+checar('a CD de magia NÃO muda', spellSaveDC(magoExausto), spellSaveDC(magoDescansado))
+checar('mas o ataque de magia sim',
+  spellAttackBonus(magoExausto), spellAttackBonus(magoDescansado) - 4)
+
+// E o deslocamento: 1,5 m por nível — os 5 pés do livro na medida do app.
+checar('o deslocamento cai 1,5 m por nível',
+  deslocamentoEfetivo(exausto2), deslocamentoEfetivo(descansado) - 3)
+checar('e nunca fica negativo',
+  deslocamentoEfetivo({ ...descansado, deslocamento: 3, exaustao: 6 }), 0)
+
 if (falhas > 0) {
   console.error(`✗ ${falhas} de ${testes} verificações de regra falharam\n`)
   process.exit(1)

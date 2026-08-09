@@ -359,6 +359,9 @@ export function combatenteDePersonagem(c: Character, jaNaCena = 0): Combatant {
     ca,
     pvMax: c.pvMax,
     pvAtual: c.pvAtual,
+    // O colchão vem junto. Sem isto, a Vida Falsa lançada antes da luta sumia
+    // exatamente no momento em que ela serve.
+    pvTemporario: c.pvTemporario || undefined,
     iniciativa: null,
     iniciativaMod: mod,
     nomeOculto: false,
@@ -445,6 +448,7 @@ export interface EstadoDeFicha {
   /** O id LOCAL da ficha, que é o que o combatente guarda em `refId`. */
   id: string
   pvAtual: number
+  pvTemporario?: number
   condicoes: string[]
 }
 
@@ -470,13 +474,22 @@ export function comEstadoDasFichas(b: Battle, fichas: EstadoDeFicha[]): Battle {
     if (!ficha) return c
 
     const pvDiferente = ficha.pvAtual !== c.pvAtual
+    // `|| 0` dos dois lados: `undefined` e `0` são o mesmo estado aqui, e
+    // compará-los como diferentes faria a ponte marcar mudança a cada leitura
+    // — que é o laço que esta função existe para não criar.
+    const tempDiferente = (ficha.pvTemporario || 0) !== (c.pvTemporario || 0)
     const condDiferentes =
       ficha.condicoes.length !== c.condicoes.length ||
       ficha.condicoes.some((x) => !c.condicoes.includes(x))
-    if (!pvDiferente && !condDiferentes) return c
+    if (!pvDiferente && !tempDiferente && !condDiferentes) return c
 
     mudou = true
-    return { ...c, pvAtual: ficha.pvAtual, condicoes: [...ficha.condicoes] }
+    return {
+      ...c,
+      pvAtual: ficha.pvAtual,
+      pvTemporario: ficha.pvTemporario || undefined,
+      condicoes: [...ficha.condicoes],
+    }
   })
 
   return mudou ? { ...b, combatentes } : b

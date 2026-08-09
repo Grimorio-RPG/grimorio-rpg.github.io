@@ -25,7 +25,7 @@ import { CONDICOES } from '../data/rules'
 import { loadBestiary } from '../lib/bestiary'
 import { loadCharacters } from '../lib/storage'
 import { armorClass, passiveSkill } from '../lib/calc'
-import { precisaRolar } from '../lib/morte'
+import { aplicarCura, aplicarDano, precisaRolar } from '../lib/morte'
 import { QuemReage, SelosDeAcao } from './acoes-turno-ui'
 import { TextoComTermos } from './glossario-ui'
 import { proximoDaVez } from '../lib/battle'
@@ -142,11 +142,15 @@ function LinhaDeMesa({
   function aplicar(sinal: 1 | -1) {
     const n = parseInt(valor, 10)
     if (!Number.isFinite(n) || n <= 0) return
+    // O dano come a vida temporária primeiro; a cura não a restaura.
+    const novo = sinal > 0 ? aplicarCura(c, n) : aplicarDano(c, n)
     // O teto é o PV máximo; o piso NÃO é zero para aliado, porque o dano que
     // passa do zero é o que decide a morte instantânea e a falha extra.
-    const bruto = c.pvAtual + sinal * n
-    const pv = sinal > 0 ? Math.min(c.pvMax, bruto) : bruto
-    onPatch({ pvAtual: pv }, `${sinal > 0 ? 'Cura' : 'Dano'} em ${c.nome}`)
+    const pv = sinal > 0 ? Math.min(c.pvMax, novo.pvAtual) : novo.pvAtual
+    onPatch(
+      { pvAtual: pv, pvTemporario: novo.pvTemporario },
+      `${sinal > 0 ? 'Cura' : 'Dano'} em ${c.nome}`,
+    )
     setValor('')
   }
 
@@ -190,6 +194,11 @@ function LinhaDeMesa({
           <p className="text-right font-display text-2xl leading-none text-parchment-50">
             {c.pvAtual}
             <span className="text-sm text-parchment-200/40">/{c.pvMax}</span>
+            {(c.pvTemporario ?? 0) > 0 && (
+              <span className="ml-1 text-sm text-arcane-300" title="Vida temporária">
+                +{c.pvTemporario}
+              </span>
+            )}
           </p>
           <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
             <div
