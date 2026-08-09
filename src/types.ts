@@ -621,6 +621,23 @@ export interface Combatant {
   /** Quando conjurou pela última vez — é o que faz o token brilhar no mapa. */
   conjurouEm?: number
   /**
+   * Testes de morte deste combate.
+   *
+   * Só faz sentido para aliado: monstro morre no instante em que chega a 0, e
+   * isso é regra, não simplificação nossa. A ficha do jogador tem o mesmo
+   * campo, e o valor volta para lá pelo mesmo caminho que o PV.
+   */
+  testesMorte?: TestesMorte
+  /**
+   * Estável: está a 0 PV e parou de rolar.
+   *
+   * Fica ao lado dos testes, e não como um terceiro estado dentro deles,
+   * porque a regra separa as duas coisas: quem estabiliza ZERA a conta e ainda
+   * assim continua caído. Guardar "3 sucessos" para significar estável faria a
+   * pessoa acordar depois carregando três sucessos que já não valem nada.
+   */
+  estavel?: boolean
+  /**
    * Ações lendárias ainda disponíveis nesta rodada.
    *
    * Recarrega no início do turno da criatura, que é como a regra funciona: as

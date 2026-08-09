@@ -74,6 +74,15 @@ import { CHAVES_MESA } from '../lib/sync/config'
 import { SelosDaMesa } from '../components/mesa-ui'
 import { aoMudar, passouNoTeste, semConcentracao } from '../lib/concentracao'
 import { SeletorDeMagia, type Conjuracao } from '../components/conjurar-ui'
+import {
+  aoCurar,
+  aoRolar,
+  aoSofrerDanoCaido,
+  morteInstantanea,
+  precisaRolar,
+  zerado,
+  type Desfecho,
+} from '../lib/morte'
 
 type Modo = 'dm' | 'jogadores'
 type UpdateFn = (patch: Partial<Battle>) => void
@@ -161,6 +170,10 @@ function BatalhaDaMesa({ mesaId }: { mesaId: string }) {
 // ---------------------------------------------------------------------------
 function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateFn; ordenados: Combatant[] }) {
   const atual = battle.emAndamento ? ordenados[battle.turnoIndex] : null
+  // Quem está caído e chegou a vez de rolar. É por turno, e não "qualquer um
+  // caído", porque a regra é no começo do turno da pessoa — e porque um painel
+  // que fica ligado a luta inteira vira paisagem.
+  const daVezCaido = atual && precisaRolar(atual) ? atual : null
 
   /**
    * O teste de concentração esperando resposta.
@@ -254,6 +267,52 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
       ),
     })
   }
+  /** O Desfecho da regra virando os campos que o combatente guarda. */
+  function doDesfecho(d: Desfecho): Partial<Combatant> {
+    return { testesMorte: d.testes, estavel: d.estavel }
+  }
+
+  /**
+   * O que a mudança de PV faz com os testes de morte.
+   *
+   * Três situações diferentes, e a mesa mistura as três: descer a zero começa
+   * a contagem (ou mata na hora, se o excedente for grande demais), apanhar
+   * caído é falha sem rolagem nenhuma, e recuperar qualquer PV ZERA tudo — é o
+   * detalhe que mais some, e faz a pessoa curada carregar falhas velhas para o
+   * tombo seguinte.
+   */
+  function aoMudarOsPv(alvo: Combatant, pvNovo: number) {
+    if (alvo.origem === 'inimigo') return null
+    const testes = alvo.testesMorte ?? zerado()
+
+    if (pvNovo > 0) {
+      if (alvo.pvAtual > 0) return null
+      return { patch: aoCurar(), texto: '', morreu: false }
+    }
+
+    // Já estava caído e levou mais dano: falha direto, sem rolar.
+    if (alvo.pvAtual <= 0 && pvNovo < alvo.pvAtual) {
+      const d = aoSofrerDanoCaido(
+        testes,
+        { dano: alvo.pvAtual - pvNovo, pvMax: alvo.pvMax },
+        alvo.nome,
+      )
+      return { patch: doDesfecho(d), texto: d.texto, morreu: d.morreu }
+    }
+
+    if (alvo.pvAtual > 0) {
+      if (morteInstantanea(alvo.pvAtual, alvo.pvAtual - pvNovo, alvo.pvMax)) {
+        return {
+          patch: { testesMorte: { sucessos: 0, falhas: 3 }, estavel: false },
+          texto: `${alvo.nome} morreu na hora — o dano que sobrou passou do PV máximo`,
+          morreu: true,
+        }
+      }
+      return { patch: { testesMorte: zerado(), estavel: false }, texto: '', morreu: false }
+    }
+    return null
+  }
+
   const { mesa: mesaDoDm, souDm: ehDm } = useMesa()
   const mesaId = ehDm && mesaDoDm ? mesaDoDm.id : null
 
@@ -320,6 +379,12 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
       p = { ...p, ...semConcentracao() }
     }
 
+    // Cair a zero deixou de ser só um número na tela. Tudo o que a regra manda
+    // fazer acontece aqui, no mesmo funil por onde já passa qualquer mudança de
+    // PV — botão de dano, campo digitado ou desfazer.
+    const morte = alvo && p.pvAtual != null ? aoMudarOsPv(alvo, p.pvAtual) : null
+    if (morte) p = { ...p, ...morte.patch }
+
     // O registro nasce aqui porque é aqui que a mudança acontece de verdade —
     // por botão de dano, por campo de PV ou por condição marcada.
     let registro = battle.registro
@@ -346,6 +411,15 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
       ...(desfazer !== battle.desfazer ? { desfazer } : {}),
     })
 
+    if (morte?.texto) {
+      update({
+        registro: registrar(
+          { ...battle, registro },
+          { tipo: morte.morreu ? 'morreu' : 'caiu', alvo: alvo?.nome, texto: morte.texto },
+        ),
+      })
+    }
+
     if (alvo && consequencia?.teste) {
       setTesteDeConcentracao({
         id,
@@ -357,7 +431,10 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
     }
 
     if (alvo?.origem !== 'aliado' || !alvo.refId) return
-    if (p.pvAtual == null && p.condicoes == null && p.inspiracaoHeroica == null) return
+    if (
+      p.pvAtual == null && p.condicoes == null &&
+      p.inspiracaoHeroica == null && p.testesMorte == null
+    ) return
 
     const ficha = loadCharacters().find((f) => f.id === alvo.refId)
     if (ficha) {
@@ -367,6 +444,7 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
         ...(p.pvAtual != null ? { pvAtual: p.pvAtual } : {}),
         ...(p.condicoes != null ? { condicoes: p.condicoes } : {}),
         ...(p.inspiracaoHeroica != null ? { inspiracaoHeroica: p.inspiracaoHeroica } : {}),
+        ...(p.testesMorte != null ? { testesMorte: p.testesMorte } : {}),
       })
       return
     }
@@ -377,6 +455,7 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
         ...(p.pvAtual != null ? { pvAtual: p.pvAtual } : {}),
         ...(p.condicoes != null ? { condicoes: p.condicoes } : {}),
         ...(p.inspiracaoHeroica != null ? { inspiracaoHeroica: p.inspiracaoHeroica } : {}),
+        ...(p.testesMorte != null ? { testesMorte: p.testesMorte } : {}),
       })
     }
   }
@@ -588,6 +667,30 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
 
   return (
     <div className="space-y-5">
+      {/* Quem está caído rola no começo do próprio turno. O painel aparece
+          sozinho porque é isso que a mesa perde de vista: a luta continua, e
+          três rodadas depois alguém pergunta se o guerreiro ainda está vivo. */}
+      {daVezCaido && (
+        <TesteDeMorte
+          c={daVezCaido}
+          onResolver={(d20) => {
+            const d = aoRolar(daVezCaido.testesMorte ?? zerado(), d20, daVezCaido.nome)
+            patchC(
+              daVezCaido.id,
+              { ...doDesfecho(d), ...(d.pvAtual ? { pvAtual: d.pvAtual } : {}) },
+              `Teste de morte de ${daVezCaido.nome}`,
+            )
+            update({
+              registro: registrar(battle, {
+                tipo: d.morreu ? 'morreu' : d.pvAtual ? 'levantou' : 'caiu',
+                alvo: daVezCaido.nome,
+                texto: d.texto,
+              }),
+            })
+          }}
+        />
+      )}
+
       {/* O teste de concentração fica aqui em cima e não sai sozinho: é
           exatamente o que a mesa esquece. */}
       {testeDeConcentracao && (
@@ -1001,6 +1104,32 @@ function CombatantRow({
         >
           ⚡ Não acabou — avançar para a próxima fase
         </button>
+      )}
+
+      {/* A contagem fica na linha de quem caiu, e não só no painel do turno:
+          quem está caído há duas rodadas precisa aparecer sem esperar a vez. */}
+      {c.origem === 'aliado' && c.pvAtual <= 0 && (
+        <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-dragon-400/25 bg-dragon-500/[0.06] px-2 py-1.5 text-xs">
+          {c.estavel ? (
+            <span className="text-emerald-300">🩹 Estável — parou de rolar, continua Inconsciente</span>
+          ) : (c.testesMorte?.falhas ?? 0) >= 3 ? (
+            <span className="text-dragon-300">💀 Morreu</span>
+          ) : (
+            <>
+              <span className="text-parchment-200/60">💀 Testes de morte</span>
+              <Pips n={c.testesMorte?.sucessos ?? 0} cor="bg-emerald-500" />
+              <Pips n={c.testesMorte?.falhas ?? 0} cor="bg-dragon-500" />
+              <button
+                type="button"
+                className="ml-auto rounded-md border border-white/10 px-1.5 py-0.5 text-[11px] text-emerald-300 hover:border-emerald-400/50"
+                title="Primeiros socorros: Sabedoria (Medicina) CD 10"
+                onClick={() => onPatch({ estavel: true, testesMorte: { sucessos: 0, falhas: 0 } })}
+              >
+                🩹 Estabilizar
+              </button>
+            </>
+          )}
+        </div>
       )}
 
       {c.origem === 'aliado' && (
@@ -1451,6 +1580,100 @@ function TesteDeConcentracao({
         </div>
       </div>
     </div>
+  )
+}
+
+/**
+ * O teste de morte, com as duas mãos que a mesa usa.
+ *
+ * O app serve a duas mesas ao mesmo tempo: a que joga tudo dentro dele, e a
+ * que está com miniatura e mapa de grade em cima da mesa de verdade. Nessa
+ * segunda, quem rola o d20 é o jogador, na mão dele, e o que chega aqui é o
+ * número dito em voz alta. Por isso o campo do d20 vem PRIMEIRO e é o caminho
+ * principal; o botão de rolar fica ao lado, para quem joga à distância.
+ *
+ * O número cru importa: 1 natural vale duas falhas e 20 natural levanta a
+ * pessoa com 1 PV. Um par de botões "passou/falhou" perderia justamente os
+ * dois resultados que a mesa comemora.
+ */
+function TesteDeMorte({
+  c,
+  onResolver,
+}: {
+  c: Combatant
+  onResolver: (d20: number) => void
+}) {
+  const [texto, setTexto] = useState('')
+  const testes = c.testesMorte ?? { sucessos: 0, falhas: 0 }
+
+  function mandar(n: number) {
+    if (!(n >= 1 && n <= 20)) return
+    setTexto('')
+    onResolver(n)
+  }
+
+  function rolar() {
+    const r = rolarComModo(1, 20, 0, `${c.nome} — teste de morte`)
+    mandar(r.dados[0] ?? r.total)
+  }
+
+  return (
+    <div className="card border-dragon-400/50 bg-dragon-500/[0.07] p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="panel-title text-dragon-300">💀 Teste de morte</p>
+          <p className="mt-1 text-sm text-parchment-100">
+            <b>{c.nome}</b> está a 0 PV, e chegou a vez. Role 1d20 — 10 ou mais passa, sem somar
+            nada.
+          </p>
+          <p className="mt-1.5 flex items-center gap-1.5 text-xs">
+            <Pips n={testes.sucessos} cor="bg-emerald-500" />
+            <span className="text-parchment-200/50">sucessos</span>
+            <span className="mx-1 text-parchment-200/25">·</span>
+            <Pips n={testes.falhas} cor="bg-dragon-500" />
+            <span className="text-parchment-200/50">falhas</span>
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="flex items-center gap-1 text-xs text-parchment-200/60">
+            Tirou
+            <input
+              type="number"
+              min={1}
+              max={20}
+              autoFocus
+              value={texto}
+              onChange={(e) => setTexto(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && mandar(parseInt(texto, 10))}
+              placeholder="d20"
+              className="w-16 rounded-md border border-white/10 bg-ink-900/70 px-1 py-1 text-center text-sm outline-none focus:border-dragon-400"
+            />
+          </label>
+          <button className="btn-primary py-1 text-xs" onClick={() => mandar(parseInt(texto, 10))}>
+            Anotar
+          </button>
+          <span className="text-xs text-parchment-200/40">ou</span>
+          <button className="btn-ghost py-1 text-xs" onClick={rolar}>
+            🎲 Rolar aqui
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/** Três bolinhas: o jeito de ver a contagem sem ler número. */
+function Pips({ n, cor }: { n: number; cor: string }) {
+  return (
+    <span className="flex gap-0.5">
+      {[0, 1, 2].map((i) => (
+        <span
+          key={i}
+          className={`h-2.5 w-2.5 rounded-full ${i < n ? cor : 'border border-white/25'}`}
+        />
+      ))}
+    </span>
   )
 }
 

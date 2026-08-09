@@ -5,7 +5,7 @@
 // isto que faz o DM enxergar as fichas do grupo sem que ninguém possa alterar a
 // ficha alheia.
 
-import type { Character } from '../../types'
+import type { Character, TestesMorte } from '../../types'
 import { normalizeCharacter } from '../character'
 import { getConta } from './auth'
 import { getSupabase } from './client'
@@ -144,7 +144,16 @@ export function assinarFichasDaMesa(mesaId: string, aoMudar: () => void): () => 
 export async function ajustarFichaDaMesa(
   mesaId: string,
   fichaId: string,
-  estado: { pvAtual?: number; condicoes?: string[]; inspiracaoHeroica?: boolean },
+  // Os testes de morte entram na mesma lista curta que o PV: é estado que o DM
+  // mexe DURANTE a luta, e o jogador olha a ficha dele, não a tela do DM. A
+  // lista segue curta de propósito — o DM não edita a ficha alheia por aqui, só
+  // o que o combate produz.
+  estado: {
+    pvAtual?: number
+    condicoes?: string[]
+    inspiracaoHeroica?: boolean
+    testesMorte?: TestesMorte
+  },
 ): Promise<boolean> {
   const sb = await getSupabase()
   if (!sb) return false

@@ -1,0 +1,172 @@
+// Verifica os testes de morte: quando se rola, o que cada resultado faz, e
+// quando a conta zera.
+//
+// É o mesmo tipo de buraco da concentração, uma casa adiante: o app mostrava
+// "0 PV" e parava. Ninguém rolava, ninguém contava os três sucessos, e o 20
+// natural que levanta a pessoa com 1 PV dependia de alguém na mesa lembrar.
+//
+// O perigo aqui é o oposto do de somar errado: uma regra frouxa não quebra
+// nada. Um personagem que nunca morre continua jogando, a mesa nem repara, e a
+// luta inteira perde o peso.
+//
+// Os números vêm do SRD 5.2.1 ("Playing the Game", Damage and Healing) e estão
+// escritos à mão aqui, um a um. Derivar da implementação seria testar que o
+// código concorda consigo mesmo.
+
+import { mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
+import { execSync } from 'node:child_process'
+
+const dir = mkdtempSync(join(tmpdir(), 'morte-'))
+execSync(
+  `npx esbuild src/lib/morte.ts --bundle --outdir=${dir} --format=esm --log-level=error`,
+)
+const {
+  aoRolar, aoSofrerDanoCaido, morteInstantanea, precisaRolar, aoCurar, zerado,
+  CD_TESTE_DE_MORTE,
+} = await import(pathToFileURL(join(dir, 'morte.js')).href)
+
+let falhas = 0
+let testes = 0
+function checar(nome, condicao, detalhe = '') {
+  testes++
+  if (condicao) return
+  falhas++
+  console.error(`  ✗ ${nome}${detalhe ? `\n      ${detalhe}` : ''}`)
+}
+
+const t = (sucessos, falhas) => ({ sucessos, falhas })
+const NADA = t(0, 0)
+
+// ---------------------------------------------------------------------------
+console.log('A rolagem')
+
+checar('a CD é 10', CD_TESTE_DE_MORTE === 10, String(CD_TESTE_DE_MORTE))
+checar('exatamente 10 passa', aoRolar(NADA, 10, 'Elara').testes.sucessos === 1)
+checar('9 falha', aoRolar(NADA, 9, 'Elara').testes.falhas === 1)
+checar('19 passa', aoRolar(NADA, 19, 'Elara').testes.sucessos === 1)
+checar('2 falha', aoRolar(NADA, 2, 'Elara').testes.falhas === 1)
+// Não é teste de atributo: nada é somado. Se alguém acrescentar um modificador
+// aqui, um personagem com CON alta passa a ser quase imortal caído.
+checar('passar não cria falha', aoRolar(NADA, 15, 'Elara').testes.falhas === 0)
+checar('falhar não cria sucesso', aoRolar(NADA, 5, 'Elara').testes.sucessos === 0)
+
+// ---------------------------------------------------------------------------
+console.log('O 1 e o 20 naturais')
+
+const um = aoRolar(NADA, 1, 'Elara')
+checar('1 natural vale DUAS falhas', um.testes.falhas === 2, `deu ${um.testes.falhas}`)
+checar('e não mata sozinho de zero', um.morreu === false)
+const umComUma = aoRolar(t(0, 1), 1, 'Elara')
+checar('1 natural com uma falha já mata', umComUma.morreu === true)
+
+const vinte = aoRolar(t(1, 2), 20, 'Elara')
+checar('20 natural devolve 1 PV', vinte.pvAtual === 1)
+checar('e zera a conta', vinte.testes.sucessos === 0 && vinte.testes.falhas === 0,
+  JSON.stringify(vinte.testes))
+checar('não é "estável": a pessoa está de pé', vinte.estavel === false)
+checar('e não morreu', vinte.morreu === false)
+// Tratar o 20 como sucesso comum deixaria a pessoa caída com duas falhas em vez
+// de em pé — é o erro que a mesa mais comemora não cometer.
+checar('20 não conta como sucesso comum', vinte.testes.sucessos !== 3)
+
+// ---------------------------------------------------------------------------
+console.log('Três de cada')
+
+const terceiraFalha = aoRolar(t(2, 2), 3, 'Elara')
+checar('a terceira falha mata', terceiraFalha.morreu === true)
+checar('mesmo com dois sucessos no bolso', terceiraFalha.testes.falhas === 3)
+
+const terceiroSucesso = aoRolar(t(2, 2), 17, 'Elara')
+checar('o terceiro sucesso estabiliza', terceiroSucesso.estavel === true)
+checar('sem matar', terceiroSucesso.morreu === false)
+// Estabilizar ZERA a conta. Sem isso, quem estabiliza acorda depois carregando
+// as falhas velhas para o tombo seguinte.
+checar('e zera a conta', terceiroSucesso.testes.falhas === 0 && terceiroSucesso.testes.sucessos === 0,
+  JSON.stringify(terceiroSucesso.testes))
+
+// Sucessos e falhas não precisam ser seguidos: passa, falha, passa, falha.
+let acumulado = NADA
+for (const d20 of [12, 4, 15, 6]) acumulado = aoRolar(acumulado, d20, 'Elara').testes
+checar('a conta soma alternada', acumulado.sucessos === 2 && acumulado.falhas === 2,
+  JSON.stringify(acumulado))
+// E o quinto dado resolve. Rolar de novo depois disso não é problema deste
+// módulo: quem decide se ainda se rola é `precisaRolar`.
+const quinto = aoRolar(acumulado, 11, 'Elara')
+checar('o quinto dado estabiliza', quinto.estavel === true)
+
+// ---------------------------------------------------------------------------
+console.log('Apanhar caído')
+//
+// É a regra que a mesa mais deixa passar: o inimigo continua batendo em quem
+// caiu, e ninguém marca nada.
+
+const levouPancada = aoSofrerDanoCaido(NADA, { dano: 5, pvMax: 30 }, 'Elara')
+checar('dano caído é falha direta', levouPancada.testes.falhas === 1)
+checar('sem rolar nada', levouPancada.testes.sucessos === 0)
+
+const critico = aoSofrerDanoCaido(NADA, { dano: 8, pvMax: 30, critico: true }, 'Elara')
+checar('crítico em quem está caído vale DUAS falhas', critico.testes.falhas === 2,
+  `deu ${critico.testes.falhas}`)
+
+const doisGolpes = aoSofrerDanoCaido(t(0, 2), { dano: 3, pvMax: 30 }, 'Elara')
+checar('a terceira falha por pancada também mata', doisGolpes.morreu === true)
+
+const enorme = aoSofrerDanoCaido(NADA, { dano: 30, pvMax: 30 }, 'Elara')
+checar('dano igual ao PV máximo mata na hora', enorme.morreu === true)
+checar('e diz por quê', /máximo/.test(enorme.texto), enorme.texto)
+const quaseEnorme = aoSofrerDanoCaido(NADA, { dano: 29, pvMax: 30 }, 'Elara')
+checar('um a menos NÃO mata', quaseEnorme.morreu === false)
+checar('só marca a falha', quaseEnorme.testes.falhas === 1)
+
+// ---------------------------------------------------------------------------
+console.log('Dano massivo na descida')
+//
+// O que conta é a SOBRA depois de zerar, e não o golpe inteiro. Confundir os
+// dois mata personagem que deveria estar caído — e é fácil confundir.
+
+checar('30 de dano em quem tem 6 PV e máximo 12 mata',
+  morteInstantanea(6, 30, 12) === true)
+checar('18 em quem tem 6 e máximo 12 mata na conta exata',
+  morteInstantanea(6, 18, 12) === true)
+checar('17 não mata: a sobra é 11, e o máximo é 12',
+  morteInstantanea(6, 17, 12) === false)
+checar('golpe grande em quem tem MUITO PV não mata',
+  morteInstantanea(40, 45, 40) === false)
+checar('quem já estava a 0 não passa por aqui', morteInstantanea(0, 99, 10) === false)
+checar('e sem PV máximo não há regra', morteInstantanea(5, 99, 0) === false)
+
+// ---------------------------------------------------------------------------
+console.log('Quem rola, e quando')
+
+checar('aliado a 0 rola', precisaRolar({ origem: 'aliado', pvAtual: 0 }) === true)
+checar('aliado de pé não rola', precisaRolar({ origem: 'aliado', pvAtual: 3 }) === false)
+// Monstro morre no instante em que chega a 0 — está no SRD, e é por isso que o
+// painel nunca aparece para o lado de lá do mapa.
+checar('inimigo NUNCA rola', precisaRolar({ origem: 'inimigo', pvAtual: 0 }) === false)
+checar('quem estabilizou parou de rolar',
+  precisaRolar({ origem: 'aliado', pvAtual: 0, estavel: true }) === false)
+checar('quem já morreu também',
+  precisaRolar({ origem: 'aliado', pvAtual: 0, testesMorte: t(0, 3) }) === false)
+checar('PV negativo ainda rola',
+  precisaRolar({ origem: 'aliado', pvAtual: -4 }) === true)
+
+// ---------------------------------------------------------------------------
+console.log('Recuperar PV zera tudo')
+//
+// O detalhe que mais some. A pessoa é curada, cai de novo três rodadas depois,
+// e a mesa continua contando as falhas antigas.
+
+const curada = aoCurar()
+checar('a cura zera os sucessos', curada.testesMorte.sucessos === 0)
+checar('e as falhas', curada.testesMorte.falhas === 0)
+checar('e desfaz a estabilidade', curada.estavel === false)
+checar('zerado() começa em 0/0', zerado().sucessos === 0 && zerado().falhas === 0)
+
+if (falhas > 0) {
+  console.error(`\n✗ ${falhas} de ${testes} verificações de morte falharam`)
+  process.exit(1)
+}
+console.log(`✓ ${testes} verificações de morte passaram`)
