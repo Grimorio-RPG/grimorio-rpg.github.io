@@ -21,12 +21,15 @@ import { execSync } from 'node:child_process'
 
 const dir = mkdtempSync(join(tmpdir(), 'morte-'))
 execSync(
-  `npx esbuild src/lib/morte.ts --bundle --outdir=${dir} --format=esm --log-level=error`,
+  `npx esbuild src/lib/morte.ts src/lib/battle.ts ` +
+    `--bundle --splitting --outdir=${dir} --format=esm --log-level=error`,
 )
+const carregar = (n) => import(pathToFileURL(join(dir, `${n}.js`)).href)
 const {
   aoRolar, aoSofrerDanoCaido, morteInstantanea, precisaRolar, aoCurar, zerado,
   CD_TESTE_DE_MORTE,
-} = await import(pathToFileURL(join(dir, 'morte.js')).href)
+} = await carregar('morte')
+const { foraDoCombate, proximoDaVez } = await carregar('battle')
 
 let falhas = 0
 let testes = 0
@@ -164,6 +167,33 @@ checar('a cura zera os sucessos', curada.testesMorte.sucessos === 0)
 checar('e as falhas', curada.testesMorte.falhas === 0)
 checar('e desfaz a estabilidade', curada.estavel === false)
 checar('zerado() começa em 0/0', zerado().sucessos === 0 && zerado().falhas === 0)
+
+// ---------------------------------------------------------------------------
+console.log('Quem perde a vez, e quem vem depois')
+//
+// A tela de mesa anuncia "depois: Fulano" em letra grande, e o DM prepara a
+// fala do monstro a partir daí. Se esse anúncio usar uma conta diferente da
+// que passa o turno, ele aponta para um cadáver — e anunciar a criatura
+// errada é pior do que não anunciar nada.
+
+const vivo = (id, origem, pv = 10) => ({ id, nome: id, origem, pvAtual: pv, pvMax: 10 })
+
+checar('inimigo a 0 perde a vez', foraDoCombate(vivo('g', 'inimigo', 0)) === true)
+// O aliado a 0 MANTÉM a vez: é nela que ele rola o teste de morte. Pular seria
+// tirar do jogo exatamente a rolagem mais tensa da mesa.
+checar('aliado a 0 NÃO perde a vez', foraDoCombate(vivo('a', 'aliado', 0)) === false)
+checar('e ninguém de pé perde', foraDoCombate(vivo('g', 'inimigo', 3)) === false)
+
+const fila = [vivo('a1', 'aliado'), vivo('g1', 'inimigo', 0), vivo('g2', 'inimigo')]
+checar('o próximo pula o inimigo morto', proximoDaVez(fila, 0)?.id === 'g2',
+  proximoDaVez(fila, 0)?.id)
+checar('e dá a volta na lista', proximoDaVez(fila, 2)?.id === 'a1')
+checar('o aliado caído continua na fila',
+  proximoDaVez([vivo('g', 'inimigo'), vivo('a', 'aliado', 0)], 0)?.id === 'a')
+checar('lista vazia não tem próximo', proximoDaVez([], 0) === null)
+// Todo mundo fora: devolver o primeiro seria inventar um turno que não existe.
+checar('todos fora devolve nada',
+  proximoDaVez([vivo('g1', 'inimigo', 0), vivo('g2', 'inimigo', 0)], 0) === null)
 
 if (falhas > 0) {
   console.error(`\n✗ ${falhas} de ${testes} verificações de morte falharam`)

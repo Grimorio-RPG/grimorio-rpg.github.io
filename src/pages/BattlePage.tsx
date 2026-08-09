@@ -19,6 +19,7 @@ import {
   combatentesDeMonstro,
   comLendariasDisponiveis,
   correrCondicoes,
+  foraDoCombate,
   gastarLendarias,
   momentoDoCovil,
   moverCombatente,
@@ -74,6 +75,7 @@ import { CHAVES_MESA } from '../lib/sync/config'
 import { SelosDaMesa } from '../components/mesa-ui'
 import { aoMudar, passouNoTeste, semConcentracao } from '../lib/concentracao'
 import { SeletorDeMagia, type Conjuracao } from '../components/conjurar-ui'
+import { PainelDeMesa } from '../components/mesa-fisica'
 import {
   aoCurar,
   aoRolar,
@@ -84,7 +86,21 @@ import {
   type Desfecho,
 } from '../lib/morte'
 
-type Modo = 'dm' | 'jogadores'
+type Modo = 'dm' | 'jogadores' | 'mesa'
+
+/**
+ * O modo escolhido fica gravado.
+ *
+ * Quem mestra numa mesa física mestra SEMPRE numa mesa física — é o formato da
+ * mesa dele, não o humor do dia. Fazer escolher de novo a cada sessão seria
+ * transformar uma preferência em tarefa.
+ */
+const CHAVE_MODO = 'grimorio55e.batalha.modo.v1'
+
+function modoSalvo(): Modo {
+  const v = typeof localStorage !== 'undefined' ? localStorage.getItem(CHAVE_MODO) : null
+  return v === 'mesa' || v === 'jogadores' ? v : 'dm'
+}
 type UpdateFn = (patch: Partial<Battle>) => void
 
 export default function BattlePage() {
@@ -98,7 +114,17 @@ export default function BattlePage() {
 
 function BatalhaLocal() {
   const { battle, update } = useBattle()
-  const [modo, setModo] = useState<Modo>('dm')
+  const [modo, setModo] = useState<Modo>(modoSalvo)
+
+  function escolherModo(m: Modo) {
+    setModo(m)
+    try {
+      localStorage.setItem(CHAVE_MODO, m)
+    } catch {
+      // Navegador com armazenamento bloqueado: o modo vale só nesta aba, e
+      // isso é melhor do que a tela quebrar por causa de uma preferência.
+    }
+  }
 
   if (!battle) return null
   const ordenados = ordenar(battle.combatentes)
@@ -112,9 +138,10 @@ function BatalhaLocal() {
         acoes={
           <ViewToggle
             valor={modo}
-            onChange={setModo}
+            onChange={escolherModo}
             opcoes={[
               { valor: 'dm', label: '🎲 Visão do DM', labelCurto: '🎲 DM' },
+              { valor: 'mesa', label: '🎯 Mesa física', labelCurto: '🎯 Mesa' },
               { valor: 'jogadores', label: '👥 Visão dos Jogadores', labelCurto: '👥 Jogadores' },
             ]}
           />
@@ -122,9 +149,9 @@ function BatalhaLocal() {
       />
       <SelosDaMesa />
 
-      {modo === 'dm'
-        ? <DmView battle={battle} update={update} ordenados={ordenados} />
-        : <PlayerView battle={battle} ordenados={ordenados} />}
+      {modo === 'jogadores'
+        ? <PlayerView battle={battle} ordenados={ordenados} />
+        : <DmView battle={battle} update={update} ordenados={ordenados} mesa={modo === 'mesa'} />}
     </div>
   )
 }
@@ -168,7 +195,18 @@ function BatalhaDaMesa({ mesaId }: { mesaId: string }) {
 // ---------------------------------------------------------------------------
 // Visão do DM
 // ---------------------------------------------------------------------------
-function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateFn; ordenados: Combatant[] }) {
+function DmView({
+  battle,
+  update,
+  ordenados,
+  mesa: modoMesa,
+}: {
+  battle: Battle
+  update: UpdateFn
+  ordenados: Combatant[]
+  /** O mapa está em cima da mesa: a tela vira uma folha de números. */
+  mesa?: boolean
+}) {
   const atual = battle.emAndamento ? ordenados[battle.turnoIndex] : null
   // Quem está caído e chegou a vez de rolar. É por turno, e não "qualquer um
   // caído", porque a regra é no começo do turno da pessoa — e porque um painel
@@ -491,10 +529,6 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
    * da ordem, enquanto um personagem a 0 PV rola teste de morte no turno dele —
    * pular seria tirar do jogador o momento mais tenso que ele tem.
    */
-  function pulaTurno(c: Combatant) {
-    return c.origem === 'inimigo' && c.pvAtual <= 0
-  }
-
   /**
    * Faz o chefe virar a próxima fase, no lugar.
    *
@@ -557,7 +591,7 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
         i = 0
         rodada += 1
       }
-      if (!pulaTurno(ordenados[i])) break
+      if (!foraDoCombate(ordenados[i])) break
     }
     // O orçamento lendário volta no início do turno da criatura — é entre os
     // turnos dela que ele é gasto.
@@ -656,6 +690,9 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
   const { monstros, salvar: salvarMonstro } = useBestiary()
   const [transformando, setTransformando] = useState<{ nome: string; rotulo: string } | null>(null)
   const [mapaVisivel, setMapaVisivel] = useMapaVisivel()
+  // No modo mesa o mapa não fica escondido por preferência: ele simplesmente
+  // não é o campo de batalha. O campo está na mesa, com as miniaturas em cima.
+  const mostrarMapa = mapaVisivel && !modoMesa
   const [recompensa, setRecompensa] = useState<{
     xpTotal: number
     porPersonagem: number
@@ -860,7 +897,9 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
 
           <div className="ml-auto flex items-center gap-2">
             <BotaoDesfazer passo={proximoADesfazer(battle)} onDesfazer={desfazer} />
-            <BotaoDoMapa visivel={mapaVisivel} onAlternar={() => setMapaVisivel(!mapaVisivel)} />
+            {!modoMesa && (
+              <BotaoDoMapa visivel={mapaVisivel} onAlternar={() => setMapaVisivel(!mapaVisivel)} />
+            )}
             <button className="btn-ghost text-xs text-parchment-200/40" onClick={limpar}>
               Limpar
             </button>
@@ -868,13 +907,16 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
         </div>
       )}
 
-      <PartyBar combatentes={ordenados} atualId={atual?.id} />
+      {/* A faixa do grupo e o mapa saem no modo mesa. O campo de batalha está
+          na frente de todo mundo, e a faixa repetiria o que a lista já diz —
+          num formato que precisa de mais espaço do que informa. */}
+      {!modoMesa && <PartyBar combatentes={ordenados} atualId={atual?.id} />}
 
       {/* Duas colunas no monitor: o mapa fica parado à esquerda enquanto a
           coluna da direita rola. No celular tudo empilha, e aí vale mais ainda
           poder desligar o mapa. */}
-      <div className={mapaVisivel ? 'grid gap-4 lg:grid-cols-[minmax(0,1fr)_400px]' : 'space-y-4'}>
-        {mapaVisivel && (
+      <div className={mostrarMapa ? 'grid gap-4 lg:grid-cols-[minmax(0,1fr)_400px]' : 'space-y-4'}>
+        {mostrarMapa && (
           <div className="lg:sticky lg:top-20 lg:self-start">
             <CenaDaBatalha
               battle={battle}
@@ -889,14 +931,24 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
         )}
 
         <div className="min-w-0 space-y-4">
-          {atual?.origem === 'inimigo' && (
+          {modoMesa && (
+            <PainelDeMesa
+              battle={battle}
+              ordenados={ordenados}
+              atual={atual}
+              onPatch={patchC}
+              onProximo={proximoTurno}
+            />
+          )}
+
+          {!modoMesa && atual?.origem === 'inimigo' && (
             <TurnoDoInimigo
               combatente={atual}
               monstro={monstros.find((m) => m.id === atual.refId)}
             />
           )}
 
-          {atual?.origem === 'aliado' && (
+          {!modoMesa && atual?.origem === 'aliado' && (
             <TurnoDoPersonagem
               combatente={atual}
               alvos={battle.combatentes.filter((c) => c.origem === 'inimigo' && c.pvAtual > 0)}
@@ -929,8 +981,10 @@ function DmView({ battle, update, ordenados }: { battle: Battle; update: UpdateF
             />
           )}
 
-          {/* Lista */}
-          <div className="space-y-4">
+          {/* Lista. No modo mesa ela dá lugar ao painel lá em cima: as duas
+              juntas seriam a mesma criatura editável em dois lugares, e a
+              segunda ficaria fora do campo de visão. */}
+          <div className={modoMesa ? 'hidden' : 'space-y-4'}>
             {aliados.length > 0 && <Grupo titulo="Grupo" cor="text-emerald-400">{aliados.map((c) => <CombatantRow
                   key={c.id}
                   c={c}

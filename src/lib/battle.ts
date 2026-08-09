@@ -384,6 +384,36 @@ export function ordenar(cs: Combatant[]): Combatant[] {
   })
 }
 
+/**
+ * A criatura perdeu a vez?
+ *
+ * Só o inimigo: monstro morre no instante em que chega a 0, e continuar
+ * chamando o turno dele seria chamar o turno de um cadáver. O aliado a 0
+ * MANTÉM a vez — é justamente nela que ele rola o teste de morte.
+ */
+export function foraDoCombate(c: Combatant): boolean {
+  return c.origem === 'inimigo' && c.pvAtual <= 0
+}
+
+/**
+ * Quem age depois de quem está agindo agora.
+ *
+ * Aplica a MESMA regra de pulo que passar de turno aplica. Sem isto, a tela
+ * anuncia "depois: Goblin" para um goblin morto que a rodada vai pular — e
+ * anunciar a criatura errada é pior do que não anunciar nada, porque o DM
+ * prepara a fala do monstro que não vem.
+ */
+export function proximoDaVez(ordenados: Combatant[], turnoIndex: number): Combatant | null {
+  const n = ordenados.length
+  if (n === 0) return null
+  for (let passos = 1; passos <= n; passos++) {
+    const c = ordenados[(turnoIndex + passos) % n]
+    if (!foraDoCombate(c)) return c
+  }
+  // Todo mundo fora: não há próximo, e devolver o primeiro seria inventar um.
+  return null
+}
+
 export interface StatusPV {
   label: string
   cor: string // classe de fundo tailwind
