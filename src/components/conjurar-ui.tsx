@@ -49,7 +49,9 @@ export function SeletorDeMagia({
   const achadas = useMemo(() => {
     if (!magias) return []
     const q = busca.trim().toLowerCase()
-    if (!q) return magias.filter((m) => m.explicada).slice(0, 40)
+    // Sem busca, as de círculo baixo primeiro: é o que mais se conjura, e
+    // quem procura a magia de 9º já sabe o nome dela.
+    if (!q) return [...magias].sort((a, b) => a.nivel - b.nivel).slice(0, 40)
     return magias
       .filter((m) => m.nomePt.toLowerCase().includes(q) || m.nome.toLowerCase().includes(q))
       .slice(0, 40)

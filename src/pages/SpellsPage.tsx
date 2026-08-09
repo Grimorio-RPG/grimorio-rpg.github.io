@@ -5,11 +5,14 @@
 // do SRD, com os campos separados e — o que interessa ao combate — a marca de
 // concentração, que é a regra que a mesa mais esquece.
 //
-// A explicação sem jargão que já tínhamos continua vencendo o texto oficial na
-// hora de mostrar. Ela não é tradução: é o que a magia faz na prática, e para
-// quem está aprendendo vale mais do que a redação do livro. O oficial fica
-// atrás, sempre disponível, porque quando a mesa discutir o alcance ou a CD é
-// ele que decide.
+// A explicação sem jargão vence o texto oficial na hora de mostrar. Ela não é
+// tradução: é o que a magia faz na prática, e para quem está aprendendo vale
+// mais do que a redação do livro. O oficial fica atrás, sempre disponível,
+// porque quando a mesa discutir o alcance ou a CD é ele que decide.
+//
+// Existiu aqui um filtro "só as explicadas". Ele fazia sentido quando 271 das
+// 339 não tinham explicação; hoje mostraria 339 de 339, que não é filtro — é
+// um botão que ensina que existem duas qualidades de magia no catálogo.
 
 import { useEffect, useMemo, useState } from 'react'
 import {
@@ -28,7 +31,6 @@ export default function SpellsPage() {
   const [busca, setBusca] = useState('')
   const [nivel, setNivel] = useState<number | 'todos'>('todos')
   const [classe, setClasse] = useState<string>('todas')
-  const [soExplicadas, setSoExplicadas] = useState(false)
   const [aberta, setAberta] = useState<string | null>(null)
 
   // O catálogo passa de 300 KB de texto oficial: só desce quando alguém abre
@@ -50,7 +52,6 @@ export default function SpellsPage() {
       .filter((m) => {
         if (nivel !== 'todos' && m.nivel !== nivel) return false
         if (classe !== 'todas' && !m.classesPt.includes(classe)) return false
-        if (soExplicadas && !m.explicada) return false
         if (!q) return true
         return (
           m.nomePt.toLowerCase().includes(q) ||
@@ -61,9 +62,7 @@ export default function SpellsPage() {
         )
       })
       .sort((a, b) => a.nivel - b.nivel || a.nomePt.localeCompare(b.nomePt, 'pt-BR'))
-  }, [magias, busca, nivel, classe, soExplicadas])
-
-  const explicadas = magias?.filter((m) => m.explicada).length ?? 0
+  }, [magias, busca, nivel, classe])
 
   return (
     <GlossarioProvider>
@@ -100,11 +99,6 @@ export default function SpellsPage() {
               </FilterChip>
             ))}
           </div>
-          {/* Quem está aprendendo quer as explicadas; quem procura uma regra
-              específica quer o catálogo inteiro. */}
-          <FilterChip ativo={soExplicadas} onClick={() => setSoExplicadas((v) => !v)}>
-            💡 só as explicadas ({explicadas})
-          </FilterChip>
         </Toolbar>
 
         {!magias ? (

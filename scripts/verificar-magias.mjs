@@ -135,11 +135,13 @@ checar('e as classes também', bola?.classesPt.includes('Mago'))
 checar('com a explicação sem jargão', !!bola?.emMiudos && bola.explicada === true)
 checar('e o texto oficial continua lá', bola?.texto.includes('bright streak'))
 
-const semExplicacao = CAT.find((m) => !m.explicada)
-checar('a que não temos ainda é marcada como não explicada', semExplicacao?.explicada === false)
-checar('mas o texto oficial dela está lá', (semExplicacao?.texto.length ?? 0) > 20)
-checar('e mesmo sem explicação o nome vem em português',
-  semExplicacao?.nomePt !== semExplicacao?.nome, semExplicacao?.nome)
+// A explicação do arquivo novo não pode passar por cima das 68 que já estavam
+// na mesa: trocar a redação que o jogador já leu seria mexer no que funciona.
+const orbe = CAT.find((m) => m.nome === 'Chromatic Orb')
+checar('a magia sem resumo antigo ganha a explicação nova',
+  orbe?.explicada === true && /escolhe o tipo de dano/i.test(orbe?.emMiudos ?? ''),
+  orbe?.emMiudos)
+checar('e o texto oficial dela continua lá', (orbe?.texto.length ?? 0) > 20)
 
 // ---------------------------------------------------------------------------
 console.log('Os nomes')
@@ -176,10 +178,30 @@ for (const [ingles, portugues] of [
   checar(`${ingles} → ${portugues}`, m?.nomePt === portugues, `deu ${m?.nomePt}`)
 }
 
-const explicadas = CAT.filter((m) => m.explicada).length
-console.log(`  · ${explicadas} de ${CAT.length} com explicação nossa`)
-checar('quase todas as nossas acharam par', explicadas >= SPELLS.length - 2,
-  `${explicadas} para ${SPELLS.length} escritas`)
+// ---------------------------------------------------------------------------
+console.log('As explicações')
+//
+// Antes eram 68 de 339, e o jogador topou com isso na hora em que mais
+// importava: escolhendo as magias do mago dele, com o texto oficial em inglês
+// no lugar da explicação. Agora a cobrança é sobre TODAS — uma magia que entrar
+// no catálogo sem a sua explicação reprova aqui.
+
+const semDica = CAT.filter((m) => !m.emMiudos)
+checar('as 339 têm explicação em português', semDica.length === 0,
+  semDica.slice(0, 6).map((m) => m.nome).join(', '))
+checar('e a marca de explicada acompanha', CAT.every((m) => m.explicada))
+checar('as 68 antigas continuam sendo as 68 antigas',
+  CAT.filter((m) => nossos.has(m.nomePt)).length >= SPELLS.length - 2,
+  `${CAT.filter((m) => nossos.has(m.nomePt)).length} para ${SPELLS.length} escritas`)
+
+// Uma explicação não pode ser o texto oficial recortado: ela existe justamente
+// por NÃO ser a redação do livro.
+const emIngles = CAT.filter((m) => m.texto.slice(0, 40).includes(m.emMiudos.slice(0, 25)))
+checar('nenhuma explicação é o texto oficial recortado', emIngles.length === 0,
+  emIngles.slice(0, 4).map((m) => m.nome).join(', '))
+const curtas = CAT.filter((m) => m.emMiudos.length < 25)
+checar('nenhuma explicação é curta demais para dizer algo', curtas.length === 0,
+  curtas.map((m) => `${m.nome}: ${m.emMiudos}`).join(' | '))
 
 // Escolas e classes precisam cobrir tudo o que o SRD usa, senão a tela mostra
 // inglês no meio do português.

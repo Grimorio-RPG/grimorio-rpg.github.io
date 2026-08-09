@@ -16,6 +16,7 @@
 import { SPELLS, type Spell } from '../spells'
 import type { MagiaSrd } from './magias-srd'
 import { NOMES_PT } from './nomes-magias'
+import { EM_MIUDOS } from './em-miudos'
 
 export type { MagiaSrd } from './magias-srd'
 
@@ -75,8 +76,11 @@ export function comExplicacao(magias: MagiaSrd[]): MagiaDoCatalogo[] {
       nomePt: nomePt || m.nome,
       escolaPt: ESCOLAS[m.escola] ?? m.escola,
       classesPt: m.classes.map((c) => CLASSES[c] ?? c),
-      emMiudos: nosso?.emMiudos ?? '',
-      explicada: !!nosso?.emMiudos,
+      // As 68 escritas antes do SRD ganham do arquivo novo: elas já estavam na
+      // mesa e o jogador já as leu. Trocar por outra redação seria mexer no que
+      // funciona só porque agora existe um lugar mais organizado.
+      emMiudos: nosso?.emMiudos || EM_MIUDOS[m.nome] || '',
+      explicada: !!(nosso?.emMiudos || EM_MIUDOS[m.nome]),
     }
   })
 }
