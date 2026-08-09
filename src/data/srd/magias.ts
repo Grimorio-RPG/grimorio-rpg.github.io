@@ -17,6 +17,7 @@ import { SPELLS, type Spell } from '../spells'
 import type { MagiaSrd } from './magias-srd'
 import { NOMES_PT } from './nomes-magias'
 import { EM_MIUDOS } from './em-miudos'
+import { perfilDe, type PerfilDeMagia } from '../../lib/magia-perfil'
 
 export type { MagiaSrd } from './magias-srd'
 
@@ -53,6 +54,12 @@ export interface MagiaDoCatalogo extends MagiaSrd {
   emMiudos: string
   /** Temos explicação nossa para esta magia? */
   explicada: boolean
+  /**
+   * O que ela faz, lido do texto oficial: dano ou suporte, quanto, contra qual
+   * salvaguarda, se pega o grupo. É o que separa uma linha da outra na hora de
+   * escolher — sem isso a lista é uma parede de nomes.
+   */
+  perfil: PerfilDeMagia
 }
 
 /**
@@ -81,6 +88,7 @@ export function comExplicacao(magias: MagiaSrd[]): MagiaDoCatalogo[] {
       // funciona só porque agora existe um lugar mais organizado.
       emMiudos: nosso?.emMiudos || EM_MIUDOS[m.nome] || '',
       explicada: !!(nosso?.emMiudos || EM_MIUDOS[m.nome]),
+      perfil: perfilDe(m),
     }
   })
 }

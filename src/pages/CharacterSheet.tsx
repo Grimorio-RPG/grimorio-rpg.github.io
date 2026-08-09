@@ -771,14 +771,38 @@ function SpellsSection({
   const atk = spellAttackBonus(char)
   const falta = useMemo(() => oQueFalta(char), [char])
   const [escolhendo, setEscolhendo] = useState<0 | 1 | null>(null)
+  // A trava. Ligada por padrão porque passar da cota era fácil demais: o
+  // contador só ficava vermelho DEPOIS, e ninguém desfaz o que já anotou.
+  const [alemDoLimite, setAlemDoLimite] = useState(false)
 
   const jaTem = useMemo(
     () => new Set(char.magias.map((m) => m.nome.toLowerCase())),
     [char.magias],
   )
 
+  const livro = usaGrimorio(char.classe)
+
+  /**
+   * Esta cota já está cheia?
+   *
+   * Truques e grimório são o que se APRENDE, e não voltam atrás; preparadas é o
+   * que se carrega hoje. São três limites diferentes e o app tratava os três
+   * como enfeite — mostrava o número e deixava passar.
+   */
+  const cheio = falta
+    ? {
+        truques: falta.tem.truques >= falta.quota.truques,
+        aprender: livro
+          ? falta.tem.anotadas >= falta.quota.grimorio
+          : falta.tem.preparadas >= falta.quota.preparadas,
+        preparar: falta.tem.preparadas >= falta.quota.preparadas,
+      }
+    : { truques: false, aprender: false, preparar: false }
+
   function addMagia(nome: string, nivel: number, preparada: boolean, original?: string) {
     if (!nome.trim() || jaTem.has(nome.trim().toLowerCase())) return
+    // A mesma trava do botão, aqui atrás: a subida de nível também chama isto.
+    if (!alemDoLimite && (nivel === 0 ? cheio.truques : cheio.aprender)) return
     const nova: SpellRef = {
       id: uid(),
       nome: nome.trim(),
@@ -806,7 +830,6 @@ function SpellsSection({
   }, [char.magias])
 
   const conjura = info?.conjuracao != null || char.atributoConjuracao != null
-  const livro = usaGrimorio(char.classe)
 
   return (
     <SectionCard
@@ -861,7 +884,7 @@ function SpellsSection({
             </p>
           )}
 
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               className="btn-ghost py-1 text-xs"
               onClick={() => setEscolhendo(escolhendo === 0 ? null : 0)}
@@ -874,6 +897,23 @@ function SpellsSection({
             >
               {escolhendo === 1 ? '× Fechar' : livro ? '+ Magias para o grimório' : '+ Magias'}
             </button>
+
+            {/* A saída para os casos legítimos: magia de domínio que não conta,
+                pergaminho copiado, talento. Existe porque um app que só sabe o
+                caminho certo vira um app que impede — mas fica DESLIGADA, que
+                era o que faltava. */}
+            <label
+              className="ml-auto flex items-center gap-1.5 text-[11px] text-parchment-200/50"
+              title="Magias de domínio, de talento ou copiadas de pergaminho podem passar da cota."
+            >
+              <input
+                type="checkbox"
+                checked={alemDoLimite}
+                onChange={(e) => setAlemDoLimite(e.target.checked)}
+                className="h-3 w-3 accent-dragon-500"
+              />
+              ir além do limite
+            </label>
           </div>
 
           {escolhendo !== null && (
@@ -889,6 +929,14 @@ function SpellsSection({
                     : livro
                       ? falta.grimorio
                       : falta.preparadas
+                }
+                cheio={!alemDoLimite && (escolhendo === 0 ? cheio.truques : cheio.aprender)}
+                aviso={
+                  escolhendo === 0
+                    ? `Truques cheios (${falta.tem.truques}/${falta.quota.truques}).`
+                    : livro
+                      ? `Grimório cheio (${falta.tem.anotadas}/${falta.quota.grimorio}).`
+                      : `Já com ${falta.tem.preparadas} de ${falta.quota.preparadas} magias.`
                 }
                 onEscolher={(m) =>
                   // Fora do grimório, anotar é preparar: não há livro por trás
@@ -920,12 +968,20 @@ function SpellsSection({
                     {nivel === 0 ? (
                       <span className="w-4 text-center text-xs text-parchment-200/30" title="Truques estão sempre disponíveis">∞</span>
                     ) : (
+                      // Desmarcar é sempre livre; marcar é que passava do
+                      // limite sem que nada segurasse. O aviso vermelho vinha
+                      // depois do estrago, quando a pessoa já tinha escolhido.
                       <input
                         type="checkbox"
                         checked={m.preparada}
+                        disabled={!m.preparada && !alemDoLimite && cheio.preparar}
                         onChange={(e) => patch(m.id, { preparada: e.target.checked })}
-                        title="Preparada"
-                        className="h-4 w-4 accent-arcane-500"
+                        title={
+                          !m.preparada && !alemDoLimite && cheio.preparar
+                            ? `Já com ${falta?.tem.preparadas} de ${falta?.quota.preparadas} preparadas. Desmarque outra primeiro.`
+                            : 'Preparada'
+                        }
+                        className="h-4 w-4 accent-arcane-500 disabled:opacity-30"
                       />
                     )}
                     <span className="flex-1 text-sm text-parchment-100">

@@ -59,6 +59,9 @@ function improvisada(ref: SpellRef): MagiaDoCatalogo {
     tempo: '—', alcance: '—', duracao: '—', componentes: '—',
     texto: '', emMiudos: '', explicada: false,
     concentracao: false, ritual: false,
+    // Sem texto oficial não há o que ler: o perfil sai vazio em vez de chutar
+    // que a magia caseira é de utilidade e não pega ninguém.
+    perfil: { papel: 'utilidade', ataque: false, area: false },
   }
 }
 
