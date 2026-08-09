@@ -78,7 +78,20 @@ export function aoMudar(antes: Combatant, depois: Partial<Combatant>): Consequen
     return { caiu: true, motivo: `ficou ${condicao}`, teste: null }
   }
 
-  const dano = antes.pvAtual - pvNovo
+  /**
+   * O DANO SOFRIDO, que não é o mesmo que o PV perdido.
+   *
+   * A vida temporária cria a diferença: um mago com 10 temporários que leva 30
+   * perde 20 de vida, mas SOFREU 30 — e a salvaguarda é contra metade de 30.
+   * Contar só o PV perdido daria CD 10 no lugar de CD 15, e a magia ficaria
+   * mais fácil de segurar justamente para quem estava protegido.
+   *
+   * Colchão que SOBE é bênção recebida, não golpe: só o que encolheu conta.
+   */
+  const tempAntes = antes.pvTemporario ?? 0
+  const tempDepois = depois.pvTemporario ?? tempAntes
+  const absorvido = Math.max(0, tempAntes - tempDepois)
+  const dano = antes.pvAtual - pvNovo + absorvido
   if (dano > 0) {
     return { caiu: false, motivo: '', teste: { cd: cdDeConcentracao(dano), dano } }
   }

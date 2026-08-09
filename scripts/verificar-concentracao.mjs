@@ -175,6 +175,43 @@ console.log('Soltar a magia')
 
 checar('semConcentracao limpa o campo', semConcentracao().concentracao === '')
 
+// ---------------------------------------------------------------------------
+console.log('O colchão não facilita o teste')
+//
+// A vida temporária cria a diferença entre DANO SOFRIDO e PV PERDIDO. Um mago
+// com 10 temporários que leva 30 perde 20 de vida, mas sofreu 30 — e a
+// salvaguarda é contra metade de 30. Contar só o PV perdido daria CD 10 no
+// lugar de CD 15, e a magia ficaria mais fácil de segurar justamente para quem
+// estava protegido.
+
+const protegido = mago({ pvAtual: 30, pvMax: 30, pvTemporario: 10 })
+
+const levouTrinta = aoMudar(protegido, { pvAtual: 10, pvTemporario: 0 })
+checar('a CD sai do dano sofrido', levouTrinta.teste?.cd === 15, `deu ${levouTrinta.teste?.cd}`)
+checar('e o dano mostrado também', levouTrinta.teste?.dano === 30, `deu ${levouTrinta.teste?.dano}`)
+
+// Golpe que o colchão come inteiro: o PV não muda, mas o teste acontece.
+const sóOColchao = aoMudar(protegido, { pvAtual: 30, pvTemporario: 2 })
+checar('golpe absorvido inteiro ainda pede teste', !!sóOColchao.teste)
+checar('com a CD mínima', sóOColchao.teste?.cd === 10, `deu ${sóOColchao.teste?.cd}`)
+checar('e o dano de 8', sóOColchao.teste?.dano === 8, `deu ${sóOColchao.teste?.dano}`)
+
+// Receber vida temporária é bênção, não golpe.
+checar('ganhar colchão não pede teste',
+  aoMudar(protegido, { pvTemporario: 25 }).teste === null)
+// E o caso que separa "ignorar o ganho" de "subtrair o ganho": levar dano e
+// ser abençoado no mesmo passo. Sem o piso em zero, os 15 de colchão recebido
+// CANCELAM os 10 de dano e o teste desaparece — o mago segura a magia porque
+// o clérigo curou alguém.
+const danoEBencao = aoMudar(protegido, { pvAtual: 20, pvTemporario: 25 })
+checar('levar dano e ganhar colchão ainda pede teste', !!danoEBencao.teste,
+  JSON.stringify(danoEBencao))
+checar('e o dano é só o que doeu', danoEBencao.teste?.dano === 10,
+  `deu ${danoEBencao.teste?.dano}`)
+checar('e sem informar o colchão, nada muda na conta antiga',
+  aoMudar(protegido, { pvAtual: 20 }).teste?.dano === 10,
+  `deu ${aoMudar(protegido, { pvAtual: 20 }).teste?.dano}`)
+
 if (falhas > 0) {
   console.error(`\n✗ ${falhas} de ${testes} verificações de concentração falharam`)
   process.exit(1)

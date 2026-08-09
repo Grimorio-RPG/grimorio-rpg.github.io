@@ -147,6 +147,53 @@ checar('a duração aparece', d.includes('4 rodadas'), d)
 checar('combate sem registro ainda produz a duração',
   destaquesDoCombate({ ...vazia, rodada: 1 }).some((x) => x.includes('1 rodada')))
 
+// ---------------------------------------------------------------------------
+console.log('Vida temporária no registro')
+//
+// O golpe que o colchão come inteiro não mexe no PV. Sem tratamento, ele não
+// deixava rastro nenhum: dez golpes de 1 numa Vida Falsa sumiam do registro, e
+// a luta ficava com um buraco onde aconteceu coisa.
+
+const comColchao = { ...heroi, nome: 'Elara', pvAtual: 30, pvMax: 30, pvTemporario: 10 }
+
+const soColchao = eventosDeVida(comColchao, 30, 3)
+checar('golpe absorvido gera linha', soColchao.length === 1, JSON.stringify(soColchao))
+checar('e diz que foi a vida temporária',
+  /absorvido pela vida temporária/.test(soColchao[0].texto), soColchao[0]?.texto)
+checar('com o valor certo', soColchao[0].valor === 7, String(soColchao[0]?.valor))
+
+const meioAMeio = eventosDeVida(comColchao, 25, 0)
+checar('golpe que passa do colchão soma os dois',
+  meioAMeio[0].valor === 15, String(meioAMeio[0]?.valor))
+checar('e o texto separa o que o colchão comeu',
+  /15 de dano \(10 na vida temporária\)/.test(meioAMeio[0].texto), meioAMeio[0]?.texto)
+
+checar('sem colchão, nada muda no texto',
+  /sofreu 40 de dano$/.test(eventosDeVida(inimigo, 160)[0].texto),
+  eventosDeVida(inimigo, 160)[0]?.texto)
+checar('sem dano nenhum, nenhuma linha',
+  eventosDeVida(comColchao, 30, 10).length === 0)
+// Colchão que SOBE é bênção recebida, não golpe absorvido.
+checar('ganhar vida temporária não vira dano',
+  eventosDeVida(comColchao, 30, 20).length === 0)
+
+// A CD DA CONCENTRAÇÃO SAI DO DANO SOFRIDO, e não do PV perdido. Um mago com
+// 10 temporários que leva 30 perde 20 de vida, mas SOFREU 30 — e a salvaguarda
+// é contra metade de 30. Usar o PV perdido daria CD 10 no lugar de CD 15, e a
+// magia ficaria mais fácil de segurar exatamente para quem estava protegido.
+const magoProtegido = { ...comColchao, concentracao: 'Teia' }
+const comTeste = eventosDeVida(magoProtegido, 10, 0)
+const linhaCd = comTeste.find((e) => e.tipo === 'concentracao')
+checar('o golpe pede o teste de concentração', !!linhaCd)
+checar('e a CD sai do dano SOFRIDO, não do PV perdido',
+  /CD 15/.test(linhaCd?.texto ?? ''), linhaCd?.texto)
+
+// E o golpe totalmente absorvido também pede o teste: a pessoa sofreu dano.
+const soAbsorvido = eventosDeVida(magoProtegido, 30, 0)
+checar('golpe absorvido inteiro ainda pede o teste',
+  soAbsorvido.some((e) => e.tipo === 'concentracao'),
+  JSON.stringify(soAbsorvido.map((e) => e.tipo)))
+
 if (falhas > 0) {
   console.error(`\n✗ ${falhas} de ${testes} verificações de registro falharam`)
   process.exit(1)

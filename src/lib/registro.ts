@@ -43,16 +43,32 @@ export function registrar(b: Battle, novo: Novo): EventoCombate[] {
 export function eventosDeVida(
   antes: Combatant,
   pvNovo: number,
+  /** O colchão DEPOIS do golpe. Ausente = não mudou. */
+  tempNovo?: number,
 ): Novo[] {
   const delta = pvNovo - antes.pvAtual
-  if (delta === 0) return []
+  // Quanto o colchão comeu. Vida temporária que sobe é bênção recebida, não
+  // dano — só o que ENCOLHEU conta como golpe absorvido.
+  const tempAntes = antes.pvTemporario ?? 0
+  const absorvido = tempNovo == null ? 0 : Math.max(0, tempAntes - tempNovo)
 
-  // Dano em quem está concentrando pede um teste, e a CD depende do dano —
-  // duas coisas que a mesa esquece justamente quando a luta fica interessante.
-  if (delta < 0 && antes.concentracao) {
-    const cd = cdDeConcentracao(-delta)
+  if (delta === 0 && absorvido === 0) return []
+
+  /**
+   * O DANO SOFRIDO, que não é o mesmo que o PV perdido.
+   *
+   * É a diferença que a vida temporária cria, e ela muda a CD: um mago com 10
+   * temporários que leva 30 perde 20 de vida, mas SOFREU 30 — e a salvaguarda
+   * de concentração é contra metade de 30, não de 20. Usar o PV perdido daria
+   * CD 10 no lugar de CD 15, e a magia ficaria mais fácil de segurar
+   * exatamente para quem estava protegido.
+   */
+  const dano = delta < 0 ? -delta + absorvido : absorvido
+
+  if (dano > 0 && antes.concentracao) {
+    const cd = cdDeConcentracao(dano)
     return [
-      ...eventosDeVidaBase(antes, pvNovo, delta),
+      ...eventosDeVidaBase(antes, pvNovo, delta, absorvido),
       {
         tipo: 'concentracao' as const,
         alvo: antes.nome,
@@ -62,20 +78,40 @@ export function eventosDeVida(
     ]
   }
 
-  return eventosDeVidaBase(antes, pvNovo, delta)
+  return eventosDeVidaBase(antes, pvNovo, delta, absorvido)
 }
 
-function eventosDeVidaBase(antes: Combatant, pvNovo: number, delta: number): Novo[] {
-
+function eventosDeVidaBase(
+  antes: Combatant,
+  pvNovo: number,
+  delta: number,
+  absorvido = 0,
+): Novo[] {
   const deInimigo = antes.origem === 'inimigo'
+
+  // O golpe que o colchão comeu inteiro não mexe no PV — e sem esta linha ele
+  // não deixava rastro nenhum. Dez golpes de 1 numa Vida Falsa sumiam do
+  // registro, e a luta ficava com um buraco onde aconteceu coisa.
+  if (delta === 0) {
+    return [{
+      tipo: 'dano' as const,
+      alvo: antes.nome,
+      valor: absorvido,
+      deInimigo,
+      texto: `${antes.nome} sofreu ${absorvido} — absorvido pela vida temporária`,
+    }]
+  }
+
   const eventos: Novo[] = [
     delta < 0
       ? {
           tipo: 'dano' as const,
           alvo: antes.nome,
-          valor: -delta,
+          valor: -delta + absorvido,
           deInimigo,
-          texto: `${antes.nome} sofreu ${-delta} de dano`,
+          texto: `${antes.nome} sofreu ${-delta + absorvido} de dano${
+            absorvido > 0 ? ` (${absorvido} na vida temporária)` : ''
+          }`,
         }
       : {
           tipo: 'cura' as const,

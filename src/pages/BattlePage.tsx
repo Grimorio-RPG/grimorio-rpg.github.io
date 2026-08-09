@@ -437,7 +437,7 @@ function DmView({
     let registro = battle.registro
     if (alvo && battle.emAndamento) {
       const novos = [
-        ...(p.pvAtual != null ? eventosDeVida(alvo, p.pvAtual) : []),
+        ...(p.pvAtual != null ? eventosDeVida(alvo, p.pvAtual, p.pvTemporario) : []),
         ...(p.condicoes != null ? eventosDeCondicao(alvo, p.condicoes) : []),
       ]
       for (const n of novos) registro = registrar({ ...battle, registro }, n)
