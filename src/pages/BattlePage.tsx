@@ -77,6 +77,9 @@ import { aoMudar, passouNoTeste, semConcentracao } from '../lib/concentracao'
 import { SeletorDeMagia, type Conjuracao } from '../components/conjurar-ui'
 import { PainelDeMesa } from '../components/mesa-fisica'
 import { GlossarioProvider, TextoComTermos } from '../components/glossario-ui'
+import { melhorPara, resumoCurto } from '../lib/comparar'
+import { nomeNoCatalogo } from '../lib/reconhecerEquipamento'
+import { doCatalogo as equipavelDoCatalogo } from '../data/itens-equipaveis'
 import { QuemReage, SelosDeAcao } from '../components/acoes-turno-ui'
 import { aoComecarOTurno, zerarTodos } from '../lib/acoes-turno'
 import {
@@ -2361,6 +2364,38 @@ function RegistroDeCombate({ registro }: { registro: EventoCombate[] }) {
  * Começa virado: é o momento em que a mesa mais presta atenção, e revelar de
  * uma vez desperdiça a única pausa dramática que o fim de combate tem.
  */
+/**
+ * Para quem serve cada peça do saque.
+ *
+ * "Quem fica com isto?" é a pergunta que mais atrasa a sessão depois de uma
+ * luta: cada um abre a própria ficha, faz a conta de cabeça, e quinze minutos
+ * depois o item vai para quem falou mais alto.
+ *
+ * O item do tesouro é TEXTO que o DM digitou, então passa pelo mesmo
+ * reconhecedor da importação. O que ele não reconhece continua aparecendo como
+ * está — uma linha de saque sem sugestão é melhor do que uma sugestão errada.
+ */
+function ParaQuemServe({ nome }: { nome: string }) {
+  const alvos = useMemo(() => {
+    const doCatalogo = nomeNoCatalogo(nome)
+    const equip = doCatalogo ? equipavelDoCatalogo(doCatalogo, 'saque') : null
+    if (!equip) return []
+    return melhorPara({ ...equip, nome }, loadCharacters()).slice(0, 3)
+  }, [nome])
+
+  if (alvos.length === 0) return null
+
+  return (
+    <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px]">
+      {alvos.map(({ ficha, diferencas }) => (
+        <span key={ficha.id} className="chip border-emerald-400/30 text-emerald-300/90">
+          {ficha.nome || 'Sem nome'}: {resumoCurto(diferencas, 2)}
+        </span>
+      ))}
+    </span>
+  )
+}
+
 function SaqueDoEncontro({ saque, quantos }: { saque: Saque; quantos: number }) {
   const [revelado, setRevelado] = useState(false)
   const { cada, sobra } = dividirMoedas(saque.moedas, quantos)
@@ -2402,6 +2437,7 @@ function SaqueDoEncontro({ saque, quantos }: { saque: Saque; quantos: number }) 
           {saque.itens.map((item, i) => (
             <li key={`${item}-${i}`} className="text-sm text-amber-200">
               ✦ {item}
+              <ParaQuemServe nome={item} />
             </li>
           ))}
         </ul>

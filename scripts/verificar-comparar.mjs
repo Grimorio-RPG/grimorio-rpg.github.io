@@ -21,7 +21,7 @@ const dir = mkdtempSync(join(tmpdir(), 'comp-'))
 execSync(
   `npx esbuild src/lib/comparar.ts --bundle --outdir=${dir} --format=esm --log-level=error`,
 )
-const { retratar, diferencas, seEquipasse, resumoCurto } = await import(
+const { retratar, diferencas, seEquipasse, resumoCurto, melhorPara } = await import(
   pathToFileURL(join(dir, 'comparar.js')).href
 )
 
@@ -192,6 +192,63 @@ console.log('Ficha esquisita não quebra')
 checar('ficha sem equipamentos', seEquipasse(ficha({ equipamentos: undefined }), anel1).length >= 0)
 checar('item sem efeito nenhum não muda nada',
   seEquipasse(semNada, item('vazio', { slot: 'pescoco' })).length === 0)
+
+// ---------------------------------------------------------------------------
+console.log('Quem deveria ficar com isto')
+//
+// É a pergunta que mais atrasa a sessão depois de uma luta: cada um abre a
+// própria ficha, faz a conta de cabeça, e quinze minutos depois o item vai
+// para quem falou mais alto.
+
+const semArmaduraNenhuma = ficha({ id: 'a', nome: 'Elara', equipamentos: [] })
+const jaDeCota = ficha({
+  id: 'b', nome: 'Thorn',
+  equipamentos: [item('cota', {
+    slot: 'corpo', equipado: true,
+    efeitos: [{ tipo: 'caBase', valor: 18, maxDes: 0 }],
+  })],
+})
+const cotaNova = item('achada', {
+  slot: 'corpo', efeitos: [{ tipo: 'caBase', valor: 16, maxDes: 2 }],
+})
+
+const alvos = melhorPara(cotaNova, [jaDeCota, semArmaduraNenhuma])
+checar('quem ganha mais vem primeiro', alvos[0]?.ficha.nome === 'Elara',
+  alvos.map((a) => a.ficha.nome).join(', '))
+// Quem já usa algo melhor não entra na lista. Sugerir a armadura de 16 para
+// quem veste a de 18 é o conselho que o app existe para não dar.
+checar('quem já tem melhor fica de fora',
+  !alvos.some((a) => a.ficha.nome === 'Thorn'),
+  alvos.map((a) => a.ficha.nome).join(', '))
+checar('e vem com a diferença junto',
+  alvos[0]?.diferencas.some((d) => /CA/.test(d.texto)))
+
+checar('sem ficha nenhuma, lista vazia', melhorPara(cotaNova, []).length === 0)
+checar('item sem efeito não serve a ninguém',
+  melhorPara(item('nada', { slot: 'pescoco' }), [semArmaduraNenhuma, jaDeCota]).length === 0)
+
+// A ORDEM É PELA CA. Com um candidato só, qualquer ordenação passa — foi assim
+// que a sabotagem que zera o critério escapou na primeira tentativa. Precisa de
+// dois que ganhem, com CAs diferentes, e entrando na ordem ERRADA para que só a
+// ordenação possa consertar.
+const deCouro = ficha({
+  id: 'c', nome: 'Nyx',
+  equipamentos: [item('couro', {
+    slot: 'corpo', equipado: true,
+    efeitos: [{ tipo: 'caBase', valor: 14, maxDes: 2 }],
+  })],
+})
+const pesada = item('cota-pesada', {
+  slot: 'corpo', efeitos: [{ tipo: 'caBase', valor: 18, maxDes: 0 }],
+})
+// Nyx ganha pouco (14 → 18 com teto de Destreza); Elara, que está sem nada,
+// ganha muito. Entram com Nyx primeiro de propósito.
+const ordenados = melhorPara(pesada, [deCouro, semArmaduraNenhuma])
+checar('os dois ganham alguma coisa', ordenados.length === 2,
+  ordenados.map((a) => a.ficha.nome).join(', '))
+checar('e quem ganha MAIS CA vem primeiro',
+  ordenados[0]?.ficha.nome === 'Elara',
+  ordenados.map((a) => `${a.ficha.nome}(${a.diferencas[0]?.texto})`).join(', '))
 
 if (falhas > 0) {
   console.error(`\n✗ ${falhas} de ${testes} verificações de comparação falharam`)

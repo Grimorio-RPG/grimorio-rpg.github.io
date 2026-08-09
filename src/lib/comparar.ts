@@ -128,3 +128,34 @@ export function resumoCurto(dif: Diferenca[], quantos = 3): string {
   if (dif.length === 0) return ''
   return dif.slice(0, quantos).map((d) => d.texto).join(' · ')
 }
+
+/** Para quem o item rende mais, e quanto. */
+export interface MelhorAlvo {
+  ficha: Character
+  diferencas: Diferenca[]
+}
+
+/**
+ * Quem deveria ficar com isto.
+ *
+ * É a pergunta que a mesa faz em voz alta assim que o saque aparece, e a que
+ * mais atrasa a sessão: cada um abre a própria ficha, faz a conta de cabeça, e
+ * quinze minutos depois o item vai para quem falou mais alto.
+ *
+ * A ordenação é pela CA e depois pela quantidade de ganhos — não por um "peso"
+ * inventado. Somar salvaguarda com perícia e deslocamento numa nota única
+ * exigiria decidir que uma vale duas da outra, e essa decisão é da mesa, não do
+ * app. Aqui a lista sai ordenada e visível: quem escolhe continua sendo gente.
+ */
+export function melhorPara(item: Equipamento, fichas: Character[]): MelhorAlvo[] {
+  return fichas
+    .map((ficha) => ({ ficha, diferencas: seEquipasse(ficha, item) }))
+    .filter((x) => x.diferencas.some((d) => d.bom))
+    .sort((a, b) => ganhoDeCa(b.diferencas) - ganhoDeCa(a.diferencas) ||
+      b.diferencas.length - a.diferencas.length)
+}
+
+function ganhoDeCa(dif: Diferenca[]): number {
+  const ca = dif.find((d) => d.texto.endsWith(' CA'))
+  return ca ? Number(ca.texto.replace(' CA', '')) : 0
+}
