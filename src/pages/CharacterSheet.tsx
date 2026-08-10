@@ -18,6 +18,10 @@ import { oQueFalta, usaGrimorio } from '../lib/conjuracao'
 import { ARMAS, ITENS_MAGICOS, acharArma } from '../data/equipment'
 import { armaduraVestida } from '../lib/equipamento'
 import { custoDeArmadura, emPalavras, proficienciasDe } from '../lib/proficiencias'
+import {
+  classes as classesDaFicha,
+  emPalavras as emPalavrasAsClasses,
+} from '../lib/multiclasse'
 import { TALENTOS } from '../data/feats'
 import { ataqueDaArma } from '../lib/weapons'
 import {
@@ -286,9 +290,10 @@ function IdentitySection({ char, update }: { char: Character; update: (p: Partia
               )}
             </div>
           </Field>
-          <Field label="Nível" hint="De 1 a 20. Sobe conforme a campanha avança e melhora quase tudo na ficha.">
+          <Field label="Nível" hint="De 1 a 20. É o nível do PERSONAGEM: a soma de todas as classes. Sobe conforme a campanha avança e melhora quase tudo na ficha.">
             <NumberField value={char.nivel} min={1} max={20} onChange={(v) => update({ nivel: Math.max(1, Math.min(20, v)) })} />
           </Field>
+          <OutrasClasses char={char} update={update} />
           <Field label="Antecedente" hint={ant?.resumo ?? 'O passado do personagem. Nas regras de 2024, concede perícias, um talento e aumentos de atributo.'}>
             <SelectField
               value={char.antecedente}
@@ -1022,6 +1027,91 @@ function SpellsSection({
         </div>
       )}
     </SectionCard>
+  )
+}
+
+/**
+ * As outras classes da ficha.
+ *
+ * O nível de PERSONAGEM continua sendo um só, lá em cima, e o que se põe aqui
+ * sai dele: um nível 5 com "Mago 2" é um Guerreiro 3 / Mago 2. Pedir os dois
+ * números separados deixaria os dois desencontrados no dia em que alguém
+ * editasse só um — e o nível de personagem é o que manda no bônus de
+ * proficiência, nos dados de vida e na XP.
+ */
+function OutrasClasses({
+  char,
+  update,
+}: {
+  char: Character
+  update: (p: Partial<Character>) => void
+}) {
+  const extras = char.classesExtras ?? []
+  const lista = classesDaFicha(char)
+  const gastos = extras.reduce((t, c) => t + c.nivel, 0)
+  const sobra = char.nivel - gastos
+
+  const mexer = (novas: { classe: string; nivel: number }[]) =>
+    update({ classesExtras: novas.filter((c) => c.classe) })
+
+  return (
+    <Field
+      label="Outras classes (multiclasse)"
+      hint="Os níveis daqui saem do nível do personagem. O bônus de proficiência continua vindo do total; traços, recursos e magias vêm do nível em cada classe."
+    >
+      <div className="space-y-1.5">
+        {extras.map((c, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <SelectField
+              value={c.classe}
+              onChange={(v) => mexer(extras.map((x, j) => (j === i ? { ...x, classe: v } : x)))}
+              options={CLASSES.filter((o) => o.nome !== char.classe).map((o) => ({
+                value: o.nome,
+                label: `${o.nome} (${o.nomeEn})`,
+              }))}
+              placeholder="Selecione…"
+            />
+            <NumberField
+              value={c.nivel}
+              min={1}
+              max={19}
+              onChange={(v) =>
+                mexer(extras.map((x, j) => (j === i ? { ...x, nivel: Math.max(1, v) } : x)))
+              }
+            />
+            <button
+              type="button"
+              onClick={() => mexer(extras.filter((_, j) => j !== i))}
+              className="px-1 text-parchment-200/40 hover:text-dragon-400"
+              aria-label="Remover classe"
+            >
+              ✕
+            </button>
+          </div>
+        ))}
+
+        <button
+          type="button"
+          className="btn-ghost py-1 text-xs"
+          onClick={() => mexer([...extras, { classe: '', nivel: 1 }])}
+        >
+          + Outra classe
+        </button>
+
+        {lista.length > 1 && (
+          <p className="text-[11px] text-parchment-200/60">
+            {emPalavrasAsClasses(char)} — nível de personagem {char.nivel}.
+          </p>
+        )}
+        {/* Sem sobra, a classe principal desaparece da ficha em silêncio. */}
+        {sobra <= 0 && extras.length > 0 && (
+          <p className="text-[11px] text-dragon-300">
+            Os níveis das outras classes somam {gastos}, e o personagem tem {char.nivel}. Suba o
+            nível ou diminua aqui — senão não sobra nível nenhum para {char.classe}.
+          </p>
+        )}
+      </div>
+    </Field>
   )
 }
 

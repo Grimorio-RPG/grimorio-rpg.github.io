@@ -21,6 +21,7 @@
 import type { Character, SpellRef } from '../types'
 import { PROGRESSAO_SRD } from '../data/srd/classes-srd'
 import { maiorCirculo, temEspacos } from '../data/progression'
+import { classesQueConjuram } from './multiclasse'
 
 /**
  * Quantas magias cabem no grimório do Mago naquele nível.
@@ -132,7 +133,12 @@ export interface Falta {
  * não sobre o evento: se falta, aparece, tendo subido de nível hoje ou não.
  */
 export function oQueFalta(char: Character): Falta | null {
-  const quota = quotaDoNivel(char.classe, char.nivel)
+  // A cota é do nível NA CLASSE. Um Guerreiro 3 / Mago 2 carrega o que um mago
+  // de nível 2 carrega — e, lido como "nível 5", nem apareceria como
+  // conjurador, porque a classe principal dele não conjura.
+  const conjuradora = classesQueConjuram(char)[0]
+  if (!conjuradora) return null
+  const quota = quotaDoNivel(conjuradora.classe, conjuradora.nivel)
   if (!quota) return null
   const tem = contar(char.magias)
 

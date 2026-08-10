@@ -16,6 +16,7 @@
 import type { AbilityKey, Character } from '../types'
 import { PROGRESSAO_SRD } from '../data/srd/classes-srd'
 import { abilityMod } from './calc'
+import { classes } from './multiclasse'
 
 export type Recarga = 'curto' | 'longo'
 
@@ -69,38 +70,57 @@ const naFaixa = (porNivel: [number, number][], nivel: number): number => {
   return valor
 }
 
-/** O que esta ficha tem, e quanto já gastou. */
+/**
+ * O que esta ficha tem, e quanto já gastou.
+ *
+ * Os usos saem do nível NA CLASSE, e não do nível de personagem: um Bárbaro 2 /
+ * Guerreiro 3 tem duas Fúrias, e não as três de um bárbaro de nível 5. Contar
+ * pelo nível de personagem erra sempre para cima, que é o lado em que ninguém
+ * reclama.
+ */
 export function recursosDoPersonagem(char: Character): Recurso[] {
-  const nivel = Math.max(1, Math.min(20, char.nivel))
   const gastos = char.usosDeRecursos ?? {}
   const fora: Recurso[] = []
 
-  // 1. As colunas da tabela do SRD.
-  const linha = PROGRESSAO_SRD[char.classe]?.[nivel - 1]
-  for (const [nome, total] of Object.entries(linha?.[3] ?? {})) {
-    if (total > 0) fora.push({ nome, total, usados: gastos[nome] ?? 0, recarga: recargaDe(nome) })
+  for (const c of classes(char)) {
+    const nivel = Math.max(1, Math.min(20, c.nivel))
+
+    // 1. As colunas da tabela do SRD.
+    const linha = PROGRESSAO_SRD[c.classe]?.[nivel - 1]
+    for (const [nome, total] of Object.entries(linha?.[3] ?? {})) {
+      if (total > 0) fora.push({ nome, total, usados: gastos[nome] ?? 0, recarga: recargaDe(nome) })
+    }
+
+    // 2. Os que o livro escreve na coluna de traços.
+    for (const r of FORA_DA_COLUNA[c.classe] ?? []) {
+      const total = naFaixa(r.porNivel, nivel)
+      if (total > 0) fora.push({ nome: r.nome, total, usados: gastos[r.nome] ?? 0, recarga: r.recarga })
+    }
+
+    // 3. Os que valem um modificador de atributo.
+    for (const r of POR_ATRIBUTO[c.classe] ?? []) {
+      if (nivel < r.desde) continue
+      // "Mínimo de uma vez": um bardo de Carisma 10 não fica sem inspiração.
+      const total = Math.max(1, abilityMod(char.atributos[r.atributo]))
+      fora.push({
+        nome: r.nome,
+        total,
+        usados: gastos[r.nome] ?? 0,
+        recarga: r.recargaCurtaDesde != null && nivel >= r.recargaCurtaDesde ? 'curto' : 'longo',
+      })
+    }
   }
 
-  // 2. Os que o livro escreve na coluna de traços.
-  for (const r of FORA_DA_COLUNA[char.classe] ?? []) {
-    const total = naFaixa(r.porNivel, nivel)
-    if (total > 0) fora.push({ nome: r.nome, total, usados: gastos[r.nome] ?? 0, recarga: r.recarga })
+  // Duas classes podem dar o MESMO recurso — Clérigo e Paladino têm Canalizar
+  // Divindade. O livro manda somar os usos e recarregar tudo junto, então o
+  // nome fica sendo um só e os totais se somam.
+  const juntos = new Map<string, Recurso>()
+  for (const r of fora) {
+    const ja = juntos.get(r.nome)
+    if (!ja) juntos.set(r.nome, r)
+    else ja.total += r.total
   }
-
-  // 3. Os que valem um modificador de atributo.
-  for (const r of POR_ATRIBUTO[char.classe] ?? []) {
-    if (nivel < r.desde) continue
-    // "Mínimo de uma vez": um bardo de Carisma 10 não fica sem inspiração.
-    const total = Math.max(1, abilityMod(char.atributos[r.atributo]))
-    fora.push({
-      nome: r.nome,
-      total,
-      usados: gastos[r.nome] ?? 0,
-      recarga: r.recargaCurtaDesde != null && nivel >= r.recargaCurtaDesde ? 'curto' : 'longo',
-    })
-  }
-
-  return fora
+  return [...juntos.values()]
 }
 
 /**

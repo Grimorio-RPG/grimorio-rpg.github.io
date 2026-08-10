@@ -18,6 +18,7 @@ import type { Character } from '../types'
 import type { Arma, Armadura } from '../data/equipment'
 import { PROFICIENCIAS_SRD } from '../data/srd/proficiencias-srd'
 import { armaduraBase, itensAtivos, usaEscudo } from './equipamento'
+import { proficienciasSomadas } from './multiclasse'
 
 export interface ProficienciaComArmas {
   simples: boolean
@@ -52,9 +53,11 @@ const NENHUMA: ProficienciasDeClasse = {
   armaduras: { leve: false, media: false, pesada: false, escudo: false },
 }
 
-/** Tudo o que esta ficha é proficiente: a classe, mais o que o campo livre diz. */
+/** Tudo o que esta ficha é proficiente: as classes, mais o que o campo livre diz. */
 export function proficienciasDe(char: Character): ProficienciasDeClasse {
-  const base = PROFICIENCIAS_SRD[char.classe] ?? NENHUMA
+  // Com mais de uma classe o treino é somado, e a classe de entrada dá menos do
+  // que daria a quem começou nela — a tabela do multiclasse mora lá.
+  const base = proficienciasSomadas(char) ?? PROFICIENCIAS_SRD[char.classe] ?? NENHUMA
   const armas = { ...base.armas, propriedades: [...base.armas.propriedades] }
   const armaduras = { ...base.armaduras }
 
@@ -69,6 +72,7 @@ export function proficienciasDe(char: Character): ProficienciasDeClasse {
   if (/armadura leve|leves?\b/.test(livre)) armaduras.leve = true
   if (/escudos?\b/.test(livre)) armaduras.escudo = true
 
+  if (armas.marciais) armas.propriedades = []
   return { armas, armaduras, ferramentas: base.ferramentas }
 }
 

@@ -7,6 +7,20 @@ import { tracosGanhosNoNivel } from '../lib/features'
 import { registrarGanho, reverterNivel } from '../lib/levelup'
 import { ganhoDoNivel, listaFixa, quotaDoNivel, usaGrimorio } from '../lib/conjuracao'
 import { aoDescansar, recursosDoPersonagem } from '../lib/recursos'
+import { classes as classesDaFicha, dadosDeVida as dadosDeVidaDasClasses } from '../lib/multiclasse'
+
+/** Os tamanhos de dado que a ficha tem, um por classe, sem repetir. */
+function dadosPorClasse(char: Character): { classe: string; faces: number }[] {
+  const vistos = new Set<number>()
+  const fora: { classe: string; faces: number }[] = []
+  for (const c of classesDaFicha(char)) {
+    const info = classInfo(c.classe)
+    if (!info || vistos.has(info.dadoDeVida)) continue
+    vistos.add(info.dadoDeVida)
+    fora.push({ classe: c.classe, faces: info.dadoDeVida })
+  }
+  return fora
+}
 import { EscolherMagias } from './magias-ui'
 import { uid } from '../lib/character'
 import { ABILITIES } from '../data/rules'
@@ -31,7 +45,13 @@ function facesDoDado(char: Character): number {
 // Painel de descanso
 // ---------------------------------------------------------------------------
 export function RestPanel({ char, update }: { char: Character; update: Update }) {
-  const faces = facesDoDado(char)
+  // Com mais de uma classe os dados são de tamanhos diferentes — "3d10 + 2d6" —
+  // e quem descansa escolhe qual gastar. O app não guarda quantos de cada já
+  // foram: o total continua sendo o nível de personagem, que é o que a regra
+  // conta, e a escolha do dado é de quem está na mesa.
+  const dados = dadosPorClasse(char)
+  const [facesEscolhidas, setFacesEscolhidas] = useState<number | null>(null)
+  const faces = facesEscolhidas ?? facesDoDado(char)
   const total = char.nivel
   const disponiveis = Math.max(0, total - (char.dadosDeVidaUsados ?? 0))
   const conMod = abilityMod(char.atributos.con)
@@ -133,7 +153,8 @@ export function RestPanel({ char, update }: { char: Character; update: Update })
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h3 className="panel-title">Descanso</h3>
         <span className="text-xs text-parchment-200/60">
-          Dados de vida: <b className="text-parchment-100">{disponiveis}/{total}</b> d{faces}
+          Dados de vida: <b className="text-parchment-100">{disponiveis}/{total}</b>{' '}
+          {dados.length > 1 ? dadosDeVidaDasClasses(char) : `d${faces}`}
         </span>
       </div>
 
@@ -144,6 +165,26 @@ export function RestPanel({ char, update }: { char: Character; update: Update })
           <p className="mt-0.5 text-xs text-parchment-200/60">
             1 hora. Gaste dados de vida para curar: cada dado rola d{faces} + {conMod >= 0 ? `+${conMod}` : conMod} (CON).
           </p>
+          {/* Só aparece quando há mais de um tamanho: um seletor de uma opção
+              só é uma pergunta sem resposta possível. */}
+          {dados.length > 1 && (
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              <span className="text-xs text-parchment-200/50">Rolar</span>
+              {dados.map((d) => (
+                <button
+                  key={d.faces}
+                  type="button"
+                  onClick={() => setFacesEscolhidas(d.faces)}
+                  className={`chip text-xs ${
+                    faces === d.faces ? 'border-arcane-400/70 text-parchment-50' : 'text-parchment-200/60'
+                  }`}
+                  title={`Dado de ${d.classe}`}
+                >
+                  d{d.faces}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="mt-2 flex items-center gap-2">
             <input
               type="number"

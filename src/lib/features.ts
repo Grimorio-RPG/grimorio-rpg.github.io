@@ -9,6 +9,7 @@ import { TRACOS_DE_CLASSE, type EfeitoTraco, type TracoClasse } from '../data/fe
 import { tracosDaSubclasse } from '../data/subclasses'
 import { TRACO_ANTECEDENTE, tracosDaEspecie } from '../data/species'
 import { bonusDeEquipamento, usaEscudo, vesteArmadura } from './equipamento'
+import { classes, nivelPrincipal } from './multiclasse'
 
 /** De onde um traço veio — a ficha agrupa por isso. */
 export type Origem = 'classe' | 'subclasse' | 'especie' | 'antecedente'
@@ -29,9 +30,17 @@ function ate(nivel: number, tracos: TracoClasse[], origem: Origem): TracoComOrig
  * peneira serve para os quatro.
  */
 export function tracosDoPersonagem(char: Character): TracoComOrigem[] {
+  // Cada classe entrega os traços do NÍVEL DELA. Um Guerreiro 3 / Mago 2 lendo
+  // "nível 5" ganharia os traços de guerreiro de 5 E os de mago de 5 — o erro
+  // clássico do multiclasse, e ele erra sempre para cima.
+  const daClasse = classes(char).flatMap((c) =>
+    ate(c.nivel, TRACOS_DE_CLASSE[c.classe] ?? [], 'classe'),
+  )
+  // Espécie e antecedente são do PERSONAGEM, e por isso seguem o nível dele: o
+  // sopro do Draconato cresce com a pessoa, não com uma das classes dela.
   return [
-    ...ate(char.nivel, TRACOS_DE_CLASSE[char.classe] ?? [], 'classe'),
-    ...ate(char.nivel, tracosDaSubclasse(char.subclasse), 'subclasse'),
+    ...daClasse,
+    ...ate(nivelPrincipal(char), tracosDaSubclasse(char.subclasse), 'subclasse'),
     ...ate(char.nivel, tracosDaEspecie(char.especie), 'especie'),
     ...ate(char.nivel, TRACO_ANTECEDENTE(char.antecedente), 'antecedente'),
   ].sort((a, b) => a.nivel - b.nivel)

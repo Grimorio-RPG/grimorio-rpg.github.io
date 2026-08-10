@@ -14,6 +14,7 @@ import { LevelUpModal, RestPanel } from './rest-levelup'
 import { PainelDeRecursos } from './recursos-ui'
 import { custoDeArmadura, emPalavras, proficienciasDe } from '../lib/proficiencias'
 import { Conferencia } from './conferencia-ui'
+import { ehMulticlasse, emPalavras as emPalavrasAsClasses } from '../lib/multiclasse'
 import { oQueFalta, usaGrimorio } from '../lib/conjuracao'
 import { Estrada } from './estrada-ui'
 import { Original } from './layout-ui'
@@ -70,7 +71,14 @@ export default function CharacterSheetView({
             <h2 className="font-display text-2xl text-parchment-50">{char.nome || 'Sem nome'}</h2>
             <div className="mt-2 flex flex-wrap gap-1.5 text-xs">
               {char.especie && <span className="chip">{char.especie}</span>}
-              {char.classe && <span className="chip">{rotuloClasse(char.classe)}{char.subclasse ? ` · ${char.subclasse}` : ''}</span>}
+              {char.classe && (
+                <span className="chip">
+                  {/* Com duas classes, "Guerreiro" sozinho esconde metade do
+                      personagem — e é justo a metade de onde saem as magias. */}
+                  {ehMulticlasse(char) ? emPalavrasAsClasses(char) : rotuloClasse(char.classe)}
+                  {char.subclasse ? ` · ${char.subclasse}` : ''}
+                </span>
+              )}
               <span className="chip">Nível {char.nivel}</span>
               {char.antecedente && <span className="chip">{char.antecedente}</span>}
               {char.alinhamento && <span className="chip">{char.alinhamento}</span>}

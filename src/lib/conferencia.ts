@@ -14,12 +14,20 @@
 
 import type { AbilityKey, Character } from '../types'
 import { classInfo, armorClass, abilityMod, proficiencyBonus } from './calc'
-import { espacosPorNivel, maiorCirculo, temEspacos, xpDoNivel } from '../data/progression'
+import { espacosPorNivel, maiorCirculo, xpDoNivel } from '../data/progression'
 import { oQueFalta, usaGrimorio } from './conjuracao'
 import { escolhasPendentes } from './features'
 import { custoDeArmadura, proficienteComArma } from './proficiencias'
 import { armaBase, excedeSintonia, itensAtivos } from './equipamento'
 import { SKILLS } from '../data/rules'
+import {
+  classesQueConjuram,
+  ehMulticlasse,
+  emPalavras,
+  espacosDeMulticlasse,
+  faixaDePv,
+  requisitosFaltando,
+} from './multiclasse'
 
 /**
  * O quanto isto importa.
@@ -135,9 +143,26 @@ function daClasse(char: Character): Achado[] {
     return fora
   }
 
+  // Entrar numa classe por multiclasse exige 13 no atributo principal dela E no
+  // da que já se tinha. É a única regra do multiclasse que PROÍBE alguma coisa,
+  // e ela mora numa nota de rodapé que ninguém lê duas vezes.
+  for (const r of requisitosFaltando(char)) {
+    fora.push({
+      id: `multiclasse-${r.classe}`,
+      gravidade: 'erro',
+      titulo: `Sem o mínimo para multiclassar em ${r.classe}`,
+      detalhe: `Precisa de 13 em ${
+        r.bastaUm ? r.pede.map((p) => p.atributo.toUpperCase()).join(' ou ') : r.pede.map((p) => p.atributo.toUpperCase()).join(' e ')
+      }; a ficha tem ${r.pede.map((p) => `${p.atributo.toUpperCase()} ${p.tem}`).join(', ')}.`,
+    })
+  }
+
   // As salvaguardas treinadas são as DUAS da classe, e não são escolha. Uma
   // ficha importada de fora costuma trazer três, ou as do multiclasse.
-  if (info) {
+  // Com mais de uma classe isto sai da conferência: o multiclasse NÃO dá
+  // salvaguardas, então a lista certa continua sendo a da classe de origem — e
+  // adivinhar qual foi ela seria chutar.
+  if (info && !ehMulticlasse(char)) {
     const esperadas = [...info.salvaguardas].sort().join(',')
     const tem = [...char.salvaguardasProficientes].sort().join(',')
     if (esperadas !== tem) {
@@ -188,21 +213,20 @@ function daClasse(char: Character): Achado[] {
 
 function deVida(char: Character): Achado[] {
   const fora: Achado[] = []
-  const info = classInfo(char.classe)
-  if (!info || char.nivel < 1) return fora
+  if (!classInfo(char.classe) || char.nivel < 1) return fora
 
   // A faixa possível de PV máximo: o mínimo é rolar 1 em todos os dados depois
   // do primeiro, o máximo é rolar cheio. Fora dela não é sorte — é conta errada.
+  // Com mais de uma classe cada uma entra com o dado dela, senão um Guerreiro 3
+  // / Mago 2 seria conferido contra a faixa de um guerreiro de 5.
   const con = abilityMod(char.atributos.con)
-  const minimo = info.dadoDeVida + (char.nivel - 1) * 1 + char.nivel * con
-  const maximo = char.nivel * info.dadoDeVida + char.nivel * con
-
-  if (char.pvMax < minimo || char.pvMax > maximo) {
+  const faixa = faixaDePv(char)
+  if (faixa && (char.pvMax < faixa.minimo || char.pvMax > faixa.maximo)) {
     fora.push({
       id: 'pv-fora-da-faixa',
       gravidade: 'erro',
       titulo: 'PV máximo fora do possível',
-      detalhe: `${char.classe} de nível ${char.nivel} com CON ${sinal(con)} vai de ${minimo} a ${maximo} PV. A ficha tem ${char.pvMax}.`,
+      detalhe: `${emPalavras(char)} com CON ${sinal(con)} vai de ${faixa.minimo} a ${faixa.maximo} PV. A ficha tem ${char.pvMax}.`,
     })
   }
 
@@ -231,7 +255,7 @@ function deVida(char: Character): Achado[] {
 function deMagia(char: Character): Achado[] {
   const fora: Achado[] = []
 
-  if (temEspacos(char.classe) && !char.atributoConjuracao) {
+  if (classesQueConjuram(char).length > 0 && !char.atributoConjuracao) {
     fora.push({
       id: 'sem-atributo-conjuracao',
       gravidade: 'erro',
@@ -243,8 +267,14 @@ function deMagia(char: Character): Achado[] {
   // Os espaços que a tabela do SRD dá naquele nível. Uma ficha montada à mão —
   // ou subida de nível fora do app — fica com espaços a menos, e é o tipo de
   // coisa que só aparece na quarta luta do dia.
-  const esperados = espacosPorNivel(char.classe, char.nivel)
-  if (temEspacos(char.classe)) {
+  //
+  // Com mais de uma classe conjuradora a tabela é OUTRA: um Clérigo 3 / Mago 2
+  // tem os espaços de um conjurador de nível 5, e não os de um clérigo de 3.
+  const conjuradoras = classesQueConjuram(char)
+  const esperados = ehMulticlasse(char)
+    ? espacosDeMulticlasse(char)
+    : espacosPorNivel(char.classe, char.nivel)
+  if (conjuradoras.length > 0) {
     const errados: string[] = []
     for (let i = 0; i < 9; i++) {
       const tem = char.espacosMagia[i]?.total ?? 0
@@ -272,15 +302,19 @@ function deMagia(char: Character): Achado[] {
   }
 
   // Magia de círculo que a classe ainda não alcança.
-  const teto = maiorCirculo(char.classe, char.nivel)
-  if (temEspacos(char.classe)) {
+  // O maior círculo é o do melhor caminho: com duas classes conjuradoras, quem
+  // manda são os espaços combinados, e não a classe isolada.
+  const teto = ehMulticlasse(char)
+    ? espacosDeMulticlasse(char).reduce((maior, s, i) => (s.total > 0 ? i + 1 : maior), 0)
+    : maiorCirculo(char.classe, char.nivel)
+  if (conjuradoras.length > 0) {
     const altas = char.magias.filter((m) => m.nivel > teto)
     if (altas.length > 0) {
       fora.push({
         id: 'magia-alta',
         gravidade: 'aviso',
         titulo: 'Magia acima do círculo que a classe alcança',
-        detalhe: `${altas.map((m) => `${m.nome} (${m.nivel}º)`).join(', ')} — ${char.classe} de nível ${char.nivel} vai até o ${teto}º.`,
+        detalhe: `${altas.map((m) => `${m.nome} (${m.nivel}º)`).join(', ')} — ${emPalavras(char)} vai até o ${teto}º.`,
       })
     }
   }

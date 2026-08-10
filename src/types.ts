@@ -305,6 +305,16 @@ export interface Character {
    * sozinho quando o número muda.
    */
   conferenciaIgnorada?: Record<string, string>
+  /**
+   * As outras classes, quando a ficha tem mais de uma.
+   *
+   * `nivel` continua sendo o nível de PERSONAGEM — a soma de tudo —, e é dele
+   * que saem o bônus de proficiência, os testes de morte e a XP. O nível na
+   * classe principal é `nivel` menos o que está aqui. Guardar os dois em campos
+   * separados deixaria os dois desencontrados no dia em que alguém editasse só
+   * um.
+   */
+  classesExtras?: { classe: string; nivel: number }[]
   exaustao: number // 0-6 (regra 2024)
   condicoes: string[] // nomes das condições ativas
 
