@@ -7,20 +7,16 @@ import { tracosGanhosNoNivel } from '../lib/features'
 import { registrarGanho, reverterNivel } from '../lib/levelup'
 import { ganhoDoNivel, listaFixa, quotaDoNivel, usaGrimorio } from '../lib/conjuracao'
 import { aoDescansar, recursosDoPersonagem } from '../lib/recursos'
-import { classes as classesDaFicha, dadosDeVida as dadosDeVidaDasClasses } from '../lib/multiclasse'
-
-/** Os tamanhos de dado que a ficha tem, um por classe, sem repetir. */
-function dadosPorClasse(char: Character): { classe: string; faces: number }[] {
-  const vistos = new Set<number>()
-  const fora: { classe: string; faces: number }[] = []
-  for (const c of classesDaFicha(char)) {
-    const info = classInfo(c.classe)
-    if (!info || vistos.has(info.dadoDeVida)) continue
-    vistos.add(info.dadoDeVida)
-    fora.push({ classe: c.classe, faces: info.dadoDeVida })
-  }
-  return fora
-}
+import { dadosDeVida as dadosDeVidaDasClasses } from '../lib/multiclasse'
+import {
+  aoDescansarLongo as descansarLongoNosDados,
+  disponiveis as disponiveisDoDado,
+  gastar as gastarDados,
+  potes as potesDeDados,
+  sobrandoEmPalavras,
+  totalDeDados,
+  totalDisponivel,
+} from '../lib/dados-de-vida'
 import { EscolherMagias } from './magias-ui'
 import { uid } from '../lib/character'
 import { ABILITIES } from '../data/rules'
@@ -45,15 +41,16 @@ function facesDoDado(char: Character): number {
 // Painel de descanso
 // ---------------------------------------------------------------------------
 export function RestPanel({ char, update }: { char: Character; update: Update }) {
-  // Com mais de uma classe os dados são de tamanhos diferentes — "3d10 + 2d6" —
-  // e quem descansa escolhe qual gastar. O app não guarda quantos de cada já
-  // foram: o total continua sendo o nível de personagem, que é o que a regra
-  // conta, e a escolha do dado é de quem está na mesa.
-  const dados = dadosPorClasse(char)
+  // Um pote por tamanho de dado. Com uma classe só há um pote e nada muda; com
+  // duas, cada tamanho tem o seu limite — e era esse limite que faltava.
+  const dados = potesDeDados(char)
   const [facesEscolhidas, setFacesEscolhidas] = useState<number | null>(null)
-  const faces = facesEscolhidas ?? facesDoDado(char)
-  const total = char.nivel
-  const disponiveis = Math.max(0, total - (char.dadosDeVidaUsados ?? 0))
+  const faces = facesEscolhidas ?? dados[0]?.faces ?? facesDoDado(char)
+  const total = totalDeDados(char) || char.nivel
+  // O que dá para gastar É DESTE dado, e não o total: um Guerreiro 3 / Mago 2
+  // com os d10 acabados não rola d10 só porque ainda tem d6 na ficha.
+  const disponiveis = disponiveisDoDado(char, faces)
+  const sobrandoTudo = totalDisponivel(char)
   const conMod = abilityMod(char.atributos.con)
   const [qtd, setQtd] = useState(1)
   const [ultimo, setUltimo] = useState<string | null>(null)
@@ -94,7 +91,7 @@ export function RestPanel({ char, update }: { char: Character; update: Update })
     const { patch, nomes } = recarregar('curto')
     update({
       pvAtual: novo,
-      dadosDeVidaUsados: (char.dadosDeVidaUsados ?? 0) + usar,
+      ...gastarDados(char, faces, usar),
       ...patch,
     })
     setUltimo(
@@ -120,27 +117,28 @@ export function RestPanel({ char, update }: { char: Character; update: Update })
    * recuperação é vista e não deduzida.
    */
   function descansoLongo() {
-    const recupera = Math.max(1, Math.floor(total / 2))
     const antes = {
       pv: char.pvAtual,
-      dados: disponiveis,
       espacos: char.espacosMagia.reduce((t, s) => t + s.usados, 0),
       exaustao: char.exaustao,
     }
     const { patch, nomes } = recarregar('longo')
+    // Metade dos dados volta, do MAIOR para o menor. Quem escolhe quais é a
+    // pessoa, e devolver o dado bom primeiro é o que a mesa faria.
+    const dadosDeVolta = descansarLongoNosDados(char)
     update({
       pvAtual: char.pvMax,
       pvTemporario: 0,
       testesMorte: { sucessos: 0, falhas: 0 },
       exaustao: Math.max(0, char.exaustao - 1),
       espacosMagia: char.espacosMagia.map((s) => ({ ...s, usados: 0 })),
-      dadosDeVidaUsados: Math.max(0, (char.dadosDeVidaUsados ?? 0) - recupera),
+      ...dadosDeVolta.patch,
       ...patch,
     })
     setConfirmando(false)
     setAmanheceu({
       pvRecuperado: char.pvMax - antes.pv,
-      dadosDevolvidos: Math.min(recupera, total - antes.dados),
+      dadosDevolvidos: dadosDeVolta.devolvidos,
       espacosDevolvidos: antes.espacos,
       exaustaoReduzida: antes.exaustao > 0 ? 1 : 0,
       recursos: nomes,
@@ -153,8 +151,14 @@ export function RestPanel({ char, update }: { char: Character; update: Update })
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h3 className="panel-title">Descanso</h3>
         <span className="text-xs text-parchment-200/60">
-          Dados de vida: <b className="text-parchment-100">{disponiveis}/{total}</b>{' '}
-          {dados.length > 1 ? dadosDeVidaDasClasses(char) : `d${faces}`}
+          Dados de vida: <b className="text-parchment-100">{sobrandoTudo}/{total}</b>{' '}
+          {dados.length > 1 ? (
+            // Com dois tamanhos, "3/5" não diz o que dá para rolar. O que dá
+            // para rolar é "2d10 + 1d6", e é essa a pergunta no descanso.
+            <span title={dadosDeVidaDasClasses(char)}>({sobrandoEmPalavras(char)})</span>
+          ) : (
+            `d${faces}`
+          )}
         </span>
       </div>
 
@@ -170,19 +174,27 @@ export function RestPanel({ char, update }: { char: Character; update: Update })
           {dados.length > 1 && (
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
               <span className="text-xs text-parchment-200/50">Rolar</span>
-              {dados.map((d) => (
-                <button
-                  key={d.faces}
-                  type="button"
-                  onClick={() => setFacesEscolhidas(d.faces)}
-                  className={`chip text-xs ${
-                    faces === d.faces ? 'border-arcane-400/70 text-parchment-50' : 'text-parchment-200/60'
-                  }`}
-                  title={`Dado de ${d.classe}`}
-                >
-                  d{d.faces}
-                </button>
-              ))}
+              {dados.map((d) => {
+                const sobram = Math.max(0, d.total - d.gastos)
+                return (
+                  <button
+                    key={d.faces}
+                    type="button"
+                    onClick={() => setFacesEscolhidas(d.faces)}
+                    disabled={sobram === 0}
+                    className={`chip text-xs ${
+                      faces === d.faces
+                        ? 'border-arcane-400/70 text-parchment-50'
+                        : sobram === 0
+                          ? 'opacity-40'
+                          : 'text-parchment-200/60'
+                    }`}
+                    title={`${d.classes.join(', ')} — ${sobram} de ${d.total}`}
+                  >
+                    {sobram}d{d.faces}
+                  </button>
+                )
+              })}
             </div>
           )}
           <div className="mt-2 flex items-center gap-2">
@@ -205,7 +217,15 @@ export function RestPanel({ char, update }: { char: Character; update: Update })
               ☕ Só a hora — devolve {gastosNoCurto.map((r) => r.nome).join(', ')}
             </button>
           )}
-          {disponiveis === 0 && <p className="mt-2 text-xs text-dragon-400">Sem dados de vida — só um descanso longo devolve.</p>}
+          {disponiveis === 0 && (
+            <p className="mt-2 text-xs text-dragon-400">
+              {sobrandoTudo > 0
+                ? // Só ESTE tamanho acabou. Dizer "sem dados de vida" com d6 na
+                  // ficha seria o app mentindo sobre o próprio limite.
+                  `Os d${faces} acabaram — ainda há ${sobrandoEmPalavras(char)}.`
+                : 'Sem dados de vida — só um descanso longo devolve.'}
+            </p>
+          )}
         </div>
 
         {/* Longo */}

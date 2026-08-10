@@ -28,6 +28,7 @@ import {
   faixaDePv,
   requisitosFaltando,
 } from './multiclasse'
+import { potes as potesDeDados } from './dados-de-vida'
 
 /**
  * O quanto isto importa.
@@ -247,6 +248,20 @@ function deVida(char: Character): Achado[] {
       titulo: 'Dados de vida gastos além do que existe',
       detalhe: `${dados} gastos de ${char.nivel} que a ficha tem.`,
     })
+  }
+
+  // E por TAMANHO: um Guerreiro 3 / Mago 2 pode ter cinco gastos no total e
+  // ainda assim ter gastado quatro d10, que são só três.
+  for (const p of potesDeDados(char)) {
+    const registrados = char.dadosDeVidaGastos?.[String(p.faces)] ?? 0
+    if (registrados > p.total) {
+      fora.push({
+        id: `dados-de-vida-d${p.faces}`,
+        gravidade: 'erro',
+        titulo: `Dados d${p.faces} gastos além do que existe`,
+        detalhe: `${registrados} gastos, e ${p.classes.join(' e ')} dá ${p.total}.`,
+      })
+    }
   }
 
   return fora

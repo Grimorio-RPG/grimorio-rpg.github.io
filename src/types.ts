@@ -315,6 +315,18 @@ export interface Character {
    * um.
    */
   classesExtras?: { classe: string; nivel: number }[]
+  /**
+   * Dados de vida já gastos, por TAMANHO de dado — `{ "10": 2, "6": 1 }`.
+   *
+   * Com uma classe só, `dadosDeVidaUsados` bastava. Com duas, o total não diz de
+   * quê: um Guerreiro 3 / Mago 2 tem três d10 e dois d6, e "gastou dois" deixava
+   * rolar cinco d10. O total continua sendo escrito com a soma daqui, porque é
+   * ele que o resto do app lê.
+   *
+   * Ausente numa ficha antiga significa "não sei a divisão" — e aí o gasto cai
+   * no dado maior, que é o palpite que não dá dado de graça a ninguém.
+   */
+  dadosDeVidaGastos?: Record<string, number>
   exaustao: number // 0-6 (regra 2024)
   condicoes: string[] // nomes das condições ativas
 
