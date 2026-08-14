@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
+import { NavLink } from 'react-router-dom'
 import { PageHeader } from '../components/layout-ui'
 import { Field, SectionCard, TextField } from '../components/ui'
 import { useConexao, useMesa, useSessao } from '../hooks/useSync'
-import { renomearPerfil, sair } from '../lib/sync/auth'
 import { FormLogin } from '../components/login-ui'
 import type { Situacao, Verificacao } from '../lib/sync/diagnostico'
 import { rodarDiagnostico } from '../lib/sync/diagnostico'
@@ -164,7 +164,7 @@ function AreaLogada() {
 
   return (
     <div className="space-y-4">
-      <CartaoConta />
+      <QuemSouEu />
       {carregando ? (
         <div className="card p-8 text-center text-sm text-parchment-200/60">Carregando suas mesas…</div>
       ) : mesa ? (
@@ -177,50 +177,25 @@ function AreaLogada() {
   )
 }
 
-function CartaoConta() {
+/**
+ * Quem está logado, numa linha.
+ *
+ * O cartão de conta inteiro mudou para a aba Conta — um leitor de fora achou
+ * contraintuitivo procurar login dentro de "jogar em grupo", com razão. O que
+ * fica aqui é só o suficiente para saber com qual conta você está entrando na
+ * mesa, porque entrar com a errada é o erro que esta tela pode causar.
+ */
+function QuemSouEu() {
   const { conta } = useSessao()
-  const [editando, setEditando] = useState(false)
-  const [nome, setNome] = useState(conta?.nome ?? '')
-
-  useEffect(() => setNome(conta?.nome ?? ''), [conta?.nome])
-
   if (!conta) return null
-
   return (
-    <div className="card flex flex-wrap items-center gap-3 p-4">
-      <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-arcane-600/30 text-lg">
-        🧙
-      </div>
-      <div className="min-w-0 flex-1">
-        {editando ? (
-          <div className="flex gap-2">
-            <TextField value={nome} onChange={setNome} placeholder="Seu nome" />
-            <button
-              type="button"
-              className="btn-primary shrink-0"
-              onClick={async () => {
-                await renomearPerfil(nome)
-                setEditando(false)
-              }}
-            >
-              Salvar
-            </button>
-          </div>
-        ) : (
-          <>
-            <p className="truncate font-medium text-parchment-50">{conta.nome}</p>
-            <p className="truncate text-xs text-parchment-200/60">{conta.email}</p>
-          </>
-        )}
-      </div>
-      {!editando && (
-        <button type="button" className="btn-ghost" onClick={() => setEditando(true)}>
-          Renomear
-        </button>
-      )}
-      <button type="button" className="btn-ghost" onClick={() => void sair()}>
-        Sair da conta
-      </button>
+    <div className="flex flex-wrap items-center gap-2 text-xs text-parchment-200/60">
+      <span>🧙</span>
+      <span className="text-parchment-100">{conta.nome}</span>
+      <span className="truncate">{conta.email}</span>
+      <NavLink to="/conta" className="ml-auto text-arcane-400 hover:underline">
+        Conta e perfil
+      </NavLink>
     </div>
   )
 }
@@ -464,6 +439,8 @@ function TrocarMesa({ atualId }: { atualId: string | null }) {
   const [mesas, setMesas] = useState<Mesa[]>([])
   const [codigo, setCodigo] = useState('')
   const [erro, setErro] = useState('')
+  const [novaMesa, setNovaMesa] = useState('')
+  const [criando, setCriando] = useState(false)
 
   useEffect(() => {
     void listarMesas().then(setMesas)
@@ -498,28 +475,64 @@ function TrocarMesa({ atualId }: { atualId: string | null }) {
       )}
 
       {atualId && (
-        <div className="flex items-end gap-2">
-          <Field label="Entrar em outra mesa" className="flex-1">
-            <input
-              value={codigo}
-              onChange={(e) => setCodigo(e.target.value.toUpperCase())}
-              placeholder="ABC123"
-              maxLength={6}
-              className="stat-input tracking-[0.2em]"
-            />
-          </Field>
-          <button
-            type="button"
-            className="btn-ghost"
-            onClick={async () => {
-              const r = await entrarNaMesa(codigo)
-              setErro(r.ok ? '' : (r.erro ?? ''))
-              if (r.ok) setCodigo('')
-            }}
-          >
-            Entrar
-          </button>
-        </div>
+        <>
+          <div className="flex items-end gap-2">
+            <Field label="Entrar em outra mesa" className="flex-1">
+              <input
+                value={codigo}
+                onChange={(e) => setCodigo(e.target.value.toUpperCase())}
+                placeholder="ABC123"
+                maxLength={6}
+                className="stat-input tracking-[0.2em]"
+              />
+            </Field>
+            <button
+              type="button"
+              className="btn-ghost"
+              onClick={async () => {
+                const r = await entrarNaMesa(codigo)
+                setErro(r.ok ? '' : (r.erro ?? ''))
+                if (r.ok) {
+                  setCodigo('')
+                  void listarMesas().then(setMesas)
+                }
+              }}
+            >
+              Entrar
+            </button>
+          </div>
+
+          {/* Criar OUTRA mesa. O banco sempre soube guardar várias — era esta
+              tela que sumia com o formulário depois da primeira, e quem mestra
+              duas campanhas ficava sem caminho nenhum. */}
+          <div className="mt-3 flex items-end gap-2 border-t border-white/10 pt-3">
+            <Field label="Criar outra mesa (você vira o DM dela)" className="flex-1">
+              <input
+                value={novaMesa}
+                onChange={(e) => setNovaMesa(e.target.value)}
+                placeholder="Nome da campanha"
+                className="stat-input"
+              />
+            </Field>
+            <button
+              type="button"
+              className="btn-ghost"
+              disabled={criando}
+              onClick={async () => {
+                setCriando(true)
+                const r = await criarMesa(novaMesa || 'Minha mesa')
+                setCriando(false)
+                setErro(r.ok ? '' : (r.erro ?? ''))
+                if (r.ok) {
+                  setNovaMesa('')
+                  void listarMesas().then(setMesas)
+                }
+              }}
+            >
+              {criando ? 'Criando…' : 'Criar'}
+            </button>
+          </div>
+        </>
       )}
       {erro && <p className="mt-2 text-sm text-dragon-400">{erro}</p>}
     </SectionCard>

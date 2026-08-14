@@ -7,6 +7,10 @@ import { useSessao } from '../hooks/useSync'
 import { precarregarRota } from '../pages/rotas'
 
 const NAV = [
+  // A conta vem primeiro: "entrar" e "jogar em grupo" são perguntas
+  // diferentes, e a primeira vem antes. Escondê-la dentro da Mesa fazia quem só
+  // queria guardar a ficha na nuvem passar por convite, código e papel de DM.
+  { to: '/conta', label: 'Conta', icon: '🧙', desc: 'Login e perfil' },
   { to: '/fichas', label: 'Fichas', icon: '📜', desc: 'Personagens' },
   { to: '/feiticos', label: 'Feitiços', icon: '✨', desc: 'Grimório' },
   { to: '/bestiario', label: 'Bestiário', icon: '🐲', desc: 'Inimigos' },
@@ -88,7 +92,7 @@ function BotaoConta({ compacto = false }: { compacto?: boolean }) {
   if (conta) {
     return (
       <NavLink
-        to="/mesa"
+        to="/conta"
         className={
           compacto
             ? 'chip shrink-0 gap-1.5 text-xs'

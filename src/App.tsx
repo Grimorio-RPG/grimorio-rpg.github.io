@@ -17,6 +17,7 @@ import { CARREGADORES, comRecargaSeSumiu } from './pages/rotas'
 // Os `import()` vêm de `rotas.ts`, os mesmos que o menu usa para adiantar a
 // tela no passar do mouse — precisam ser a mesma expressão para o navegador
 // reaproveitar o arquivo em vez de buscá-lo outra vez.
+const ContaPage = lazy(CARREGADORES['/conta'])
 const CharacterWizard = lazy(CARREGADORES['/fichas/novo'])
 const SpellsPage = lazy(CARREGADORES['/feiticos'])
 const BestiaryPage = lazy(CARREGADORES['/bestiario'])
@@ -35,6 +36,7 @@ export default function App() {
     <Routes>
       <Route path="/" element={<Layout />}>
         <Route index element={<Navigate to="/fichas" replace />} />
+        <Route path="conta" element={<ContaPage />} />
         <Route path="fichas" element={<CharactersPage />} />
         <Route path="fichas/novo" element={<CharacterWizard />} />
         <Route path="fichas/:id" element={<CharacterSheet />} />

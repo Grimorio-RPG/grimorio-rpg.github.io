@@ -7,6 +7,7 @@
 
 /** Os `import()` crus. O menu adianta por aqui, sem efeito colateral nenhum. */
 const IMPORTAR = {
+  '/conta': () => import('./ContaPage'),
   '/fichas/novo': () => import('./CharacterWizard'),
   '/feiticos': () => import('./SpellsPage'),
   '/bestiario': () => import('./BestiaryPage'),

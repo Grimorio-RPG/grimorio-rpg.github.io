@@ -161,6 +161,38 @@ if (padrao) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// A conta e' a primeira porta
+//
+// Ela morava dentro da aba Mesa, e um leitor de fora achou contraintuitivo com
+// razao: "entrar na sua conta" e "jogar em grupo" sao perguntas diferentes, e a
+// primeira vem antes. Quem so quer guardar a ficha na nuvem nao tem por que
+// passar por convite, codigo e papel de DM.
+
+const menuDoApp = readFileSync('src/components/Layout.tsx', 'utf8')
+const ordem = [...menuDoApp.matchAll(/\{ to: '([^']+)'/g)].map((m) => m[1])
+checar('a Conta e o primeiro item do menu', ordem[0] === '/conta', ordem.slice(0, 3).join(', '))
+checar('e o botao de conta leva para la', /to="\/conta"/.test(menuDoApp))
+
+const mesaPage = readFileSync('src/pages/MesaPage.tsx', 'utf8')
+// O banco sempre soube guardar varias mesas - era a tela que sumia com o
+// formulario depois da primeira, e quem mestra duas campanhas ficava sem
+// caminho nenhum.
+checar(
+  'da para criar outra mesa ja tendo uma',
+  /Criar outra mesa/.test(mesaPage) && (mesaPage.match(/criarMesa\(/g) ?? []).length >= 2,
+  String((mesaPage.match(/criarMesa\(/g) ?? []).length),
+)
+// Ancorado no `criarMesa`: sem isso a checagem passava por causa do bloco do
+// "entrar por codigo", que tambem atualiza a lista.
+checar(
+  'a lista de mesas se atualiza depois de criar',
+  /criarMesa\([\s\S]{0,220}listarMesas\(\)\.then\(setMesas\)/.test(mesaPage),
+)
+// A identidade saiu da Mesa: dois cartoes de conta seriam duas telas para
+// manter, e a pessoa nunca saberia qual e a de verdade.
+checar('o cartao de conta saiu da Mesa', !/function CartaoConta/.test(mesaPage))
+
 if (falhas > 0) {
   console.error(`\n✗ ${falhas} de ${testes} verificações de rota falharam`)
   process.exit(1)
