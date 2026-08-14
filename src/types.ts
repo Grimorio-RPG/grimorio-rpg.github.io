@@ -572,6 +572,16 @@ export interface Campaign {
   viagem: Viagem
   /** Tabelas do DM. Ausente em campanhas antigas. */
   tabelas?: TabelaSorteavel[]
+  /**
+   * Qual edição a mesa joga, e se aceita conteúdo da outra.
+   *
+   * São duas perguntas separadas de propósito: a REGRA é uma só por mesa
+   * (meia regra produz ficha plausível e errada), mas o CONTEÚDO é escolha do
+   * DM — "jogo em 2024 e deixo pegar subclasse de 2014" é mesa legítima.
+   *
+   * Ausente em campanha antiga: o padrão é 2024, que é o que o app inteiro é.
+   */
+  regras?: { edicao: '2014' | '2024'; aceitaOutraEdicao: boolean }
 }
 
 // ---------------------------------------------------------------------------

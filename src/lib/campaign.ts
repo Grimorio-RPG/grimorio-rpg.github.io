@@ -141,13 +141,44 @@ export function loadCampaign(): Campaign {
  */
 export function persistirCampanha(c: Campaign): Campaign {
   writeJson(KEY, c)
+  avisarMudanca()
   return c
 }
 
 export function saveCampaign(c: Campaign): Campaign {
   const updated = { ...c, updatedAt: Date.now() }
   writeJson(KEY, updated)
+  avisarMudanca()
   return updated
+}
+
+/**
+ * Aviso de que a campanha mudou.
+ *
+ * Existe por causa de quem lê a campanha SEM o hook: a marca no canto do menu
+ * mostra a edição das regras, e carregar party, códex e sessões inteiros para
+ * escrever quatro letras seria pagar caro por um rótulo. Sem este aviso, ela
+ * ficava com o valor de quando a tela abriu — o DM trocava para 2014 e o menu
+ * continuava dizendo 5.5e até alguém recarregar.
+ */
+const EVENTO_CAMPANHA = 'grimorio:campanha'
+
+function avisarMudanca() {
+  try {
+    // Em microtarefa, e não na hora: `saveCampaign` é chamado de dentro do
+    // atualizador do `useState`, que roda DURANTE o render. Avisar ali faz o
+    // React reclamar de setState num componente enquanto outro renderiza — e
+    // com razão, porque é exatamente isso que estaria acontecendo.
+    queueMicrotask(() => window.dispatchEvent(new Event(EVENTO_CAMPANHA)))
+  } catch {
+    // Fora do navegador (teste em node): não há a quem avisar.
+  }
+}
+
+/** Avisa sempre que a campanha for gravada. Devolve como cancelar. */
+export function assinarCampanha(fn: () => void): () => void {
+  window.addEventListener(EVENTO_CAMPANHA, fn)
+  return () => window.removeEventListener(EVENTO_CAMPANHA, fn)
 }
 
 export function novoNpc(): Npc {

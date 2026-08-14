@@ -1,10 +1,13 @@
-import { Suspense, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { DiceTray } from './dice-ui'
 import { FormLogin } from './login-ui'
 import { Modal } from './layout-ui'
 import { useSessao } from '../hooks/useSync'
 import { precarregarRota } from '../pages/rotas'
+import { CHAVES, readRaw } from '../lib/store'
+import { assinarCampanha } from '../lib/campaign'
+import { marcaDaEdicao, regrasDe, REGRAS_PADRAO, type Edicao } from '../lib/edicao'
 
 const NAV = [
   // A conta vem primeiro: "entrar" e "jogar em grupo" são perguntas
@@ -130,6 +133,10 @@ function BotaoConta({ compacto = false }: { compacto?: boolean }) {
 }
 
 function Brand({ small = false }: { small?: boolean }) {
+  // A marca segue a edição que a mesa escolheu. Afirmar "5.5e" numa campanha
+  // que declarou 2014 é o app contradizendo a própria configuração no canto
+  // superior esquerdo de toda tela.
+  const edicao = useEdicaoDaCampanha()
   return (
     <div className="flex items-center gap-2.5">
       <img src={`${import.meta.env.BASE_URL}dragon.svg`} alt="" className={small ? 'h-8 w-8' : 'h-10 w-10'} />
@@ -137,10 +144,37 @@ function Brand({ small = false }: { small?: boolean }) {
         <p className={`font-display font-bold text-parchment-50 ${small ? 'text-lg' : 'text-xl'}`}>
           Grimório
         </p>
-        <p className="text-[10px] uppercase tracking-[0.2em] text-dragon-400">D&D 5.5e</p>
+        <p className="text-[10px] uppercase tracking-[0.2em] text-dragon-400">
+          {marcaDaEdicao(edicao)}
+        </p>
       </div>
     </div>
   )
+}
+
+/**
+ * A edição da campanha, lida direto do armazenamento.
+ *
+ * Sem o hook de campanha inteiro: o menu aparece em toda tela, e carregar a
+ * campanha completa — party, códex, sessões — para escrever quatro letras seria
+ * pagar caro por um rótulo.
+ */
+function useEdicaoDaCampanha(): Edicao {
+  const [edicao, setEdicao] = useState<Edicao>(REGRAS_PADRAO.edicao)
+  useEffect(() => {
+    const ler = () => {
+      try {
+        const bruto = readRaw(CHAVES.campanha)
+        if (bruto) setEdicao(regrasDe(JSON.parse(bruto)).edicao)
+      } catch {
+        // Campanha ilegível: fica no padrão, que é o que o app inteiro é.
+      }
+    }
+    ler()
+    // Sem assinar, o DM trocava a edição e o menu só mudava no reload seguinte.
+    return assinarCampanha(ler)
+  }, [])
+  return edicao
 }
 
 function NavItem({

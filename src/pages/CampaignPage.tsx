@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Campaign, Character, TabelaSorteavel } from '../types'
 import { useCampaign } from '../hooks/useCampaign'
+import { RegrasDaCampanha } from '../components/edicao-ui'
 import { useEstadoMesa, useMesa, useSessao } from '../hooks/useSync'
 import { ResumoDaSessao } from '../components/resumo-sessao'
 import { CHAVES_MESA } from '../lib/sync/config'
@@ -278,6 +279,12 @@ function MuralTab({
           </>
         )}
       </div>
+
+      {/* Com que livro esta mesa calcula, e o que ela aceita de fora dele.
+          Fica no Mural porque é onde o DM chega, e não numa aba de conteúdo:
+          esconder a configuração da edição dentro de "História" repetiria o
+          erro do login que morava dentro da Mesa. */}
+      {!visaoJogador && <RegrasDaCampanha campaign={campaign} update={update} />}
 
       {/* Recados */}
       {!visaoJogador && (
@@ -672,13 +679,15 @@ function HistoriaTab({ campaign, update, visaoJogador }: { campaign: Campaign; u
     )
   }
   return (
-    <div className="grid gap-4 md:grid-cols-2">
-      <SectionCard title="Sinopse" hint="A premissa da campanha, visível para todos. Ex: 'O grupo investiga desaparecimentos em Vallaki.'">
-        <TextArea value={campaign.sinopse} onChange={(v) => update({ sinopse: v })} rows={8} placeholder="Do que se trata a sua campanha?" />
-      </SectionCard>
-      <SectionCard title="Arco atual" hint="O que está acontecendo agora — o objetivo imediato do grupo.">
-        <TextArea value={campaign.arcoAtual} onChange={(v) => update({ arcoAtual: v })} rows={8} placeholder="Qual é a missão atual?" />
-      </SectionCard>
+    <div className="space-y-4">
+      <div className="grid gap-4 md:grid-cols-2">
+        <SectionCard title="Sinopse" hint="A premissa da campanha, visível para todos. Ex: 'O grupo investiga desaparecimentos em Vallaki.'">
+          <TextArea value={campaign.sinopse} onChange={(v) => update({ sinopse: v })} rows={8} placeholder="Do que se trata a sua campanha?" />
+        </SectionCard>
+        <SectionCard title="Arco atual" hint="O que está acontecendo agora — o objetivo imediato do grupo.">
+          <TextArea value={campaign.arcoAtual} onChange={(v) => update({ arcoAtual: v })} rows={8} placeholder="Qual é a missão atual?" />
+        </SectionCard>
+      </div>
     </div>
   )
 }
