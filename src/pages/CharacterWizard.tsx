@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { AbilityKey, Character, SkillKey } from '../types'
 import {
@@ -16,6 +16,12 @@ import { abilityMod, classInfo, fmtMod } from '../lib/calc'
 import { novaFicha } from '../lib/character'
 import { useCharacters } from '../hooks/useCharacters'
 import { InfoDot } from '../components/ui'
+import {
+  vantagensDaClasse,
+  vantagensDaEspecie,
+  vantagensDoAntecedente,
+  type Vantagem,
+} from '../lib/vantagens'
 
 type Metodo = 'arranjo' | 'compra' | 'manual'
 
@@ -45,6 +51,10 @@ export default function CharacterWizard() {
   const navigate = useNavigate()
   const { save } = useCharacters()
   const [passo, setPasso] = useState(0)
+  // O modo fica guardado: quem é novo continua novo na próxima ficha, e quem
+  // já conhece as classes não quer a explicação de novo toda vez.
+  const [detalhado, setDetalhado] = useState(() => lerModo())
+  useEffect(() => guardarModo(detalhado), [detalhado])
   const [s, setS] = useState<WizardState>({
     nome: '',
     jogador: '',
@@ -92,16 +102,19 @@ export default function CharacterWizard() {
           <h1 className="text-3xl text-parchment-50">Assistente de criação</h1>
           <p className="mt-1 text-sm text-parchment-200/60">Vamos montar seu personagem passo a passo — sem pressa.</p>
         </div>
-        <button className="btn-ghost" onClick={() => navigate('/fichas')}>Sair</button>
+        <div className="flex items-center gap-2">
+          <SeletorDeModo detalhado={detalhado} onTrocar={setDetalhado} />
+          <button className="btn-ghost" onClick={() => navigate('/fichas')}>Sair</button>
+        </div>
       </header>
 
       <Steps passo={passo} onGoto={(i) => i < passo && setPasso(i)} />
 
       <div className="card mt-4 p-6">
         {passo === 0 && <PassoIdentidade s={s} set={set} />}
-        {passo === 1 && <PassoEscolha titulo="Escolha sua espécie" hint="Sua ascendência define traços como visão no escuro, deslocamento e resistências." itens={ESPECIES} valor={s.especie} onEscolher={(v) => set({ especie: v })} />}
-        {passo === 2 && <PassoClasse s={s} set={set} />}
-        {passo === 3 && <PassoEscolha titulo="Escolha seu antecedente" hint="O passado do personagem. Nas regras de 2024, concede perícias e aumentos de atributo." itens={ANTECEDENTES} valor={s.antecedente} onEscolher={(v) => set({ antecedente: v })} />}
+        {passo === 1 && <PassoEscolha titulo="Escolha sua espécie" hint="Sua ascendência define traços como visão no escuro, deslocamento e resistências." itens={ESPECIES} valor={s.especie} detalhado={detalhado} vantagens={vantagensDaEspecie} onEscolher={(v) => set({ especie: v })} />}
+        {passo === 2 && <PassoClasse s={s} set={set} detalhado={detalhado} />}
+        {passo === 3 && <PassoEscolha titulo="Escolha seu antecedente" hint="O passado do personagem. Nas regras de 2024, concede perícias e aumentos de atributo." itens={ANTECEDENTES} valor={s.antecedente} detalhado={detalhado} vantagens={(_, resumo) => vantagensDoAntecedente(resumo)} onEscolher={(v) => set({ antecedente: v })} />}
         {passo === 4 && <PassoAtributos s={s} set={set} finais={finais} />}
         {passo === 5 && <PassoPericias s={s} set={set} />}
         {passo === 6 && <PassoRevisao s={s} finais={finais} info={info} />}
@@ -191,37 +204,58 @@ function PassoEscolha({
   hint,
   itens,
   valor,
+  detalhado,
+  vantagens,
   onEscolher,
 }: {
   titulo: string
   hint: string
   itens: { nome: string; resumo: string }[]
   valor: string
+  detalhado: boolean
+  /** O que se ganha escolhendo isto. Só aparece no modo iniciante. */
+  vantagens: (nome: string, resumo: string) => Vantagem[]
   onEscolher: (v: string) => void
 }) {
   return (
     <div>
       <TituloPasso titulo={titulo} hint={hint} />
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+      <div className={`mt-4 grid gap-3 ${detalhado ? '' : 'sm:grid-cols-2'}`}>
         {itens.map((it) => (
-          <CartaoEscolha key={it.nome} nome={it.nome} resumo={it.resumo} ativo={valor === it.nome} onClick={() => onEscolher(it.nome)} />
+          <CartaoEscolha
+            key={it.nome}
+            nome={it.nome}
+            resumo={it.resumo}
+            ativo={valor === it.nome}
+            vantagens={detalhado ? vantagens(it.nome, it.resumo) : undefined}
+            onClick={() => onEscolher(it.nome)}
+          />
         ))}
       </div>
     </div>
   )
 }
 
-function PassoClasse({ s, set }: { s: WizardState; set: (p: Partial<WizardState>) => void }) {
+function PassoClasse({
+  s,
+  set,
+  detalhado,
+}: {
+  s: WizardState
+  set: (p: Partial<WizardState>) => void
+  detalhado: boolean
+}) {
   return (
     <div>
       <TituloPasso titulo="Escolha sua classe" hint="O que seu personagem faz de melhor. Define pontos de vida, perícias, salvaguardas e magias." />
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+      <div className={`mt-4 grid gap-3 ${detalhado ? '' : 'sm:grid-cols-2'}`}>
         {CLASSES.map((c) => (
           <CartaoEscolha
             key={c.nome}
             nome={`${c.nome} (${c.nomeEn})`}
             resumo={c.resumo}
             ativo={s.classe === c.nome}
+            vantagens={detalhado ? vantagensDaClasse(c.nome) : undefined}
             badges={[`Dado de vida d${c.dadoDeVida}`, c.conjuracao ? 'Conjura magias' : 'Marcial']}
             onClick={() => {
               // trocar de classe reseta as perícias de classe escolhidas
@@ -513,12 +547,15 @@ function CartaoEscolha({
   resumo,
   ativo,
   badges,
+  vantagens,
   onClick,
 }: {
   nome: string
   resumo: string
   ativo: boolean
   badges?: string[]
+  /** No modo iniciante: o que se ganha, linha a linha. */
+  vantagens?: Vantagem[]
   onClick: () => void
 }) {
   return (
@@ -533,13 +570,87 @@ function CartaoEscolha({
         {ativo && <span className="text-dragon-400">✓</span>}
       </div>
       <p className="mt-1 text-xs leading-relaxed text-parchment-200/70">{resumo}</p>
-      {badges && (
+      {badges && !vantagens && (
         <div className="mt-2 flex flex-wrap gap-1.5">
           {badges.map((b) => <span key={b} className="chip">{b}</span>)}
         </div>
       )}
+
+      {/* A vantagem OBJETIVA, no instante da escolha. "Sortudo: rerrole todo 1
+          natural" decide mais do que três parágrafos sobre a cultura dos
+          halflings. */}
+      {vantagens && vantagens.length > 0 && (
+        <ul className="mt-2.5 space-y-1">
+          {vantagens.map((v) => (
+            <li key={v.nome} className="flex gap-2 text-xs leading-relaxed">
+              <span className="shrink-0">{v.icone}</span>
+              <span className="text-parchment-200/80">
+                <b className="text-parchment-100">{v.nome}:</b> {v.texto}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
     </button>
   )
+}
+
+/**
+ * Iniciante ou padrão.
+ *
+ * Duas telas para a mesma escolha: a de quem nunca jogou, que precisa saber o
+ * que ganha, e a de quem já sabe e só quer achar o nome. Uma só serviria mal
+ * aos dois — a curta esconde a decisão, e a longa vira um manual que quem já
+ * joga tem de rolar toda vez.
+ */
+function SeletorDeModo({
+  detalhado,
+  onTrocar,
+}: {
+  detalhado: boolean
+  onTrocar: (v: boolean) => void
+}) {
+  return (
+    <div className="inline-flex shrink-0 gap-1 rounded-lg border border-white/10 bg-ink-900/50 p-1 text-xs">
+      {([
+        [true, '🔰 Iniciante', 'Mostra o que cada escolha dá'],
+        [false, 'Padrão', 'Só o nome e a descrição curta'],
+      ] as const).map(([v, label, dica]) => (
+        <button
+          key={label}
+          type="button"
+          title={dica}
+          onClick={() => onTrocar(v)}
+          className={`rounded-md px-2.5 py-1 font-semibold transition ${
+            detalhado === v ? 'bg-dragon-500 text-parchment-50' : 'text-parchment-200/70 hover:text-parchment-50'
+          }`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+// O modo escolhido sobrevive à ficha: quem é novo continua novo na próxima.
+const CHAVE_MODO = 'grimorio55e.wizard.iniciante'
+
+function lerModo(): boolean {
+  try {
+    // Sem nada guardado, o padrão é o modo iniciante: quem já sabe desliga uma
+    // vez e nunca mais vê, e quem não sabe não precisa descobrir que existe.
+    return localStorage.getItem(CHAVE_MODO) !== 'nao'
+  } catch {
+    return true
+  }
+}
+
+function guardarModo(detalhado: boolean) {
+  try {
+    localStorage.setItem(CHAVE_MODO, detalhado ? 'sim' : 'nao')
+  } catch {
+    // Navegador sem armazenamento: o modo vale só nesta ficha, e tudo bem.
+  }
 }
 
 // ---------------------------------------------------------------------------
